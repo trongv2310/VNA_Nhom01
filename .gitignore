@@ -1,0 +1,83 @@
+# ==============================================================================
+# 1. Thư viện và phụ thuộc (Dependencies)
+# ==============================================================================
+node_modules/
+**/node_modules/
+package-lock.json
+# Giữ lại package-lock.json nếu bạn muốn lock phiên bản thư viện, 
+# hoặc bỏ comment dòng trên nếu muốn ignore hoàn toàn package-lock.
+
+# ==============================================================================
+# 2. File cấu hình biến môi trường (Environment variables) - BẢO MẬT
+# ==============================================================================
+# Ignore tất cả file .env của cả Frontend và Backend để tránh lộ thông tin nhạy cảm
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.backup
+**/.env
+**/.env.*
+# KHÔNG bỏ qua file .env.example để người khác biết cách cấu hình
+!**/.env.example
+
+# ==============================================================================
+# 3. Thư mục build / output của Next.js và NestJS
+# ==============================================================================
+# Build của Next.js (Frontend)
+.next/
+**/.next/
+
+# Build của NestJS (Backend)
+dist/
+**/dist/
+build/
+**/build/
+
+# Kết quả test / Coverage
+coverage/
+**/coverage/
+.nyc_output/
+
+# ==============================================================================
+# 4. Logs và File tạm (Logs & Temps)
+# ==============================================================================
+*.log
+logs
+**/*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.tmp/
+.temp/
+**/.tmp/
+**/.temp/
+
+# ==============================================================================
+# 5. File hệ thống của Hệ điều hành (OS Files)
+# ==============================================================================
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ==============================================================================
+# 6. Cấu hình của IDE / Code Editor
+# ==============================================================================
+.idea/
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.launch
+
+# Chỉ giữ lại các file chia sẻ cấu hình VSCode cần thiết, bỏ qua các file cá nhân
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
