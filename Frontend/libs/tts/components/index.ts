@@ -19,4 +19,5 @@ export * from "./TnldTheoHdld";
 export * from "./ReportPeriodManagement";
 export * from "./PermissionManagement";
 export * from "./RoleManagement";
-
+export * from "./BusinessReferenceManagement";
+export * from "./LaborCatalogManagement";

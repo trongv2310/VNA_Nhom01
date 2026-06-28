@@ -139,7 +139,13 @@ type ReportMetricTotals = {
 };
 
 type SummaryCatalogRow = {
-  catalog: LaborAccidentCatalog;
+  catalog: {
+    id: number;
+    type: LaborAccidentCatalogType;
+    code: string;
+    name: string;
+    level: number;
+  };
   totals: ReportMetricTotals;
 };
 
@@ -151,11 +157,7 @@ type OfficeExportFile = {
   contentType: string;
 };
 
-type ReportPeriodWindowStatus =
-  | 'INACTIVE'
-  | 'UPCOMING'
-  | 'OPEN'
-  | 'CLOSED';
+type ReportPeriodWindowStatus = 'INACTIVE' | 'UPCOMING' | 'OPEN' | 'CLOSED';
 
 type ReportPeriodAccess = {
   isEligible: boolean;
@@ -692,9 +694,9 @@ export class LaborAccidentReportService {
       .getMany();
 
     const totals = this.createEmptyMetricTotals();
-    const byAccidentCause = new Map<number, SummaryCatalogRow>();
-    const byInjuryFactor = new Map<number, SummaryCatalogRow>();
-    const byOccupation = new Map<number, SummaryCatalogRow>();
+    const byAccidentCause = new Map<string, SummaryCatalogRow>();
+    const byInjuryFactor = new Map<string, SummaryCatalogRow>();
+    const byOccupation = new Map<string, SummaryCatalogRow>();
     const article39Allowance = this.createEmptyMetricTotals();
 
     for (const report of reports) {
@@ -705,18 +707,29 @@ export class LaborAccidentReportService {
           this.addCatalogSummaryRow(
             byAccidentCause,
             detail.accidentCauseCatalog,
+            detail.accidentCauseCodeSnapshot,
+            detail.accidentCauseNameSnapshot,
             detail,
           );
           this.addCatalogSummaryRow(
             byInjuryFactor,
             detail.injuryFactorCatalog,
+            detail.injuryFactorCodeSnapshot,
+            detail.injuryFactorNameSnapshot,
             detail,
           );
-          this.addCatalogSummaryRow(byOccupation, detail.occupationCatalog, detail);
+          this.addCatalogSummaryRow(
+            byOccupation,
+            detail.occupationCatalog,
+            detail.occupationCodeSnapshot,
+            detail.occupationNameSnapshot,
+            detail,
+          );
         }
 
         if (
-          detail.section === LaborAccidentReportDetailSection.ARTICLE_39_ALLOWANCE
+          detail.section ===
+          LaborAccidentReportDetailSection.ARTICLE_39_ALLOWANCE
         ) {
           this.addDetailTotals(article39Allowance, detail);
         }
@@ -760,10 +773,7 @@ export class LaborAccidentReportService {
     );
   }
 
-  async exportDepartmentReport(
-    reportId: number,
-    format: OfficeExportFormat,
-  ) {
+  async exportDepartmentReport(reportId: number, format: OfficeExportFormat) {
     const report = await this.findReportByIdForDepartment(reportId);
 
     return this.createOfficeFile(
@@ -879,8 +889,7 @@ export class LaborAccidentReportService {
           : 'Báo cáo đã được Sở tiếp nhận';
     }
 
-    const canWrite =
-      isEligible && windowStatus === 'OPEN' && statusAllowsWrite;
+    const canWrite = isEligible && windowStatus === 'OPEN' && statusAllowsWrite;
 
     return {
       isEligible,
@@ -1010,7 +1019,10 @@ export class LaborAccidentReportService {
     });
   }
 
-  private async findReportByIdForBusiness(reportId: number, businessId: number) {
+  private async findReportByIdForBusiness(
+    reportId: number,
+    businessId: number,
+  ) {
     const report = await this.reportRepository.findOne({
       where: {
         id: reportId,
@@ -1093,7 +1105,9 @@ export class LaborAccidentReportService {
 
   private applyDepartmentReportFilters(
     queryBuilder: SelectQueryBuilder<LaborAccidentReport>,
-    query: ListLaborAccidentReportsQueryDto | LaborAccidentReportSummaryQueryDto,
+    query:
+      | ListLaborAccidentReportsQueryDto
+      | LaborAccidentReportSummaryQueryDto,
   ) {
     if (query.reportPeriodId?.trim()) {
       queryBuilder.andWhere('reportPeriod.id = :reportPeriodId', {
@@ -1258,7 +1272,11 @@ export class LaborAccidentReportService {
     report.totalCost =
       body.totalCost === undefined
         ? medicalCost + salaryPaymentCost + allowanceCost
-        : this.normalizeMoney(body.totalCost, report.totalCost ?? 0, 'Tổng số tiền chi phí');
+        : this.normalizeMoney(
+            body.totalCost,
+            report.totalCost ?? 0,
+            'Tổng số tiền chi phí',
+          );
     report.totalDaysOff = this.normalizeInteger(
       body.totalDaysOff,
       report.totalDaysOff ?? 0,
@@ -1285,7 +1303,9 @@ export class LaborAccidentReportService {
 
     for (const [index, item] of parsedValue.entries()) {
       if (!item || typeof item !== 'object' || Array.isArray(item)) {
-        throw new BadRequestException(`Chi tiết báo cáo dòng ${index + 1} không hợp lệ`);
+        throw new BadRequestException(
+          `Chi tiết báo cáo dòng ${index + 1} không hợp lệ`,
+        );
       }
 
       const payload = item as DetailPayload;
@@ -1319,7 +1339,11 @@ export class LaborAccidentReportService {
         LaborAccidentCatalogType.OCCUPATION,
         'Nghề nghiệp',
       );
-      const medicalCost = this.normalizeMoney(payload.medicalCost, 0, 'Chi phí y tế');
+      const medicalCost = this.normalizeMoney(
+        payload.medicalCost,
+        0,
+        'Chi phí y tế',
+      );
       const salaryPaymentCost = this.normalizeMoney(
         payload.salaryPaymentCost,
         0,
@@ -1335,19 +1359,45 @@ export class LaborAccidentReportService {
         section,
         orderNo,
         accidentCauseCatalog,
+        accidentCauseCodeSnapshot: accidentCauseCatalog?.code ?? null,
+        accidentCauseNameSnapshot: accidentCauseCatalog?.name ?? null,
         injuryFactorCatalog,
+        injuryFactorCodeSnapshot: injuryFactorCatalog?.code ?? null,
+        injuryFactorNameSnapshot: injuryFactorCatalog?.name ?? null,
         occupationCatalog,
+        occupationCodeSnapshot: occupationCatalog?.code ?? null,
+        occupationNameSnapshot: occupationCatalog?.name ?? null,
         note: this.toTrimmedValue(payload.note) ?? null,
-        totalAccidents: this.normalizeInteger(payload.totalAccidents, 0, 'Tổng số vụ'),
-        fatalAccidents: this.normalizeInteger(payload.fatalAccidents, 0, 'Số vụ có người chết'),
+        totalAccidents: this.normalizeInteger(
+          payload.totalAccidents,
+          0,
+          'Tổng số vụ',
+        ),
+        fatalAccidents: this.normalizeInteger(
+          payload.fatalAccidents,
+          0,
+          'Số vụ có người chết',
+        ),
         accidentsWithTwoOrMoreVictims: this.normalizeInteger(
           payload.accidentsWithTwoOrMoreVictims,
           0,
           'Số vụ có từ 2 người bị nạn trở lên',
         ),
-        totalVictims: this.normalizeInteger(payload.totalVictims, 0, 'Tổng số người bị nạn'),
-        femaleVictims: this.normalizeInteger(payload.femaleVictims, 0, 'Số lao động nữ'),
-        deathVictims: this.normalizeInteger(payload.deathVictims, 0, 'Số người bị chết'),
+        totalVictims: this.normalizeInteger(
+          payload.totalVictims,
+          0,
+          'Tổng số người bị nạn',
+        ),
+        femaleVictims: this.normalizeInteger(
+          payload.femaleVictims,
+          0,
+          'Số lao động nữ',
+        ),
+        deathVictims: this.normalizeInteger(
+          payload.deathVictims,
+          0,
+          'Số người bị chết',
+        ),
         severeInjuryVictims: this.normalizeInteger(
           payload.severeInjuryVictims,
           0,
@@ -1380,8 +1430,16 @@ export class LaborAccidentReportService {
           payload.totalCost === undefined
             ? medicalCost + salaryPaymentCost + allowanceCost
             : this.normalizeMoney(payload.totalCost, 0, 'Tổng số tiền chi phí'),
-        daysOff: this.normalizeInteger(payload.daysOff, 0, 'Số ngày nghỉ vì TNLĐ'),
-        propertyDamage: this.normalizeMoney(payload.propertyDamage, 0, 'Thiệt hại tài sản'),
+        daysOff: this.normalizeInteger(
+          payload.daysOff,
+          0,
+          'Số ngày nghỉ vì TNLĐ',
+        ),
+        propertyDamage: this.normalizeMoney(
+          payload.propertyDamage,
+          0,
+          'Thiệt hại tài sản',
+        ),
       });
 
       this.validateMetricPayload(
@@ -1405,7 +1463,9 @@ export class LaborAccidentReportService {
         return parsedValue;
       }
     } catch {
-      throw new BadRequestException('Chi tiết báo cáo không đúng định dạng JSON array');
+      throw new BadRequestException(
+        'Chi tiết báo cáo không đúng định dạng JSON array',
+      );
     }
 
     throw new BadRequestException('Chi tiết báo cáo phải là JSON array');
@@ -1450,7 +1510,9 @@ export class LaborAccidentReportService {
     });
 
     if (!catalog) {
-      throw new BadRequestException(`${label} không tồn tại hoặc không còn sử dụng`);
+      throw new BadRequestException(
+        `${label} không tồn tại hoặc không còn sử dụng`,
+      );
     }
 
     return catalog;
@@ -1466,8 +1528,9 @@ export class LaborAccidentReportService {
 
     const names = this.parseAttachmentNames(attachmentNames);
     const folder =
-      this.configService.get<string>('CLOUDINARY_FOLDER_LABOR_ACCIDENT_REPORTS') ||
-      'labor-accident-reports';
+      this.configService.get<string>(
+        'CLOUDINARY_FOLDER_LABOR_ACCIDENT_REPORTS',
+      ) || 'labor-accident-reports';
     const preparedAttachments: PreparedReportAttachment[] = [];
 
     try {
@@ -1506,8 +1569,7 @@ export class LaborAccidentReportService {
     preparedAttachments: PreparedReportAttachment[],
     manager: EntityManager,
   ) {
-    const attachmentType =
-      LaborAccidentReportAttachmentType.STAMPED_REPORT;
+    const attachmentType = LaborAccidentReportAttachmentType.STAMPED_REPORT;
     const reportRef = manager.create(LaborAccidentReport, { id: report.id });
     const userRef = manager.create(User, { id: user.id });
 
@@ -1629,7 +1691,11 @@ export class LaborAccidentReportService {
     return numberValue;
   }
 
-  private normalizeInteger(value: unknown, currentValue: number, label: string) {
+  private normalizeInteger(
+    value: unknown,
+    currentValue: number,
+    label: string,
+  ) {
     if (value === undefined || value === null || value === '') {
       return Number(currentValue) || 0;
     }
@@ -1684,17 +1750,27 @@ export class LaborAccidentReportService {
     const errors: string[] = [];
     const accidentDetails =
       report.details?.filter(
-        (detail) => detail.section === LaborAccidentReportDetailSection.ACCIDENT,
+        (detail) =>
+          detail.section === LaborAccidentReportDetailSection.ACCIDENT,
       ) ?? [];
 
     this.collectReportMetricErrors(report, errors);
-    this.collectReportDetailConsistencyErrors(report, report.details ?? [], errors);
+    this.collectReportDetailConsistencyErrors(
+      report,
+      report.details ?? [],
+      errors,
+    );
 
     if (this.metricValue(report, 'totalEmployees') < 1) {
-      errors.push('Tổng số lao động của cơ sở phải lớn hơn 0 trước khi gửi báo cáo');
+      errors.push(
+        'Tổng số lao động của cơ sở phải lớn hơn 0 trước khi gửi báo cáo',
+      );
     }
 
-    if (this.metricValue(report, 'totalAccidents') > 0 && !accidentDetails.length) {
+    if (
+      this.metricValue(report, 'totalAccidents') > 0 &&
+      !accidentDetails.length
+    ) {
       errors.push(
         'Vui lòng nhập chi tiết các vụ tai nạn lao động trước khi gửi báo cáo',
       );
@@ -1703,7 +1779,10 @@ export class LaborAccidentReportService {
     this.throwValidationErrors(errors);
   }
 
-  private validateMetricPayload(source: Record<string, unknown>, label: string) {
+  private validateMetricPayload(
+    source: Record<string, unknown>,
+    label: string,
+  ) {
     const errors: string[] = [];
 
     this.collectMetricPayloadErrors(source, label, errors);
@@ -1733,7 +1812,11 @@ export class LaborAccidentReportService {
       );
     }
 
-    this.collectMetricPayloadErrors(report as unknown as Record<string, unknown>, 'Tổng quan báo cáo', errors);
+    this.collectMetricPayloadErrors(
+      report as unknown as Record<string, unknown>,
+      'Tổng quan báo cáo',
+      errors,
+    );
   }
 
   private collectMetricPayloadErrors(
@@ -1772,7 +1855,14 @@ export class LaborAccidentReportService {
     const allowanceCost = this.metricValue(source, 'allowanceCost');
     const totalCost = this.metricValue(source, 'totalCost');
 
-    this.collectMaxRule(errors, label, 'Số vụ có người chết', fatalAccidents, 'Tổng số vụ', totalAccidents);
+    this.collectMaxRule(
+      errors,
+      label,
+      'Số vụ có người chết',
+      fatalAccidents,
+      'Tổng số vụ',
+      totalAccidents,
+    );
     this.collectMaxRule(
       errors,
       label,
@@ -1781,9 +1871,30 @@ export class LaborAccidentReportService {
       'Tổng số vụ',
       totalAccidents,
     );
-    this.collectMaxRule(errors, label, 'Số lao động nữ bị nạn', femaleVictims, 'Tổng số người bị nạn', totalVictims);
-    this.collectMaxRule(errors, label, 'Số người bị chết', deathVictims, 'Tổng số người bị nạn', totalVictims);
-    this.collectMaxRule(errors, label, 'Số người bị thương nặng', severeInjuryVictims, 'Tổng số người bị nạn', totalVictims);
+    this.collectMaxRule(
+      errors,
+      label,
+      'Số lao động nữ bị nạn',
+      femaleVictims,
+      'Tổng số người bị nạn',
+      totalVictims,
+    );
+    this.collectMaxRule(
+      errors,
+      label,
+      'Số người bị chết',
+      deathVictims,
+      'Tổng số người bị nạn',
+      totalVictims,
+    );
+    this.collectMaxRule(
+      errors,
+      label,
+      'Số người bị thương nặng',
+      severeInjuryVictims,
+      'Tổng số người bị nạn',
+      totalVictims,
+    );
     this.collectMaxRule(
       errors,
       label,
@@ -1818,11 +1929,15 @@ export class LaborAccidentReportService {
     );
 
     if (totalAccidents === 0 && totalVictims > 0) {
-      errors.push(`${label}: Tổng số người bị nạn phải bằng 0 khi tổng số vụ bằng 0`);
+      errors.push(
+        `${label}: Tổng số người bị nạn phải bằng 0 khi tổng số vụ bằng 0`,
+      );
     }
 
     if (totalAccidents > 0 && totalVictims < 1) {
-      errors.push(`${label}: Tổng số người bị nạn phải lớn hơn 0 khi có vụ tai nạn`);
+      errors.push(
+        `${label}: Tổng số người bị nạn phải lớn hơn 0 khi có vụ tai nạn`,
+      );
     }
 
     if (fatalAccidents > deathVictims) {
@@ -1837,7 +1952,10 @@ export class LaborAccidentReportService {
       );
     }
 
-    if (accidentsWithTwoOrMoreVictims > 0 && totalVictims < accidentsWithTwoOrMoreVictims * 2) {
+    if (
+      accidentsWithTwoOrMoreVictims > 0 &&
+      totalVictims < accidentsWithTwoOrMoreVictims * 2
+    ) {
       errors.push(
         `${label}: Tổng số người bị nạn chưa phù hợp với số vụ có từ 2 người bị nạn trở lên`,
       );
@@ -1883,17 +2001,41 @@ export class LaborAccidentReportService {
 
   private getDetailConsistencyFields() {
     return [
-      { label: 'Tổng số vụ', reportKey: 'totalAccidents', detailKey: 'totalAccidents' },
-      { label: 'Số vụ có người chết', reportKey: 'fatalAccidents', detailKey: 'fatalAccidents' },
+      {
+        label: 'Tổng số vụ',
+        reportKey: 'totalAccidents',
+        detailKey: 'totalAccidents',
+      },
+      {
+        label: 'Số vụ có người chết',
+        reportKey: 'fatalAccidents',
+        detailKey: 'fatalAccidents',
+      },
       {
         label: 'Số vụ có từ 2 người bị nạn trở lên',
         reportKey: 'accidentsWithTwoOrMoreVictims',
         detailKey: 'accidentsWithTwoOrMoreVictims',
       },
-      { label: 'Tổng số người bị nạn', reportKey: 'totalVictims', detailKey: 'totalVictims' },
-      { label: 'Số lao động nữ bị nạn', reportKey: 'femaleVictims', detailKey: 'femaleVictims' },
-      { label: 'Số người bị chết', reportKey: 'deathVictims', detailKey: 'deathVictims' },
-      { label: 'Số người bị thương nặng', reportKey: 'severeInjuryVictims', detailKey: 'severeInjuryVictims' },
+      {
+        label: 'Tổng số người bị nạn',
+        reportKey: 'totalVictims',
+        detailKey: 'totalVictims',
+      },
+      {
+        label: 'Số lao động nữ bị nạn',
+        reportKey: 'femaleVictims',
+        detailKey: 'femaleVictims',
+      },
+      {
+        label: 'Số người bị chết',
+        reportKey: 'deathVictims',
+        detailKey: 'deathVictims',
+      },
+      {
+        label: 'Số người bị thương nặng',
+        reportKey: 'severeInjuryVictims',
+        detailKey: 'severeInjuryVictims',
+      },
       {
         label: 'Số người bị nạn không thuộc quyền quản lý',
         reportKey: 'victimsNotUnderManagement',
@@ -1914,16 +2056,36 @@ export class LaborAccidentReportService {
         reportKey: 'severeInjuryVictimsNotUnderManagement',
         detailKey: 'severeInjuryVictimsNotUnderManagement',
       },
-      { label: 'Chi phí y tế', reportKey: 'medicalCost', detailKey: 'medicalCost' },
+      {
+        label: 'Chi phí y tế',
+        reportKey: 'medicalCost',
+        detailKey: 'medicalCost',
+      },
       {
         label: 'Trả lương trong thời gian điều trị',
         reportKey: 'salaryPaymentCost',
         detailKey: 'salaryPaymentCost',
       },
-      { label: 'Bồi thường/trợ cấp', reportKey: 'allowanceCost', detailKey: 'allowanceCost' },
-      { label: 'Tổng số tiền chi phí', reportKey: 'totalCost', detailKey: 'totalCost' },
-      { label: 'Tổng số ngày nghỉ vì TNLĐ', reportKey: 'totalDaysOff', detailKey: 'daysOff' },
-      { label: 'Thiệt hại tài sản', reportKey: 'propertyDamage', detailKey: 'propertyDamage' },
+      {
+        label: 'Bồi thường/trợ cấp',
+        reportKey: 'allowanceCost',
+        detailKey: 'allowanceCost',
+      },
+      {
+        label: 'Tổng số tiền chi phí',
+        reportKey: 'totalCost',
+        detailKey: 'totalCost',
+      },
+      {
+        label: 'Tổng số ngày nghỉ vì TNLĐ',
+        reportKey: 'totalDaysOff',
+        detailKey: 'daysOff',
+      },
+      {
+        label: 'Thiệt hại tài sản',
+        reportKey: 'propertyDamage',
+        detailKey: 'propertyDamage',
+      },
     ];
   }
 
@@ -2035,28 +2197,39 @@ export class LaborAccidentReportService {
   }
 
   private addCatalogSummaryRow(
-    target: Map<number, SummaryCatalogRow>,
+    target: Map<string, SummaryCatalogRow>,
     catalog: LaborAccidentCatalog | null,
+    codeSnapshot: string | null,
+    nameSnapshot: string | null,
     detail: LaborAccidentReportDetail,
   ) {
     if (!catalog) {
       return;
     }
 
-    let row = target.get(catalog.id);
+    const code = codeSnapshot ?? catalog.code;
+    const name = nameSnapshot ?? catalog.name;
+    const key = `${catalog.id}:${code}:${name}`;
+    let row = target.get(key);
 
     if (!row) {
       row = {
-        catalog,
+        catalog: {
+          id: catalog.id,
+          type: catalog.type,
+          code,
+          name,
+          level: catalog.level,
+        },
         totals: this.createEmptyMetricTotals(),
       };
-      target.set(catalog.id, row);
+      target.set(key, row);
     }
 
     this.addDetailTotals(row.totals, detail);
   }
 
-  private mapSummaryCatalogRows(target: Map<number, SummaryCatalogRow>) {
+  private mapSummaryCatalogRows(target: Map<string, SummaryCatalogRow>) {
     return Array.from(target.values())
       .sort((first, second) => {
         if (first.catalog.level !== second.catalog.level) {
@@ -2068,7 +2241,7 @@ export class LaborAccidentReportService {
         });
       })
       .map((row) => ({
-        catalog: this.mapCatalog(row.catalog),
+        catalog: row.catalog,
         totals: row.totals,
       }));
   }
@@ -2080,7 +2253,9 @@ export class LaborAccidentReportService {
         : null,
       year: query.year ? this.normalizeYear(query.year) : null,
       periodType: query.periodType ?? null,
-      periodTypeLabel: query.periodType ? PERIOD_TYPE_LABELS[query.periodType] : null,
+      periodTypeLabel: query.periodType
+        ? PERIOD_TYPE_LABELS[query.periodType]
+        : null,
       status: query.status ?? null,
       statusLabel: query.status ? REPORT_STATUS_LABELS[query.status] : null,
       provinceCity: this.toTrimmedValue(query.provinceCity) ?? null,
@@ -2156,7 +2331,8 @@ export class LaborAccidentReportService {
     );
     const article39Details = details.filter(
       (detail) =>
-        detail.section === LaborAccidentReportDetailSection.ARTICLE_39_ALLOWANCE,
+        detail.section ===
+        LaborAccidentReportDetailSection.ARTICLE_39_ALLOWANCE,
     );
     const title = `Báo cáo tai nạn lao động - ${
       report?.business?.businessName ?? report?.businessName ?? ''
@@ -2168,7 +2344,10 @@ export class LaborAccidentReportService {
         'I. Tổng số vụ tai nạn lao động và số nạn nhân tai nạn lao động',
         report,
       ),
-      this.buildReportDetailTable('1. Chi tiết các vụ tai nạn lao động', accidentDetails),
+      this.buildReportDetailTable(
+        '1. Chi tiết các vụ tai nạn lao động',
+        accidentDetails,
+      ),
       this.buildReportDetailTable(
         '2. Tai nạn được hưởng trợ cấp theo Khoản 2 Điều 39 Luật ATVSLĐ',
         article39Details,
@@ -2427,11 +2606,16 @@ export class LaborAccidentReportService {
   <colgroup>
     <col style="width: 7%" />
     <col style="width: 25%" />
-    ${this.getMetricExportColumns().map(() => '<col style="width: 6.18%" />').join('')}
+    ${this.getMetricExportColumns()
+      .map(() => '<col style="width: 6.18%" />')
+      .join('')}
   </colgroup>
   ${this.buildMetricHeaderRows([
     { labelHtml: 'M&atilde; s&#7889;', width: '7%' },
-    { labelHtml: 'T&ecirc;n ch&#7881; ti&ecirc;u th&#7889;ng k&ecirc;', width: '25%' },
+    {
+      labelHtml: 'T&ecirc;n ch&#7881; ti&ecirc;u th&#7889;ng k&ecirc;',
+      width: '25%',
+    },
   ])}
   ${
     normalizedRows.length
@@ -2452,11 +2636,21 @@ export class LaborAccidentReportService {
     const normalizedDetails = Array.isArray(details) ? details : [];
     const damageColumns = [
       { labelHtml: 'Chi ph&iacute;<br/>y t&#7871;', key: 'medicalCost' },
-      { labelHtml: 'Tr&#7843; l&#432;&#417;ng<br/>trong TG &#273;i&#7873;u tr&#7883;', key: 'salaryPaymentCost' },
-      { labelHtml: 'B&#7891;i th&#432;&#7901;ng/<br/>tr&#7907; c&#7845;p', key: 'allowanceCost' },
+      {
+        labelHtml:
+          'Tr&#7843; l&#432;&#417;ng<br/>trong TG &#273;i&#7873;u tr&#7883;',
+        key: 'salaryPaymentCost',
+      },
+      {
+        labelHtml: 'B&#7891;i th&#432;&#7901;ng/<br/>tr&#7907; c&#7845;p',
+        key: 'allowanceCost',
+      },
       { labelHtml: 'T&#7893;ng<br/>chi ph&iacute;', key: 'totalCost' },
       { labelHtml: 'S&#7889; ng&agrave;y<br/>ngh&#7881;', key: 'daysOff' },
-      { labelHtml: 'Thi&#7879;t h&#7841;i<br/>t&agrave;i s&#7843;n', key: 'propertyDamage' },
+      {
+        labelHtml: 'Thi&#7879;t h&#7841;i<br/>t&agrave;i s&#7843;n',
+        key: 'propertyDamage',
+      },
     ];
 
     return `<div class="section-title">${this.escapeHtml(title)}</div>
@@ -2467,7 +2661,9 @@ export class LaborAccidentReportService {
     <col style="width: 13%" />
     <col style="width: 13%" />
     <col style="width: 8%" />
-    ${this.getMetricExportColumns().map(() => '<col style="width: 4.8%" />').join('')}
+    ${this.getMetricExportColumns()
+      .map(() => '<col style="width: 4.8%" />')
+      .join('')}
     ${damageColumns.map(() => '<col style="width: 6%" />').join('')}
   </colgroup>
   <tr>
@@ -2481,7 +2677,9 @@ export class LaborAccidentReportService {
     <th colspan="6">Thi&#7879;t h&#7841;i</th>
   </tr>
   <tr>
-    ${this.getMetricExportColumns().map((column) => `<th>${column.labelHtml}</th>`).join('')}
+    ${this.getMetricExportColumns()
+      .map((column) => `<th>${column.labelHtml}</th>`)
+      .join('')}
     ${damageColumns.map((column) => `<th>${column.labelHtml}</th>`).join('')}
   </tr>
   ${
@@ -2552,8 +2750,9 @@ export class LaborAccidentReportService {
   ${
     normalizedAttachments.length
       ? normalizedAttachments
-          .map((attachment, index) =>
-            `<tr><td class="center">${index + 1}</td><td>${this.escapeHtml(attachment.type)}</td><td>${this.escapeHtml(attachment.displayName)}</td><td>${this.escapeHtml(attachment.originalName)}</td><td>${this.escapeHtml(attachment.fileUrl)}</td></tr>`,
+          .map(
+            (attachment, index) =>
+              `<tr><td class="center">${index + 1}</td><td>${this.escapeHtml(attachment.type)}</td><td>${this.escapeHtml(attachment.displayName)}</td><td>${this.escapeHtml(attachment.originalName)}</td><td>${this.escapeHtml(attachment.fileUrl)}</td></tr>`,
           )
           .join('\n')
       : '<tr><td colspan="5" class="empty">Ch&#432;a c&oacute; t&#7879;p &#273;&iacute;nh k&egrave;m</td></tr>'
@@ -2580,28 +2779,43 @@ export class LaborAccidentReportService {
     <th colspan="8">S&#7889; ng&#432;&#7901;i b&#7883; n&#7841;n (ng&#432;&#7901;i)</th>
   </tr>
   <tr>
-    ${this.getMetricExportColumns().map((column) => `<th>${column.labelHtml}</th>`).join('')}
+    ${this.getMetricExportColumns()
+      .map((column) => `<th>${column.labelHtml}</th>`)
+      .join('')}
   </tr>`;
   }
 
   private getMetricExportColumns() {
     return [
       { labelHtml: 'T&#7893;ng<br/>s&#7889;', key: 'totalAccidents' },
-      { labelHtml: 'C&oacute; ng&#432;&#7901;i<br/>ch&#7871;t', key: 'fatalAccidents' },
       {
-        labelHtml: 'C&oacute; t&#7915; 2<br/>ng&#432;&#7901;i b&#7883; n&#7841;n',
+        labelHtml: 'C&oacute; ng&#432;&#7901;i<br/>ch&#7871;t',
+        key: 'fatalAccidents',
+      },
+      {
+        labelHtml:
+          'C&oacute; t&#7915; 2<br/>ng&#432;&#7901;i b&#7883; n&#7841;n',
         key: 'accidentsWithTwoOrMoreVictims',
       },
       { labelHtml: 'T&#7893;ng<br/>s&#7889;', key: 'totalVictims' },
       { labelHtml: 'Lao &#273;&#7897;ng<br/>n&#7919;', key: 'femaleVictims' },
       { labelHtml: 'Ng&#432;&#7901;i<br/>ch&#7871;t', key: 'deathVictims' },
-      { labelHtml: 'Th&#432;&#417;ng<br/>n&#7863;ng', key: 'severeInjuryVictims' },
-      { labelHtml: 'B&#7883; n&#7841;n<br/>kh&ocirc;ng QL', key: 'victimsNotUnderManagement' },
+      {
+        labelHtml: 'Th&#432;&#417;ng<br/>n&#7863;ng',
+        key: 'severeInjuryVictims',
+      },
+      {
+        labelHtml: 'B&#7883; n&#7841;n<br/>kh&ocirc;ng QL',
+        key: 'victimsNotUnderManagement',
+      },
       {
         labelHtml: 'Lao &#273;&#7897;ng n&#7919;<br/>kh&ocirc;ng QL',
         key: 'femaleVictimsNotUnderManagement',
       },
-      { labelHtml: 'Ch&#7871;t<br/>kh&ocirc;ng QL', key: 'deathVictimsNotUnderManagement' },
+      {
+        labelHtml: 'Ch&#7871;t<br/>kh&ocirc;ng QL',
+        key: 'deathVictimsNotUnderManagement',
+      },
       {
         labelHtml: 'Th&#432;&#417;ng n&#7863;ng<br/>kh&ocirc;ng QL',
         key: 'severeInjuryVictimsNotUnderManagement',
@@ -2651,7 +2865,10 @@ export class LaborAccidentReportService {
 
   private joinDisplay(values: unknown[], separator = ' - ') {
     return values
-      .filter((value) => value !== undefined && value !== null && String(value).trim())
+      .filter(
+        (value) =>
+          value !== undefined && value !== null && String(value).trim(),
+      )
       .map((value) => String(value).trim())
       .join(separator);
   }
@@ -2790,7 +3007,7 @@ export class LaborAccidentReportService {
       receivedAt: report.receivedAt,
       rejectReason: report.rejectReason || null,
       details: includeDetails
-        ? report.details?.map((detail) => this.mapDetail(detail)) ?? []
+        ? (report.details?.map((detail) => this.mapDetail(detail)) ?? [])
         : undefined,
       currentAttachment,
       attachments,
@@ -2823,9 +3040,21 @@ export class LaborAccidentReportService {
       id: detail.id,
       section: detail.section,
       orderNo: detail.orderNo,
-      accidentCauseCatalog: this.mapCatalog(detail.accidentCauseCatalog),
-      injuryFactorCatalog: this.mapCatalog(detail.injuryFactorCatalog),
-      occupationCatalog: this.mapCatalog(detail.occupationCatalog),
+      accidentCauseCatalog: this.mapCatalogSnapshot(
+        detail.accidentCauseCatalog,
+        detail.accidentCauseCodeSnapshot,
+        detail.accidentCauseNameSnapshot,
+      ),
+      injuryFactorCatalog: this.mapCatalogSnapshot(
+        detail.injuryFactorCatalog,
+        detail.injuryFactorCodeSnapshot,
+        detail.injuryFactorNameSnapshot,
+      ),
+      occupationCatalog: this.mapCatalogSnapshot(
+        detail.occupationCatalog,
+        detail.occupationCodeSnapshot,
+        detail.occupationNameSnapshot,
+      ),
       note: detail.note,
       totalAccidents: Number(detail.totalAccidents) || 0,
       fatalAccidents: Number(detail.fatalAccidents) || 0,
@@ -2865,6 +3094,24 @@ export class LaborAccidentReportService {
     };
   }
 
+  private mapCatalogSnapshot(
+    catalog: LaborAccidentCatalog | null,
+    codeSnapshot: string | null,
+    nameSnapshot: string | null,
+  ) {
+    if (!catalog && !codeSnapshot && !nameSnapshot) {
+      return null;
+    }
+
+    return {
+      id: catalog?.id ?? null,
+      type: catalog?.type ?? null,
+      code: codeSnapshot ?? catalog?.code ?? null,
+      name: nameSnapshot ?? catalog?.name ?? null,
+      level: catalog?.level ?? null,
+    };
+  }
+
   async bulkReceiveDepartmentReports(userId: number, reportIds: number[]) {
     const user = await this.findUser(userId);
     const results: LaborAccidentReport[] = [];
@@ -2895,7 +3142,11 @@ export class LaborAccidentReportService {
     };
   }
 
-  async bulkRejectDepartmentReports(userId: number, reportIds: number[], rejectReason: string) {
+  async bulkRejectDepartmentReports(
+    userId: number,
+    reportIds: number[],
+    rejectReason: string,
+  ) {
     const results: LaborAccidentReport[] = [];
     for (const id of reportIds) {
       try {
@@ -3108,7 +3359,10 @@ export class LaborAccidentReportAdminController {
     @CurrentUser() currentUser: CurrentUserData,
     @Body() body: { ids: number[] },
   ) {
-    return this.reportService.bulkReceiveDepartmentReports(currentUser.id, body.ids);
+    return this.reportService.bulkReceiveDepartmentReports(
+      currentUser.id,
+      body.ids,
+    );
   }
 
   @Post('bulk-reject')
@@ -3120,7 +3374,11 @@ export class LaborAccidentReportAdminController {
     @CurrentUser() currentUser: CurrentUserData,
     @Body() body: { ids: number[]; rejectReason: string },
   ) {
-    return this.reportService.bulkRejectDepartmentReports(currentUser.id, body.ids, body.rejectReason);
+    return this.reportService.bulkRejectDepartmentReports(
+      currentUser.id,
+      body.ids,
+      body.rejectReason,
+    );
   }
 }
 

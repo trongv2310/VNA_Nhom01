@@ -87,7 +87,11 @@ export class BusinessController {
   }
 
   @Get('options')
-  @Permissions('SYSTEM_C_BUSINESS_VIEW', 'SYSTEM_C_BUSINESS_CREATE', 'SYSTEM_C_BUSINESS_UPDATE')
+  @Permissions(
+    'SYSTEM_C_BUSINESS_VIEW',
+    'SYSTEM_C_BUSINESS_CREATE',
+    'SYSTEM_C_BUSINESS_UPDATE',
+  )
   @ApiOperation({
     summary: 'Danh mục/ràng buộc cho form doanh nghiệp',
     description:
@@ -112,9 +116,7 @@ export class BusinessController {
     description: 'Mã số thuế và email có thể sử dụng',
     type: ApiSuccessResponseDto,
   })
-  validateBusinessUniqueness(
-    @Body() body: ValidateBusinessUniquenessDto,
-  ) {
+  validateBusinessUniqueness(@Body() body: ValidateBusinessUniquenessDto) {
     return this.businessService.validateBusinessUniqueness(body);
   }
 
@@ -150,15 +152,7 @@ export class BusinessController {
   @ApiBody({
     schema: {
       type: 'object',
-      required: [
-        'businessName',
-        'taxCode',
-        'businessType',
-        'industryCode',
-        'industryName',
-        'provinceCity',
-        'wardCommune',
-      ],
+      required: ['businessName', 'taxCode', 'provinceCity', 'wardCommune'],
       properties: {
         businessName: {
           type: 'string',
@@ -171,11 +165,18 @@ export class BusinessController {
         taxCode: {
           type: 'string',
           example: '0312345678',
-          description: '10 chữ số hoặc 10 chữ số-3 chữ số, ví dụ 0100109106-001',
+          description:
+            '10 chữ số hoặc 10 chữ số-3 chữ số, ví dụ 0100109106-001',
         },
         businessType: {
           type: 'string',
           example: 'Công ty TNHH 1 thành viên',
+        },
+        businessTypeId: {
+          type: 'number',
+          example: 1,
+          description:
+            'ID loại hình từ API danh mục; có thể dùng thay businessType',
         },
         industryCode: {
           type: 'string',
@@ -185,6 +186,12 @@ export class BusinessController {
         industryName: {
           type: 'string',
           example: 'Bán buôn chuyên doanh khác chưa được phân vào đâu',
+        },
+        industryId: {
+          type: 'number',
+          example: 1,
+          description:
+            'ID ngành cấp 4 từ API danh mục; có thể dùng thay industryCode/industryName',
         },
         licenseIssueDate: { type: 'string', example: '2020-01-01' },
         provinceCity: { type: 'string', example: 'Thành phố Hồ Chí Minh' },
@@ -274,11 +281,13 @@ export class BusinessController {
           type: 'string',
           example: 'Công ty TNHH 1 thành viên',
         },
+        businessTypeId: { type: 'number', example: 1 },
         industryCode: { type: 'string', example: '4669' },
         industryName: {
           type: 'string',
           example: 'Bán buôn chuyên doanh khác chưa được phân vào đâu',
         },
+        industryId: { type: 'number', example: 1 },
         licenseIssueDate: { type: 'string', example: '2020-01-01' },
         provinceCity: { type: 'string', example: 'Thành phố Hồ Chí Minh' },
         wardCommune: { type: 'string', example: 'Phường Hiệp Bình Phước' },

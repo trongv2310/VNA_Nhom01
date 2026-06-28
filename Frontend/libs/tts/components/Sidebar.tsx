@@ -1,12 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import {
-  Settings,
-  ChevronDown,
-  Menu,
-  ShieldAlert,
-} from "lucide-react";
+import { Settings, ChevronDown, Menu, ShieldAlert } from "lucide-react";
 import { UserMenu } from "./UserMenu";
 
 type SidebarView =
@@ -16,6 +11,9 @@ type SidebarView =
   | "enterprise-management"
   | "permission-management"
   | "role-management"
+  | "business-type-management"
+  | "industry-management"
+  | "labor-catalog-management"
   | "company-info"
   | "tnld-reports"
   | "tnld-theo-hdld"
@@ -82,6 +80,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: "quan_ly_quyen", label: "Quản lý quyền" },
         { id: "quan_ly_vai_tro", label: "Quản lý vai trò" },
         { id: "quan_ly_doanh_nghiep", label: "Quản lý doanh nghiệp" },
+        { id: "quan_ly_loai_hinh", label: "Loại hình kinh doanh" },
+        { id: "quan_ly_nganh_nghe", label: "Ngành nghề kinh doanh" },
         { id: "ky_bao_cao", label: "Kỳ báo cáo" },
       ],
     });
@@ -107,9 +107,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: "tai_nan_lao_dong",
       label: "Tai nạn lao động",
       icon: <ShieldAlert className="w-5 h-5 flex-shrink-0" />,
-      children: [
-        { id: "tnld_theo_hdld", label: "TNLĐ theo HĐLĐ" },
-      ],
+      children: [{ id: "tnld_theo_hdld", label: "TNLĐ theo HĐLĐ" }],
     });
   } else {
     const systemChildren = [
@@ -117,7 +115,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     ];
 
     if (hasPermission("SYSTEM_C_USER_VIEW")) {
-      systemChildren.push({ id: "quan_ly_nguoi_dung", label: "Quản lý người dùng" });
+      systemChildren.push({
+        id: "quan_ly_nguoi_dung",
+        label: "Quản lý người dùng",
+      });
     }
     if (hasPermission("SYSTEM_C_PERMISSION_VIEW")) {
       systemChildren.push({ id: "quan_ly_quyen", label: "Quản lý quyền" });
@@ -126,7 +127,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
       systemChildren.push({ id: "quan_ly_vai_tro", label: "Quản lý vai trò" });
     }
     if (hasPermission("SYSTEM_C_BUSINESS_VIEW")) {
-      systemChildren.push({ id: "quan_ly_doanh_nghiep", label: "Quản lý doanh nghiệp" });
+      systemChildren.push({
+        id: "quan_ly_doanh_nghiep",
+        label: "Quản lý doanh nghiệp",
+      });
+    }
+    if (hasPermission("SYSTEM_C_BUSINESS_TYPE_VIEW")) {
+      systemChildren.push({
+        id: "quan_ly_loai_hinh",
+        label: "Loại hình kinh doanh",
+      });
+    }
+    if (hasPermission("SYSTEM_C_INDUSTRY_VIEW")) {
+      systemChildren.push({
+        id: "quan_ly_nganh_nghe",
+        label: "Ngành nghề kinh doanh",
+      });
     }
     if (hasPermission("SYSTEM_C_REPORT_PERIOD_VIEW")) {
       systemChildren.push({ id: "ky_bao_cao", label: "Kỳ báo cáo" });
@@ -139,14 +155,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
       children: systemChildren,
     });
 
-    if (hasPermission("LABOR_C_REPORT_VIEW")) {
+    if (
+      hasPermission("LABOR_C_REPORT_VIEW") ||
+      hasPermission("LABOR_C_CATALOG_VIEW")
+    ) {
+      const laborChildren: { id: string; label: string }[] = [];
+      if (hasPermission("LABOR_C_CATALOG_VIEW")) {
+        laborChildren.push({ id: "danh_muc_chung", label: "Danh mục chung" });
+      }
+      if (hasPermission("LABOR_C_REPORT_VIEW")) {
+        laborChildren.push({ id: "tnld_theo_hdld", label: "TNLĐ theo HĐLĐ" });
+      }
       menuItems.push({
         id: "tai_nan_lao_dong",
         label: "Tai nạn lao động",
         icon: <ShieldAlert className="w-5 h-5 flex-shrink-0" />,
-        children: [
-          { id: "tnld_theo_hdld", label: "TNLĐ theo HĐLĐ" },
-        ],
+        children: laborChildren,
       });
     }
   }
@@ -174,7 +198,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
         {/* Burger Button to close drawer on mobile */}
-        <button 
+        <button
           onClick={onCloseMobile}
           className="lg:hidden p-1.5 rounded-lg hover:bg-white/10 active:bg-white/15 focus:outline-none transition-colors"
         >
@@ -242,6 +266,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             onSelectView("role-management");
                           } else if (child.id === "quan_ly_doanh_nghiep") {
                             onSelectView("enterprise-management");
+                          } else if (child.id === "quan_ly_loai_hinh") {
+                            onSelectView("business-type-management");
+                          } else if (child.id === "quan_ly_nganh_nghe") {
+                            onSelectView("industry-management");
+                          } else if (child.id === "danh_muc_chung") {
+                            onSelectView("labor-catalog-management");
                           } else if (child.id === "thong_tin_doanh_nghiep") {
                             onSelectView("company-info");
                           } else if (child.id === "thong_tin_tai_khoan") {

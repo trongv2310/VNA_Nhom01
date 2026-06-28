@@ -102,9 +102,6 @@ export class BusinessRegistrationController {
       required: [
         'businessName',
         'taxCode',
-        'businessType',
-        'industryCode',
-        'industryName',
         'provinceCity',
         'wardCommune',
         'email',
@@ -128,6 +125,12 @@ export class BusinessRegistrationController {
           type: 'string',
           example: 'Cong ty TNHH 1 thanh vien',
         },
+        businessTypeId: {
+          type: 'number',
+          example: 1,
+          description:
+            'ID loai hinh tu API options; co the dung thay businessType',
+        },
         industryCode: {
           type: 'string',
           example: '4669',
@@ -136,6 +139,12 @@ export class BusinessRegistrationController {
         industryName: {
           type: 'string',
           example: 'Ban buon chuyen doanh khac chua duoc phan vao dau',
+        },
+        industryId: {
+          type: 'number',
+          example: 1,
+          description:
+            'ID nganh cap 4 tu API options; co the dung thay industryCode/industryName',
         },
         licenseIssueDate: { type: 'string', example: '2020-01-01' },
         provinceCity: { type: 'string', example: 'Thanh pho Ho Chi Minh' },

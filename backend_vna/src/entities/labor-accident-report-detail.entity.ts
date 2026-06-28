@@ -59,6 +59,22 @@ export class LaborAccidentReportDetail {
   })
   accidentCauseCatalog!: LaborAccidentCatalog | null;
 
+  @Column({
+    name: 'accident_cause_code_snapshot',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
+  accidentCauseCodeSnapshot!: string | null;
+
+  @Column({
+    name: 'accident_cause_name_snapshot',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
+  accidentCauseNameSnapshot!: string | null;
+
   @ManyToOne(() => LaborAccidentCatalog, {
     nullable: true,
     onDelete: 'SET NULL',
@@ -68,6 +84,22 @@ export class LaborAccidentReportDetail {
   })
   injuryFactorCatalog!: LaborAccidentCatalog | null;
 
+  @Column({
+    name: 'injury_factor_code_snapshot',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
+  injuryFactorCodeSnapshot!: string | null;
+
+  @Column({
+    name: 'injury_factor_name_snapshot',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
+  injuryFactorNameSnapshot!: string | null;
+
   @ManyToOne(() => LaborAccidentCatalog, {
     nullable: true,
     onDelete: 'SET NULL',
@@ -76,6 +108,22 @@ export class LaborAccidentReportDetail {
     name: 'occupation_catalog_id',
   })
   occupationCatalog!: LaborAccidentCatalog | null;
+
+  @Column({
+    name: 'occupation_code_snapshot',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
+  occupationCodeSnapshot!: string | null;
+
+  @Column({
+    name: 'occupation_name_snapshot',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
+  occupationNameSnapshot!: string | null;
 
   @Column({
     name: 'note',

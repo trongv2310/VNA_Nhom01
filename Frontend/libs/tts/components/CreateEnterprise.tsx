@@ -26,6 +26,7 @@ import {
   verifyBusinessProfileEmailOtp,
   updateMyBusinessProfile,
   getAccessToken,
+  type BusinessTypeCatalogItem,
 } from "../services/api";
 import { IndustrySearchSelect } from "./IndustrySearchSelect";
 import { SearchSelect } from "./SearchSelect";
@@ -35,6 +36,7 @@ import { LocalizedDateInput } from "./LocalizedDateInput";
 
 export interface CreateEnterpriseProps {
   businessTypes: string[];
+  businessTypeOptions?: BusinessTypeCatalogItem[];
   onSave: () => void | Promise<void>;
   onCancel: () => void;
   showToast: (message: string, type: "success" | "error") => void;
@@ -54,6 +56,7 @@ interface AttachmentState {
 
 export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
   businessTypes,
+  businessTypeOptions = [],
   onSave,
   onCancel,
   showToast,
@@ -65,11 +68,16 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
 }) => {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [accountModalData, setAccountModalData] = useState<{ username: string; password: string } | null>(null);
+  const [accountModalData, setAccountModalData] = useState<{
+    username: string;
+    password: string;
+  } | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const isReadOnly = mode === "view";
 
   const [types, setTypes] = useState<string[]>(businessTypes || []);
+  const [typeOptions, setTypeOptions] =
+    useState<BusinessTypeCatalogItem[]>(businessTypeOptions);
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [otpValue, setOtpValue] = useState("");
   const [otpTimer, setOtpTimer] = useState(300);
@@ -84,30 +92,39 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
   const [isSavingNewEmail, setIsSavingNewEmail] = useState(false);
 
   useEffect(() => {
-    if (!types || types.length === 0) {
+    if (!types.length || !typeOptions.length) {
       const fetchOptions = async () => {
         try {
           const isTokenPresent = getAccessToken();
           const res = isTokenPresent
             ? await getBusinessOptions()
             : await getRegistrationOptions();
-          
+
           if (res.success && res.data?.businessTypes) {
             setTypes(res.data.businessTypes);
+            setTypeOptions(res.data.businessTypeOptions || []);
           }
         } catch (err) {
-          showToast(err instanceof Error ? err.message : "Không thể tải danh sách loại hình doanh nghiệp", "error");
+          showToast(
+            err instanceof Error
+              ? err.message
+              : "Không thể tải danh sách loại hình doanh nghiệp",
+            "error",
+          );
         }
       };
       fetchOptions();
     }
-  }, [types]);
+  }, [types.length, typeOptions.length, showToast]);
 
   useEffect(() => {
     if (businessTypes && businessTypes.length > 0) {
       setTypes(businessTypes);
     }
-  }, [businessTypes]);
+    if (businessTypeOptions.length > 0) {
+      setTypeOptions(businessTypeOptions);
+    }
+  }, [businessTypes, businessTypeOptions]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -124,8 +141,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
     businessName: "",
     taxCode: "",
     businessType: "",
+    businessTypeId: 0,
     industryCode: "",
     industryName: "",
+    industryId: 0,
     licenseIssueDate: "",
     provinceCity: "",
     wardCommune: "",
@@ -162,11 +181,15 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
   ]);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [localEnterpriseId, setLocalEnterpriseId] = useState<number | undefined>(enterpriseId);
+  const [localEnterpriseId, setLocalEnterpriseId] = useState<
+    number | undefined
+  >(enterpriseId);
   const [deleteConfirmKey, setDeleteConfirmKey] = useState<string | null>(null);
 
   // Attachments State
-  const [attachments, setAttachments] = useState<Record<string, AttachmentState>>({
+  const [attachments, setAttachments] = useState<
+    Record<string, AttachmentState>
+  >({
     gpkd: { file: null, name: "", url: "" },
     gtk: { file: null, name: "", url: "" },
   });
@@ -183,8 +206,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
               businessName: ent.businessName || "",
               taxCode: ent.taxCode || "",
               businessType: ent.businessType || "",
+              businessTypeId: ent.businessTypeId || 0,
               industryCode: ent.industryCode || "",
               industryName: ent.industryName || "",
+              industryId: ent.industryId || 0,
               licenseIssueDate: ent.licenseIssueDate || "",
               provinceCity: ent.provinceCity || "",
               wardCommune: ent.wardCommune || "",
@@ -192,8 +217,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
               foreignName: ent.foreignName || "",
               email: ent.email || "",
               agencyPhone: ent.agencyPhone || "",
-              operatingProvinceCity: ent.operatingProvinceCity || ent.provinceCity || "",
-              operatingWardCommune: ent.operatingWardCommune || ent.wardCommune || "",
+              operatingProvinceCity:
+                ent.operatingProvinceCity || ent.provinceCity || "",
+              operatingWardCommune:
+                ent.operatingWardCommune || ent.wardCommune || "",
               businessLocation: ent.businessLocation || "",
               representativeName: ent.representativeName || "",
               representativePhone: ent.representativePhone || "",
@@ -233,7 +260,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
             showToast("Không thể tải chi tiết doanh nghiệp", "error");
           }
         } catch (error) {
-          showToast(error instanceof Error ? error.message : "Tải chi tiết thất bại", "error");
+          showToast(
+            error instanceof Error ? error.message : "Tải chi tiết thất bại",
+            "error",
+          );
         } finally {
           setIsLoadingDetails(false);
         }
@@ -251,8 +281,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
               businessName: ent.businessName || "",
               taxCode: ent.taxCode || "",
               businessType: ent.businessType || "",
+              businessTypeId: ent.businessTypeId || 0,
               industryCode: ent.industryCode || "",
               industryName: ent.industryName || "",
+              industryId: ent.industryId || 0,
               licenseIssueDate: ent.licenseIssueDate || "",
               provinceCity: ent.provinceCity || "",
               wardCommune: ent.wardCommune || "",
@@ -260,8 +292,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
               foreignName: ent.foreignName || "",
               email: ent.email || "",
               agencyPhone: ent.agencyPhone || "",
-              operatingProvinceCity: ent.operatingProvinceCity || ent.provinceCity || "",
-              operatingWardCommune: ent.operatingWardCommune || ent.wardCommune || "",
+              operatingProvinceCity:
+                ent.operatingProvinceCity || ent.provinceCity || "",
+              operatingWardCommune:
+                ent.operatingWardCommune || ent.wardCommune || "",
               businessLocation: ent.businessLocation || "",
               representativeName: ent.representativeName || "",
               representativePhone: ent.representativePhone || "",
@@ -301,7 +335,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
             showToast("Không thể tải chi tiết doanh nghiệp", "error");
           }
         } catch (error) {
-          showToast(error instanceof Error ? error.message : "Tải chi tiết thất bại", "error");
+          showToast(
+            error instanceof Error ? error.message : "Tải chi tiết thất bại",
+            "error",
+          );
         } finally {
           setIsLoadingDetails(false);
         }
@@ -323,9 +360,15 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
     if (name === "taxCode") {
       const val = value.replace(/\s/g, "");
       if (!val) {
-        setErrors((prev) => ({ ...prev, taxCode: "Ma so thue khong duoc de trong" }));
+        setErrors((prev) => ({
+          ...prev,
+          taxCode: "Ma so thue khong duoc de trong",
+        }));
       } else if (!/^\d{10}(-\d{3})?$/.test(val)) {
-        setErrors((prev) => ({ ...prev, taxCode: "Ma so thue phai gom 10 so hoac dang 10 so-3 so" }));
+        setErrors((prev) => ({
+          ...prev,
+          taxCode: "Ma so thue phai gom 10 so hoac dang 10 so-3 so",
+        }));
       } else {
         setErrors((prev) => {
           const next = { ...prev };
@@ -421,7 +464,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
     const targetEnterpriseId = localEnterpriseId || enterpriseId;
     if (att.id && mode === "edit" && targetEnterpriseId) {
       try {
-        const response = await deleteBusinessAttachment(targetEnterpriseId, att.id);
+        const response = await deleteBusinessAttachment(
+          targetEnterpriseId,
+          att.id,
+        );
         if (response.success) {
           showToast("Xóa file thành công", "success");
         } else {
@@ -429,7 +475,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
           return;
         }
       } catch (error) {
-        showToast(error instanceof Error ? error.message : "Xóa tệp thất bại", "error");
+        showToast(
+          error instanceof Error ? error.message : "Xóa tệp thất bại",
+          "error",
+        );
         return;
       }
     } else if (!att.id) {
@@ -471,7 +520,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
         throw new Error(res.message || "Gửi mã OTP thất bại");
       }
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "Gửi mã OTP thất bại", "error");
+      showToast(
+        err instanceof Error ? err.message : "Gửi mã OTP thất bại",
+        "error",
+      );
     } finally {
       setIsSavingNewEmail(false);
     }
@@ -509,7 +561,9 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
         throw new Error(res.message || "Thay đổi email thất bại");
       }
     } catch (err) {
-      setNewEmailError(err instanceof Error ? err.message : "Thay đổi email thất bại");
+      setNewEmailError(
+        err instanceof Error ? err.message : "Thay đổi email thất bại",
+      );
     } finally {
       setIsSavingNewEmail(false);
       onProfileSavingChange?.(false);
@@ -531,7 +585,12 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
         throw new Error(res.message);
       }
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "Mã OTP không chính xác hoặc đã hết hạn", "error");
+      showToast(
+        err instanceof Error
+          ? err.message
+          : "Mã OTP không chính xác hoặc đã hết hạn",
+        "error",
+      );
     } finally {
       setIsVerifyingOtp(false);
     }
@@ -549,7 +608,8 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
     if (!txCode) {
       newErrors.taxCode = "Mã số thuế không được để trống";
     } else if (!/^\d{10}(-\d{3})?$/.test(txCode)) {
-      newErrors.taxCode = "Mã số thuế phải gồm 10 chữ số, hoặc mã đơn vị phụ thuộc dạng 10 số - 3 số. Ví dụ: 0100109106-001";
+      newErrors.taxCode =
+        "Mã số thuế phải gồm 10 chữ số, hoặc mã đơn vị phụ thuộc dạng 10 số - 3 số. Ví dụ: 0100109106-001";
     }
 
     if (!formData.businessType) {
@@ -565,7 +625,8 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
     } else {
       const d = new Date(formData.licenseIssueDate);
       if (d.getTime() > Date.now()) {
-        newErrors.licenseIssueDate = "Ngày cấp GPKD không được lớn hơn ngày hiện tại";
+        newErrors.licenseIssueDate =
+          "Ngày cấp GPKD không được lớn hơn ngày hiện tại";
       }
     }
 
@@ -585,13 +646,20 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
     }
 
     const agencyPhone = formData.agencyPhone.trim();
-    if (agencyPhone && !/^(0|\+84)(\d{9,10})$/.test(agencyPhone.replace(/\s/g, ""))) {
+    if (
+      agencyPhone &&
+      !/^(0|\+84)(\d{9,10})$/.test(agencyPhone.replace(/\s/g, ""))
+    ) {
       newErrors.agencyPhone = "Số điện thoại cơ quan không hợp lệ";
     }
 
     const representativePhone = formData.representativePhone.trim();
-    if (representativePhone && !/^(0|\+84)(\d{9,10})$/.test(representativePhone.replace(/\s/g, ""))) {
-      newErrors.representativePhone = "Số điện thoại liên hệ người đứng đầu không hợp lệ";
+    if (
+      representativePhone &&
+      !/^(0|\+84)(\d{9,10})$/.test(representativePhone.replace(/\s/g, ""))
+    ) {
+      newErrors.representativePhone =
+        "Số điện thoại liên hệ người đứng đầu không hợp lệ";
     }
 
     setErrors(newErrors);
@@ -614,7 +682,8 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
           throw new Error(otpRes.message || "Gửi OTP thất bại");
         }
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : "Gửi OTP thất bại";
+        const errorMsg =
+          error instanceof Error ? error.message : "Gửi OTP thất bại";
         showToast(errorMsg, "error");
         if (errorMsg.includes("Mã số thuế") || errorMsg.includes("MST")) {
           setErrors((prev) => ({ ...prev, taxCode: errorMsg }));
@@ -673,8 +742,14 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
         fd.append("taxCode", formData.taxCode.replace(/\s/g, ""));
       }
       fd.append("businessType", formData.businessType);
+      if (formData.businessTypeId > 0) {
+        fd.append("businessTypeId", String(formData.businessTypeId));
+      }
       fd.append("industryCode", formData.industryCode);
       fd.append("industryName", formData.industryName);
+      if (formData.industryId > 0) {
+        fd.append("industryId", String(formData.industryId));
+      }
       fd.append("licenseIssueDate", formData.licenseIssueDate);
       fd.append("provinceCity", formData.provinceCity);
       fd.append("wardCommune", formData.wardCommune);
@@ -730,7 +805,9 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
           };
           setAccountModalData(accInfo);
         } else {
-          throw new Error(response.message || "Đăng ký tài khoản doanh nghiệp thất bại");
+          throw new Error(
+            response.message || "Đăng ký tài khoản doanh nghiệp thất bại",
+          );
         }
       } else if (mode === "edit" && enterpriseId) {
         const response = await updateBusiness(enterpriseId, fd);
@@ -754,19 +831,41 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "";
-      showToast(errorMsg || (isRegistration ? "Đăng ký tài khoản doanh nghiệp thất bại" : mode === "edit" ? "Cập nhật doanh nghiệp thất bại" : "Thêm mới doanh nghiệp thất bại"), "error");
+      showToast(
+        errorMsg ||
+          (isRegistration
+            ? "Đăng ký tài khoản doanh nghiệp thất bại"
+            : mode === "edit"
+              ? "Cập nhật doanh nghiệp thất bại"
+              : "Thêm mới doanh nghiệp thất bại"),
+        "error",
+      );
 
       const newErrors: Record<string, string> = {};
-      if (errorMsg.includes("Mã số thuế") || errorMsg.toLowerCase().includes("taxcode") || errorMsg.includes("đăng nhập")) {
+      if (
+        errorMsg.includes("Mã số thuế") ||
+        errorMsg.toLowerCase().includes("taxcode") ||
+        errorMsg.includes("đăng nhập")
+      ) {
         newErrors.taxCode = errorMsg;
         setStep(1);
-      } else if (errorMsg.includes("Email") || errorMsg.toLowerCase().includes("email")) {
+      } else if (
+        errorMsg.includes("Email") ||
+        errorMsg.toLowerCase().includes("email")
+      ) {
         newErrors.email = errorMsg;
         setStep(isRegistration ? 1 : 2);
-      } else if (errorMsg.includes("Tên doanh nghiệp") || errorMsg.toLowerCase().includes("businessname")) {
+      } else if (
+        errorMsg.includes("Tên doanh nghiệp") ||
+        errorMsg.toLowerCase().includes("businessname")
+      ) {
         newErrors.businessName = errorMsg;
         setStep(1);
-      } else if (errorMsg.includes("số điện thoại") || errorMsg.includes("Số điện thoại") || errorMsg.includes("SĐT")) {
+      } else if (
+        errorMsg.includes("số điện thoại") ||
+        errorMsg.includes("Số điện thoại") ||
+        errorMsg.includes("SĐT")
+      ) {
         newErrors.representativePhone = errorMsg;
         setStep(1);
       }
@@ -812,12 +911,22 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
           <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
 
           <div className="flex items-center gap-2 flex-shrink-0">
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${step === 2 ? "bg-blue-600 text-white" : "bg-slate-400 dark:bg-zinc-800 text-white"
-              }`}>
+            <div
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                step === 2
+                  ? "bg-blue-600 text-white"
+                  : "bg-slate-400 dark:bg-zinc-800 text-white"
+              }`}
+            >
               2
             </div>
-            <span className={`text-xs font-bold ${step === 2 ? "text-zinc-800 dark:text-zinc-200" : "text-slate-400 dark:text-zinc-500"
-              }`}>
+            <span
+              className={`text-xs font-bold ${
+                step === 2
+                  ? "text-zinc-800 dark:text-zinc-200"
+                  : "text-slate-400 dark:text-zinc-500"
+              }`}
+            >
               {isRegistration ? "Xác nhận thông tin" : "Xác nhận chỉnh sửa"}
             </span>
           </div>
@@ -848,10 +957,20 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                 {/* Tên doanh nghiệp */}
-                <div className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all ${errors.businessName ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"
-                  } ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}`}>
-                  <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold ${errors.businessName ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"
-                    }`}>
+                <div
+                  className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all ${
+                    errors.businessName
+                      ? "border-red-500 ring-1 ring-red-500"
+                      : "border-zinc-200 dark:border-zinc-800"
+                  } ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}`}
+                >
+                  <label
+                    className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold ${
+                      errors.businessName
+                        ? "text-red-500"
+                        : "text-zinc-400 dark:text-zinc-500"
+                    }`}
+                  >
                     Tên doanh nghiệp <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -866,10 +985,20 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                 </div>
 
                 {/* Mã số thuế */}
-                <div className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all ${errors.taxCode ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"
-                  } ${(mode === "edit" || isReadOnly || isProfileEdit) ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}`}>
-                  <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold ${errors.taxCode ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"
-                    }`}>
+                <div
+                  className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all ${
+                    errors.taxCode
+                      ? "border-red-500 ring-1 ring-red-500"
+                      : "border-zinc-200 dark:border-zinc-800"
+                  } ${mode === "edit" || isReadOnly || isProfileEdit ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}`}
+                >
+                  <label
+                    className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold ${
+                      errors.taxCode
+                        ? "text-red-500"
+                        : "text-zinc-400 dark:text-zinc-500"
+                    }`}
+                  >
                     Mã số thuế <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -889,7 +1018,22 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                   value={formData.businessType}
                   options={types.map((t) => ({ value: t, label: t }))}
                   placeholder="Chọn loại hình"
-                  onChange={(val) => handleSelectChange("businessType", val)}
+                  onChange={(val) => {
+                    const selected = typeOptions.find(
+                      (item) => item.name === val,
+                    );
+                    setFormData((prev) => ({
+                      ...prev,
+                      businessType: val,
+                      businessTypeId:
+                        selected?.id && selected.id > 0 ? selected.id : 0,
+                    }));
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.businessType;
+                      return next;
+                    });
+                  }}
                   error={!!errors.businessType}
                   required
                   disabled={isReadOnly}
@@ -901,8 +1045,13 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                     value={formData.industryCode}
                     error={!!errors.industryCode}
                     disabled={isReadOnly}
-                    onChange={(code: string, name: string) => {
-                      setFormData((prev) => ({ ...prev, industryCode: code, industryName: name }));
+                    onChange={(code: string, name: string, id?: number) => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        industryCode: code,
+                        industryName: name,
+                        industryId: id && id > 0 ? id : 0,
+                      }));
                       if (errors.industryCode) {
                         setErrors((prev) => {
                           const next = { ...prev };
@@ -914,13 +1063,21 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                   />
                 </div>
 
-              {/* Ngày cấp GPKD */}
-              <div
-                className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all ${errors.licenseIssueDate ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"
+                {/* Ngày cấp GPKD */}
+                <div
+                  className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all ${
+                    errors.licenseIssueDate
+                      ? "border-red-500 ring-1 ring-red-500"
+                      : "border-zinc-200 dark:border-zinc-800"
                   } ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : "cursor-pointer"}`}
                 >
-                  <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold pointer-events-none ${errors.licenseIssueDate ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"
-                    }`}>
+                  <label
+                    className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold pointer-events-none ${
+                      errors.licenseIssueDate
+                        ? "text-red-500"
+                        : "text-zinc-400 dark:text-zinc-500"
+                    }`}
+                  >
                     Ngày cấp GPKD <span className="text-red-500">*</span>
                   </label>
                   <LocalizedDateInput
@@ -930,13 +1087,16 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                     disabled={isReadOnly}
                     ariaLabel="Ngày cấp GPKD"
                   />
-              </div>
+                </div>
 
                 {/* Tỉnh/Thành phố ĐKKD */}
                 <SearchSelect
                   label="Tỉnh/Thành phố ĐKKD"
                   value={formData.provinceCity}
-                  options={registeredAddress.provinces.map((p) => ({ value: p.name, label: p.name }))}
+                  options={registeredAddress.provinces.map((p) => ({
+                    value: p.name,
+                    label: p.name,
+                  }))}
                   placeholder={
                     registeredAddress.isLoadingProvinces
                       ? "Đang tải danh sách..."
@@ -947,14 +1107,21 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                   onChange={(val) => handleSelectChange("provinceCity", val)}
                   error={!!errors.provinceCity}
                   required
-                  disabled={isReadOnly || registeredAddress.isLoadingProvinces || !!registeredAddress.provincesError}
+                  disabled={
+                    isReadOnly ||
+                    registeredAddress.isLoadingProvinces ||
+                    !!registeredAddress.provincesError
+                  }
                 />
 
                 {/* Phường/Xã ĐKKD */}
                 <SearchSelect
                   label="Phường/Xã ĐKKD"
                   value={formData.wardCommune}
-                  options={registeredAddress.wards.map((w) => ({ value: w.name, label: w.name }))}
+                  options={registeredAddress.wards.map((w) => ({
+                    value: w.name,
+                    label: w.name,
+                  }))}
                   placeholder={
                     registeredAddress.isLoadingWards
                       ? "Đang tải phường/xã..."
@@ -979,7 +1146,9 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                 />
 
                 {/* Địa chỉ đăng ký */}
-                <div className={`relative border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 md:col-span-2 xl:col-span-2 ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}`}>
+                <div
+                  className={`relative border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 md:col-span-2 xl:col-span-2 ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}`}
+                >
                   <label className="absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] text-zinc-400 dark:text-zinc-500 font-bold">
                     Địa chỉ
                   </label>
@@ -990,7 +1159,9 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                     onChange={handleInputChange}
                     disabled={isReadOnly}
                     className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-semibold pt-2 pb-0.5 disabled:cursor-not-allowed"
-                    placeholder={isReadOnly ? "" : "Nhập địa chỉ trụ sở đăng ký"}
+                    placeholder={
+                      isReadOnly ? "" : "Nhập địa chỉ trụ sở đăng ký"
+                    }
                   />
                 </div>
               </div>
@@ -1004,7 +1175,9 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                 {/* Tên tiếng nước ngoài */}
-                <div className={`relative border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}`}>
+                <div
+                  className={`relative border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}`}
+                >
                   <label className="absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] text-zinc-400 dark:text-zinc-500 font-bold">
                     Tên viết bằng tiếng nước ngoài
                   </label>
@@ -1015,16 +1188,28 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                     onChange={handleInputChange}
                     disabled={isReadOnly}
                     className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-semibold pt-2 pb-0.5 disabled:cursor-not-allowed"
-                    placeholder={isReadOnly ? "" : "Nhập tên viết bằng tiếng nước ngoài"}
+                    placeholder={
+                      isReadOnly ? "" : "Nhập tên viết bằng tiếng nước ngoài"
+                    }
                   />
                 </div>
 
                 {/* Email */}
-                <div className={`relative border rounded-xl px-4 py-2 flex items-center justify-between focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all ${errors.email ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"
-                  } ${(isReadOnly || isProfileEdit) ? "bg-zinc-50 dark:bg-zinc-900/40" : ""}`}>
+                <div
+                  className={`relative border rounded-xl px-4 py-2 flex items-center justify-between focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all ${
+                    errors.email
+                      ? "border-red-500 ring-1 ring-red-500"
+                      : "border-zinc-200 dark:border-zinc-800"
+                  } ${isReadOnly || isProfileEdit ? "bg-zinc-50 dark:bg-zinc-900/40" : ""}`}
+                >
                   <div className="flex-1 flex flex-col justify-center min-w-0">
-                    <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold ${errors.email ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"
-                      }`}>
+                    <label
+                      className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold ${
+                        errors.email
+                          ? "text-red-500"
+                          : "text-zinc-400 dark:text-zinc-500"
+                      }`}
+                    >
                       Email <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -1050,10 +1235,20 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                 </div>
 
                 {/* Số điện thoại cơ quan */}
-                <div className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all ${errors.agencyPhone ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"
-                  } ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}`}>
-                  <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold ${errors.agencyPhone ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"
-                    }`}>
+                <div
+                  className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all ${
+                    errors.agencyPhone
+                      ? "border-red-500 ring-1 ring-red-500"
+                      : "border-zinc-200 dark:border-zinc-800"
+                  } ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}`}
+                >
+                  <label
+                    className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold ${
+                      errors.agencyPhone
+                        ? "text-red-500"
+                        : "text-zinc-400 dark:text-zinc-500"
+                    }`}
+                  >
                     Số điện thoại cơ quan
                   </label>
                   <input
@@ -1071,7 +1266,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                 <SearchSelect
                   label="Tỉnh/TP hoạt động KD"
                   value={formData.operatingProvinceCity}
-                  options={operatingAddress.provinces.map((p) => ({ value: p.name, label: p.name }))}
+                  options={operatingAddress.provinces.map((p) => ({
+                    value: p.name,
+                    label: p.name,
+                  }))}
                   placeholder={
                     operatingAddress.isLoadingProvinces
                       ? "Đang tải danh sách..."
@@ -1079,15 +1277,24 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                         ? "Không thể tải danh sách Tỉnh/Thành phố"
                         : "Chọn Tỉnh/Thành phố"
                   }
-                  onChange={(val) => handleSelectChange("operatingProvinceCity", val)}
-                  disabled={isReadOnly || operatingAddress.isLoadingProvinces || !!operatingAddress.provincesError}
+                  onChange={(val) =>
+                    handleSelectChange("operatingProvinceCity", val)
+                  }
+                  disabled={
+                    isReadOnly ||
+                    operatingAddress.isLoadingProvinces ||
+                    !!operatingAddress.provincesError
+                  }
                 />
 
                 {/* Phường/Xã hoạt động KD */}
                 <SearchSelect
                   label="Phường/xã hoạt động KD"
                   value={formData.operatingWardCommune}
-                  options={operatingAddress.wards.map((w) => ({ value: w.name, label: w.name }))}
+                  options={operatingAddress.wards.map((w) => ({
+                    value: w.name,
+                    label: w.name,
+                  }))}
                   placeholder={
                     operatingAddress.isLoadingWards
                       ? "Đang tải phường/xã..."
@@ -1099,7 +1306,9 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                             ? "Không có dữ liệu Phường/Xã"
                             : "Chọn phường/xã"
                   }
-                  onChange={(val) => handleSelectChange("operatingWardCommune", val)}
+                  onChange={(val) =>
+                    handleSelectChange("operatingWardCommune", val)
+                  }
                   disabled={
                     !formData.operatingProvinceCity ||
                     isReadOnly ||
@@ -1110,7 +1319,9 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                 />
 
                 {/* Địa điểm kinh doanh */}
-                <div className={`relative border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}`}>
+                <div
+                  className={`relative border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}`}
+                >
                   <label className="absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] text-zinc-400 dark:text-zinc-500 font-bold">
                     Địa điểm kinh doanh
                   </label>
@@ -1121,12 +1332,16 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                     onChange={handleInputChange}
                     disabled={isReadOnly}
                     className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-semibold pt-2 pb-0.5 disabled:cursor-not-allowed"
-                    placeholder={isReadOnly ? "" : "Nhập địa điểm hoạt động kinh doanh"}
+                    placeholder={
+                      isReadOnly ? "" : "Nhập địa điểm hoạt động kinh doanh"
+                    }
                   />
                 </div>
 
                 {/* Người đứng đầu doanh nghiệp */}
-                <div className={`relative border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}`}>
+                <div
+                  className={`relative border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}`}
+                >
                   <label className="absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] text-zinc-400 dark:text-zinc-500 font-bold">
                     Người đứng đầu doanh nghiệp
                   </label>
@@ -1142,10 +1357,20 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                 </div>
 
                 {/* SĐT liên hệ người đứng đầu */}
-                <div className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all ${errors.representativePhone ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"
-                  } ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}`}>
-                  <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold ${errors.representativePhone ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"
-                    }`}>
+                <div
+                  className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all ${
+                    errors.representativePhone
+                      ? "border-red-500 ring-1 ring-red-500"
+                      : "border-zinc-200 dark:border-zinc-800"
+                  } ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}`}
+                >
+                  <label
+                    className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold ${
+                      errors.representativePhone
+                        ? "text-red-500"
+                        : "text-zinc-400 dark:text-zinc-500"
+                    }`}
+                  >
                     SĐT liên hệ người đứng đầu
                   </label>
                   <input
@@ -1187,8 +1412,13 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                         <div className="flex items-center justify-center gap-3">
                           <button
                             type="button"
-                            onClick={() => (attachments.gpkd.file || attachments.gpkd.url) && handlePreviewClick("gpkd")}
-                            disabled={!attachments.gpkd.file && !attachments.gpkd.url}
+                            onClick={() =>
+                              (attachments.gpkd.file || attachments.gpkd.url) &&
+                              handlePreviewClick("gpkd")
+                            }
+                            disabled={
+                              !attachments.gpkd.file && !attachments.gpkd.url
+                            }
                             className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-slate-400 hover:text-green-600 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-all"
                             title="Xem file"
                           >
@@ -1206,8 +1436,15 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => (attachments.gpkd.file || attachments.gpkd.url) && handleDeleteAttachment("gpkd")}
-                                disabled={!attachments.gpkd.file && !attachments.gpkd.url}
+                                onClick={() =>
+                                  (attachments.gpkd.file ||
+                                    attachments.gpkd.url) &&
+                                  handleDeleteAttachment("gpkd")
+                                }
+                                disabled={
+                                  !attachments.gpkd.file &&
+                                  !attachments.gpkd.url
+                                }
                                 className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-slate-400 hover:text-red-600 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-all"
                                 title="Xóa file"
                               >
@@ -1229,8 +1466,13 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                         <div className="flex items-center justify-center gap-3">
                           <button
                             type="button"
-                            onClick={() => (attachments.gtk.file || attachments.gtk.url) && handlePreviewClick("gtk")}
-                            disabled={!attachments.gtk.file && !attachments.gtk.url}
+                            onClick={() =>
+                              (attachments.gtk.file || attachments.gtk.url) &&
+                              handlePreviewClick("gtk")
+                            }
+                            disabled={
+                              !attachments.gtk.file && !attachments.gtk.url
+                            }
                             className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-slate-400 hover:text-green-600 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-all"
                             title="Xem file"
                           >
@@ -1248,8 +1490,14 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => (attachments.gtk.file || attachments.gtk.url) && handleDeleteAttachment("gtk")}
-                                disabled={!attachments.gtk.file && !attachments.gtk.url}
+                                onClick={() =>
+                                  (attachments.gtk.file ||
+                                    attachments.gtk.url) &&
+                                  handleDeleteAttachment("gtk")
+                                }
+                                disabled={
+                                  !attachments.gtk.file && !attachments.gtk.url
+                                }
                                 className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-slate-400 hover:text-red-600 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-all"
                                 title="Xóa file"
                               >
@@ -1267,8 +1515,13 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
           </div>
 
           {/* Action buttons footer */}
-          <div className={`sticky bottom-0 -mx-6 md:-mx-8 -mb-6 md:-mb-8 z-40 flex items-center justify-end gap-6 border-t border-zinc-200 dark:border-zinc-800 p-4 md:py-5 md:px-6 rounded-b-[24px] select-none font-bold text-sm ${isRegistration ? "bg-slate-50 dark:bg-zinc-900" : "bg-white dark:bg-zinc-950"
-            }`}>
+          <div
+            className={`sticky bottom-0 -mx-6 md:-mx-8 -mb-6 md:-mb-8 z-40 flex items-center justify-end gap-6 border-t border-zinc-200 dark:border-zinc-800 p-4 md:py-5 md:px-6 rounded-b-[24px] select-none font-bold text-sm ${
+              isRegistration
+                ? "bg-slate-50 dark:bg-zinc-900"
+                : "bg-white dark:bg-zinc-950"
+            }`}
+          >
             {mode === "view" ? (
               <button
                 type="button"
@@ -1311,46 +1564,98 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-[340px_1fr] gap-y-4 gap-x-10 text-sm">
-                <div className="font-semibold text-[#333333] dark:text-zinc-300">Mã số thuế :</div>
-                <div className="font-medium text-[#333333] dark:text-zinc-200">{formData.taxCode}</div>
-
-                <div className="font-semibold text-[#333333] dark:text-zinc-300">Tên doanh nghiệp :</div>
-                <div className="font-medium text-[#333333] dark:text-zinc-200">{formData.businessName}</div>
-
-                <div className="font-semibold text-[#333333] dark:text-zinc-300">Tên viết bằng tiếng nước ngoài :</div>
-                <div className="font-medium text-[#333333] dark:text-zinc-200">{formData.foreignName || "-"}</div>
-
-                <div className="font-semibold text-[#333333] dark:text-zinc-300">Ngày cấp GPKD:</div>
+                <div className="font-semibold text-[#333333] dark:text-zinc-300">
+                  Mã số thuế :
+                </div>
                 <div className="font-medium text-[#333333] dark:text-zinc-200">
-                  {formData.licenseIssueDate ? formData.licenseIssueDate.split("-").reverse().join("/") : "-"}
+                  {formData.taxCode}
                 </div>
 
-                <div className="font-semibold text-[#333333] dark:text-zinc-300">Email</div>
-                <div className="font-medium text-[#333333] dark:text-zinc-200">{formData.email}</div>
-
-                <div className="font-semibold text-[#333333] dark:text-zinc-300">Loại hình kinh doanh:</div>
-                <div className="font-medium text-[#333333] dark:text-zinc-200">{formData.businessType}</div>
-
-                <div className="font-semibold text-[#333333] dark:text-zinc-300">Ngành nghề kinh doanh</div>
+                <div className="font-semibold text-[#333333] dark:text-zinc-300">
+                  Tên doanh nghiệp :
+                </div>
                 <div className="font-medium text-[#333333] dark:text-zinc-200">
-                  {formData.industryCode ? `${formData.industryCode} - ${formData.industryName}` : "-"}
+                  {formData.businessName}
                 </div>
 
-                <div className="font-semibold text-[#333333] dark:text-zinc-300">Địa chỉ đăng ký giấy phép kinh doanh :</div>
+                <div className="font-semibold text-[#333333] dark:text-zinc-300">
+                  Tên viết bằng tiếng nước ngoài :
+                </div>
                 <div className="font-medium text-[#333333] dark:text-zinc-200">
-                  {[formData.address, formData.wardCommune, formData.provinceCity].filter(Boolean).join(", ")}
+                  {formData.foreignName || "-"}
                 </div>
 
-                <div className="font-semibold text-[#333333] dark:text-zinc-300">Địa điểm kinh doanh :</div>
+                <div className="font-semibold text-[#333333] dark:text-zinc-300">
+                  Ngày cấp GPKD:
+                </div>
                 <div className="font-medium text-[#333333] dark:text-zinc-200">
-                  {[formData.businessLocation, formData.operatingWardCommune || formData.wardCommune, formData.operatingProvinceCity || formData.provinceCity].filter(Boolean).join(", ")}
+                  {formData.licenseIssueDate
+                    ? formData.licenseIssueDate.split("-").reverse().join("/")
+                    : "-"}
                 </div>
 
-                <div className="font-semibold text-[#333333] dark:text-zinc-300">Người đứng đầu doanh nghiệp</div>
-                <div className="font-medium text-[#333333] dark:text-zinc-200">{formData.representativeName || "-"}</div>
+                <div className="font-semibold text-[#333333] dark:text-zinc-300">
+                  Email
+                </div>
+                <div className="font-medium text-[#333333] dark:text-zinc-200">
+                  {formData.email}
+                </div>
 
-                <div className="font-semibold text-[#333333] dark:text-zinc-300">SĐT người đứng đầu</div>
-                <div className="font-medium text-[#333333] dark:text-zinc-200">{formData.representativePhone || "-"}</div>
+                <div className="font-semibold text-[#333333] dark:text-zinc-300">
+                  Loại hình kinh doanh:
+                </div>
+                <div className="font-medium text-[#333333] dark:text-zinc-200">
+                  {formData.businessType}
+                </div>
+
+                <div className="font-semibold text-[#333333] dark:text-zinc-300">
+                  Ngành nghề kinh doanh
+                </div>
+                <div className="font-medium text-[#333333] dark:text-zinc-200">
+                  {formData.industryCode
+                    ? `${formData.industryCode} - ${formData.industryName}`
+                    : "-"}
+                </div>
+
+                <div className="font-semibold text-[#333333] dark:text-zinc-300">
+                  Địa chỉ đăng ký giấy phép kinh doanh :
+                </div>
+                <div className="font-medium text-[#333333] dark:text-zinc-200">
+                  {[
+                    formData.address,
+                    formData.wardCommune,
+                    formData.provinceCity,
+                  ]
+                    .filter(Boolean)
+                    .join(", ")}
+                </div>
+
+                <div className="font-semibold text-[#333333] dark:text-zinc-300">
+                  Địa điểm kinh doanh :
+                </div>
+                <div className="font-medium text-[#333333] dark:text-zinc-200">
+                  {[
+                    formData.businessLocation,
+                    formData.operatingWardCommune || formData.wardCommune,
+                    formData.operatingProvinceCity || formData.provinceCity,
+                  ]
+                    .filter(Boolean)
+                    .join(", ")}
+                </div>
+
+                <div className="font-semibold text-[#333333] dark:text-zinc-300">
+                  Người đứng đầu doanh nghiệp
+                </div>
+                <div className="font-medium text-[#333333] dark:text-zinc-200">
+                  {formData.representativeName || "-"}
+                </div>
+
+                <div className="font-semibold text-[#333333] dark:text-zinc-300">
+                  SĐT người đứng đầu
+                </div>
+                <div className="font-medium text-[#333333] dark:text-zinc-200">
+                  {formData.representativePhone || "-"}
+                </div>
               </div>
             </div>
 
@@ -1368,13 +1673,20 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                   <tbody>
                     <tr className="border-b border-zinc-100 dark:border-zinc-850 text-xs font-semibold text-zinc-700 dark:text-zinc-350">
                       <td className="p-3.5 font-bold">Giấy phép kinh doanh</td>
-                      <td className="p-3.5 font-mono text-zinc-500">{attachments.gpkd.name || "Không đính kèm"}</td>
+                      <td className="p-3.5 font-mono text-zinc-500">
+                        {attachments.gpkd.name || "Không đính kèm"}
+                      </td>
                       <td className="p-3.5">
                         <div className="flex items-center justify-center">
                           <button
                             type="button"
-                            onClick={() => (attachments.gpkd.file || attachments.gpkd.url) && handlePreviewClick("gpkd")}
-                            disabled={!attachments.gpkd.file && !attachments.gpkd.url}
+                            onClick={() =>
+                              (attachments.gpkd.file || attachments.gpkd.url) &&
+                              handlePreviewClick("gpkd")
+                            }
+                            disabled={
+                              !attachments.gpkd.file && !attachments.gpkd.url
+                            }
                             className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full text-slate-400 hover:text-green-600 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-all"
                             title="Xem file"
                           >
@@ -1386,13 +1698,20 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
 
                     <tr className="text-xs font-semibold text-zinc-700 dark:text-zinc-350">
                       <td className="p-3.5 font-bold">Giấy tờ khác</td>
-                      <td className="p-3.5 font-mono text-zinc-500">{attachments.gtk.name || "Không đính kèm"}</td>
+                      <td className="p-3.5 font-mono text-zinc-500">
+                        {attachments.gtk.name || "Không đính kèm"}
+                      </td>
                       <td className="p-3.5">
                         <div className="flex items-center justify-center">
                           <button
                             type="button"
-                            onClick={() => (attachments.gtk.file || attachments.gtk.url) && handlePreviewClick("gtk")}
-                            disabled={!attachments.gtk.file && !attachments.gtk.url}
+                            onClick={() =>
+                              (attachments.gtk.file || attachments.gtk.url) &&
+                              handlePreviewClick("gtk")
+                            }
+                            disabled={
+                              !attachments.gtk.file && !attachments.gtk.url
+                            }
                             className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full text-slate-400 hover:text-green-600 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-all"
                             title="Xem file"
                           >
@@ -1408,8 +1727,13 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
           </div>
 
           {/* Action buttons footer */}
-          <div className={`sticky bottom-0 -mx-6 md:-mx-8 -mb-6 md:-mb-8 z-40 flex items-center justify-end gap-6 border-t border-zinc-200 dark:border-zinc-800 p-4 md:py-5 md:px-6 rounded-b-[24px] select-none font-bold text-sm ${isRegistration ? "bg-slate-50 dark:bg-zinc-900" : "bg-white dark:bg-zinc-950"
-            }`}>
+          <div
+            className={`sticky bottom-0 -mx-6 md:-mx-8 -mb-6 md:-mb-8 z-40 flex items-center justify-end gap-6 border-t border-zinc-200 dark:border-zinc-800 p-4 md:py-5 md:px-6 rounded-b-[24px] select-none font-bold text-sm ${
+              isRegistration
+                ? "bg-slate-50 dark:bg-zinc-900"
+                : "bg-white dark:bg-zinc-950"
+            }`}
+          >
             <button
               type="button"
               onClick={() => setStep(1)}
@@ -1440,7 +1764,6 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
         </div>
       )}
 
-
       {accountModalData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -1455,11 +1778,21 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
               <ul className="flex flex-col gap-3 text-sm text-zinc-700 dark:text-zinc-350">
                 <li className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-600" />
-                  <span>Tài khoản: <strong className="text-zinc-900 dark:text-white font-extrabold">{accountModalData.username}</strong></span>
+                  <span>
+                    Tài khoản:{" "}
+                    <strong className="text-zinc-900 dark:text-white font-extrabold">
+                      {accountModalData.username}
+                    </strong>
+                  </span>
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-600" />
-                  <span>Mật khẩu: <strong className="text-zinc-900 dark:text-white font-extrabold">{accountModalData.password}</strong></span>
+                  <span>
+                    Mật khẩu:{" "}
+                    <strong className="text-zinc-900 dark:text-white font-extrabold">
+                      {accountModalData.password}
+                    </strong>
+                  </span>
                 </li>
               </ul>
 
@@ -1484,7 +1817,15 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                   }}
                   className="flex items-center gap-1.5 px-4.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-md transition-all cursor-pointer"
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="w-3.5 h-3.5"
+                  >
                     <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
                     <polyline points="17 21 17 13 7 13 7 21" />
                     <polyline points="7 3 7 8 15 8" />
@@ -1499,9 +1840,11 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
 
       {showOtpModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
-          <div onClick={() => setShowOtpModal(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            onClick={() => setShowOtpModal(false)}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          />
           <div className="relative bg-white dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/80 rounded-[24px] w-full max-w-[440px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col p-8 gap-6">
-
             {/* Title */}
             <div className="flex flex-col gap-2 items-center text-center">
               <h3 className="text-[#2563eb] text-xl font-extrabold tracking-wide uppercase">
@@ -1509,7 +1852,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
               </h3>
               <p className="text-zinc-500 dark:text-zinc-400 text-xs leading-relaxed max-w-[320px]">
                 Chúng tôi đã gửi mã xác minh qua số email <br />
-                <strong className="text-zinc-900 dark:text-zinc-200 font-extrabold break-all">{formData.email}</strong> <br />
+                <strong className="text-zinc-900 dark:text-zinc-200 font-extrabold break-all">
+                  {formData.email}
+                </strong>{" "}
+                <br />
                 Bạn vui lòng kiểm tra và điền mã xác thực
               </p>
             </div>
@@ -1533,8 +1879,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
             {/* Timer and Resend Prompt */}
             <div className="flex flex-col gap-1.5 items-center select-none text-xs font-bold">
               <span className="text-[#2563eb] text-sm">
-                {Math.floor(otpTimer / 60).toString().padStart(2, "0")}:
-                {(otpTimer % 60).toString().padStart(2, "0")}
+                {Math.floor(otpTimer / 60)
+                  .toString()
+                  .padStart(2, "0")}
+                :{(otpTimer % 60).toString().padStart(2, "0")}
               </span>
               <span className="text-zinc-400 dark:text-zinc-500 font-medium">
                 Chưa nhận được mã?{" "}
@@ -1544,24 +1892,36 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                   onClick={async () => {
                     setIsResendingOtp(true);
                     try {
-                      const res = await sendRegistrationOtp({ email: formData.email, taxCode: formData.taxCode });
+                      const res = await sendRegistrationOtp({
+                        email: formData.email,
+                        taxCode: formData.taxCode,
+                      });
                       if (res.success) {
-                        showToast(res.message || "Đã gửi lại mã OTP thành công", "success");
+                        showToast(
+                          res.message || "Đã gửi lại mã OTP thành công",
+                          "success",
+                        );
                         setOtpTimer(300);
                         setOtpValue("");
                       } else {
                         throw new Error(res.message);
                       }
                     } catch (err) {
-                      showToast(err instanceof Error ? err.message : "Gửi lại OTP thất bại", "error");
+                      showToast(
+                        err instanceof Error
+                          ? err.message
+                          : "Gửi lại OTP thất bại",
+                        "error",
+                      );
                     } finally {
                       setIsResendingOtp(false);
                     }
                   }}
-                  className={`underline cursor-pointer ${otpTimer > 0
+                  className={`underline cursor-pointer ${
+                    otpTimer > 0
                       ? "text-zinc-300 dark:text-zinc-700 cursor-not-allowed no-underline"
                       : "text-[#2563eb] hover:text-[#1d4ed8]"
-                    }`}
+                  }`}
                 >
                   Gửi lại
                 </button>
@@ -1576,16 +1936,27 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                 onClick={async () => {
                   setIsVerifyingOtp(true);
                   try {
-                    const res = await verifyRegistrationOtp({ email: formData.email, otp: otpValue });
+                    const res = await verifyRegistrationOtp({
+                      email: formData.email,
+                      otp: otpValue,
+                    });
                     if (res.success) {
-                      showToast(res.message || "Xác thực OTP thành công", "success");
+                      showToast(
+                        res.message || "Xác thực OTP thành công",
+                        "success",
+                      );
                       setShowOtpModal(false);
                       setStep(2); // Advance to the confirmation step!
                     } else {
                       throw new Error(res.message);
                     }
                   } catch (err) {
-                    showToast(err instanceof Error ? err.message : "Mã OTP không chính xác hoặc đã hết hạn", "error");
+                    showToast(
+                      err instanceof Error
+                        ? err.message
+                        : "Mã OTP không chính xác hoặc đã hết hạn",
+                      "error",
+                    );
                   } finally {
                     setIsVerifyingOtp(false);
                   }
@@ -1611,16 +1982,17 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                 Hủy bỏ
               </button>
             </div>
-
           </div>
         </div>
       )}
 
       {showProfileOtpModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
-          <div onClick={() => setShowProfileOtpModal(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            onClick={() => setShowProfileOtpModal(false)}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          />
           <div className="relative bg-white dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/80 rounded-[24px] w-full max-w-[440px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col p-8 gap-6">
-
             {/* Title */}
             <div className="flex flex-col gap-2 items-center text-center">
               <h3 className="text-[#2563eb] text-xl font-extrabold tracking-wide uppercase">
@@ -1628,7 +2000,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
               </h3>
               <p className="text-zinc-500 dark:text-zinc-400 text-xs leading-relaxed max-w-[320px]">
                 Chúng tôi đã gửi mã xác minh qua số email cũ <br />
-                <strong className="text-zinc-900 dark:text-zinc-200 font-extrabold break-all">{formData.email}</strong> <br />
+                <strong className="text-zinc-900 dark:text-zinc-200 font-extrabold break-all">
+                  {formData.email}
+                </strong>{" "}
+                <br />
                 Bạn vui lòng kiểm tra và điền mã xác thực
               </p>
             </div>
@@ -1652,8 +2027,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
             {/* Timer and Resend Prompt */}
             <div className="flex flex-col gap-1.5 items-center select-none text-xs font-bold">
               <span className="text-[#2563eb] text-sm">
-                {Math.floor(otpTimer / 60).toString().padStart(2, "0")}:
-                {(otpTimer % 60).toString().padStart(2, "0")}
+                {Math.floor(otpTimer / 60)
+                  .toString()
+                  .padStart(2, "0")}
+                :{(otpTimer % 60).toString().padStart(2, "0")}
               </span>
               <span className="text-zinc-400 dark:text-zinc-500 font-medium">
                 Chưa nhận được mã?{" "}
@@ -1665,22 +2042,31 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                     try {
                       const res = await sendBusinessProfileEmailOtp();
                       if (res.success) {
-                        showToast(res.message || "Đã gửi lại mã OTP thành công", "success");
+                        showToast(
+                          res.message || "Đã gửi lại mã OTP thành công",
+                          "success",
+                        );
                         setOtpTimer(300);
                         setOtpValue("");
                       } else {
                         throw new Error(res.message);
                       }
                     } catch (err) {
-                      showToast(err instanceof Error ? err.message : "Gửi lại OTP thất bại", "error");
+                      showToast(
+                        err instanceof Error
+                          ? err.message
+                          : "Gửi lại OTP thất bại",
+                        "error",
+                      );
                     } finally {
                       setIsResendingOtp(false);
                     }
                   }}
-                  className={`underline cursor-pointer ${otpTimer > 0
+                  className={`underline cursor-pointer ${
+                    otpTimer > 0
                       ? "text-zinc-300 dark:text-zinc-700 cursor-not-allowed no-underline"
                       : "text-[#2563eb] hover:text-[#1d4ed8]"
-                    }`}
+                  }`}
                 >
                   Gửi lại
                 </button>
@@ -1714,16 +2100,17 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                 Hủy bỏ
               </button>
             </div>
-
           </div>
         </div>
       )}
 
       {showNewEmailModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
-          <div onClick={() => setShowNewEmailModal(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            onClick={() => setShowNewEmailModal(false)}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          />
           <div className="relative bg-white dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/80 rounded-[24px] w-full max-w-[440px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col p-8 gap-6">
-
             {/* Title */}
             <div className="flex flex-col gap-2 items-center text-center">
               <h3 className="text-[#2563eb] text-xl font-extrabold tracking-wide uppercase">
@@ -1735,10 +2122,20 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
             </div>
 
             {/* Email Input Field */}
-            <div className={`relative border rounded-xl px-4 py-2.5 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all ${newEmailError ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"
-              }`}>
-              <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold ${newEmailError ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"
-                }`}>
+            <div
+              className={`relative border rounded-xl px-4 py-2.5 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all ${
+                newEmailError
+                  ? "border-red-500 ring-1 ring-red-500"
+                  : "border-zinc-200 dark:border-zinc-800"
+              }`}
+            >
+              <label
+                className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold ${
+                  newEmailError
+                    ? "text-red-500"
+                    : "text-zinc-400 dark:text-zinc-500"
+                }`}
+              >
                 Email <span className="text-red-500">*</span>
               </label>
               <input
@@ -1755,7 +2152,9 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
             </div>
 
             {newEmailError && (
-              <p className="text-red-500 text-xs font-bold -mt-3 text-center">{newEmailError}</p>
+              <p className="text-red-500 text-xs font-bold -mt-3 text-center">
+                {newEmailError}
+              </p>
             )}
 
             {/* Action Buttons */}
@@ -1785,7 +2184,6 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                 Hủy bỏ
               </button>
             </div>
-
           </div>
         </div>
       )}

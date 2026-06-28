@@ -5,6 +5,7 @@ import { ChevronDown } from "lucide-react";
 import { getIndustries } from "../services/api";
 
 export interface IndustryLevel4 {
+  id?: number;
   code: string;
   name: string;
 }
@@ -13,7 +14,7 @@ export const MOCK_INDUSTRIES_LEVEL4: IndustryLevel4[] = [];
 
 interface IndustrySearchSelectProps {
   value: string;
-  onChange: (code: string, name: string) => void;
+  onChange: (code: string, name: string, id?: number) => void;
   disabled?: boolean;
   error?: boolean;
 }
@@ -46,7 +47,9 @@ export const IndustrySearchSelect: React.FC<IndustrySearchSelectProps> = ({
   }, []);
 
   const selectedIndustry = industries.find((ind) => ind.code === value);
-  const displayValue = selectedIndustry ? `${selectedIndustry.code} - ${selectedIndustry.name}` : "";
+  const displayValue = selectedIndustry
+    ? `${selectedIndustry.code} - ${selectedIndustry.name}`
+    : "";
 
   useEffect(() => {
     if (isOpen) {
@@ -57,7 +60,7 @@ export const IndustrySearchSelect: React.FC<IndustrySearchSelectProps> = ({
   const filtered = industries.filter(
     (ind) =>
       ind.code.includes(searchTerm) ||
-      ind.name.toLowerCase().includes(searchTerm.toLowerCase())
+      ind.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   return (
@@ -68,9 +71,11 @@ export const IndustrySearchSelect: React.FC<IndustrySearchSelectProps> = ({
           ${disabled ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : ""}
         `}
       >
-        <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold transition-colors
+        <label
+          className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold transition-colors
           ${error ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"}
-        `}>
+        `}
+        >
           Ngành nghề kinh doanh <span className="text-red-500">*</span>
         </label>
 
@@ -79,11 +84,20 @@ export const IndustrySearchSelect: React.FC<IndustrySearchSelectProps> = ({
             type="text"
             readOnly
             disabled={disabled}
-            className={`w-full bg-transparent border-0 outline-none text-sm font-semibold pr-8 transition-colors ${disabled ? "cursor-not-allowed" : "cursor-pointer"
-              } ${displayValue ? "text-zinc-800 dark:text-zinc-200" : "text-zinc-400 dark:text-zinc-500"
-              }`}
-            placeholder={isLoading ? "Đang tải..." : "Chọn ngành nghề kinh doanh"}
-            value={displayValue || (isLoading ? "Đang tải..." : "Chọn ngành nghề kinh doanh")}
+            className={`w-full bg-transparent border-0 outline-none text-sm font-semibold pr-8 transition-colors ${
+              disabled ? "cursor-not-allowed" : "cursor-pointer"
+            } ${
+              displayValue
+                ? "text-zinc-800 dark:text-zinc-200"
+                : "text-zinc-400 dark:text-zinc-500"
+            }`}
+            placeholder={
+              isLoading ? "Đang tải..." : "Chọn ngành nghề kinh doanh"
+            }
+            value={
+              displayValue ||
+              (isLoading ? "Đang tải..." : "Chọn ngành nghề kinh doanh")
+            }
             onChange={(e) => setSearchTerm(e.target.value)}
             onFocus={() => {
               if (!disabled && !isLoading) setIsOpen(true);
@@ -93,15 +107,19 @@ export const IndustrySearchSelect: React.FC<IndustrySearchSelectProps> = ({
             }}
           />
           <ChevronDown
-            className={`absolute right-0 w-4.5 h-4.5 text-zinc-400 pointer-events-none transition-transform duration-200 ${isOpen ? "rotate-180" : ""
-              }`}
+            className={`absolute right-0 w-4.5 h-4.5 text-zinc-400 pointer-events-none transition-transform duration-200 ${
+              isOpen ? "rotate-180" : ""
+            }`}
           />
         </div>
       </div>
 
       {isOpen && !disabled && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setIsOpen(false)}
+          />
           <div className="absolute left-0 right-0 mt-1.5 max-h-60 overflow-y-auto rounded-xl border border-zinc-200/80 bg-white dark:border-zinc-800 dark:bg-zinc-900 shadow-xl z-50 py-1 select-none animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="px-3 py-1.5 border-b border-zinc-150 dark:border-zinc-850">
               <input
@@ -123,14 +141,16 @@ export const IndustrySearchSelect: React.FC<IndustrySearchSelectProps> = ({
                   key={ind.code}
                   type="button"
                   onClick={() => {
-                    onChange(ind.code, ind.name);
+                    onChange(ind.code, ind.name, ind.id);
                     setIsOpen(false);
                   }}
                   className={`w-full text-left px-4 py-2.5 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50 flex items-center justify-between font-medium transition-colors
                     ${value === ind.code ? "bg-blue-50/50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 font-bold" : ""}
                   `}
                 >
-                  <span>{ind.code} - {ind.name}</span>
+                  <span>
+                    {ind.code} - {ind.name}
+                  </span>
                 </button>
               ))
             )}
@@ -140,4 +160,3 @@ export const IndustrySearchSelect: React.FC<IndustrySearchSelectProps> = ({
     </div>
   );
 };
-

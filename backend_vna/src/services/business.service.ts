@@ -20,17 +20,19 @@ import {
   VerifyBusinessRegistrationOtpDto,
 } from '../dtos/business-registration.dto';
 import { CreateBusinessDto } from '../dtos/create-business.dto';
-import { BUSINESS_TYPES } from '../dtos/create-business.dto';
 import { ListBusinessesQueryDto } from '../dtos/list-businesses-query.dto';
 import { UpdateBusinessDto } from '../dtos/update-business.dto';
 import { ValidateBusinessUniquenessDto } from '../dtos/validate-business-uniqueness.dto';
 import { BusinessAttachment } from '../entities/business-attachment.entity';
+import { BusinessIndustry } from '../entities/business-industry.entity';
+import { BusinessType } from '../entities/business-type.entity';
 import { Business } from '../entities/business.entity';
 import { EmailOtp } from '../entities/email-otp.entity';
 import { Role } from '../entities/role.entity';
 import { User, UserAccountType } from '../entities/user.entity';
 import { UserRole } from '../entities/user-role.entity';
 import { CloudinaryService } from './cloudinary.service';
+import { BusinessReferenceCatalogService } from './business-reference-catalog.service';
 import { MailService } from './mail.service';
 import type { CurrentUserData } from '../decorators/current-user.decorator';
 
@@ -41,6 +43,11 @@ const BUSINESS_REGISTRATION_ATTACHMENT_NAMES = [
   'Giấy phép kinh doanh',
   'Giấy tờ khác',
 ];
+
+type ResolvedBusinessReferenceSelection = {
+  businessTypeCatalog?: BusinessType;
+  industryCatalog?: BusinessIndustry;
+};
 
 @Injectable()
 export class BusinessService {
@@ -63,6 +70,14 @@ export class BusinessService {
     @InjectRepository(EmailOtp)
     private readonly emailOtpRepository: Repository<EmailOtp>,
 
+    @InjectRepository(BusinessType)
+    private readonly businessTypeRepository: Repository<BusinessType>,
+
+    @InjectRepository(BusinessIndustry)
+    private readonly businessIndustryRepository: Repository<BusinessIndustry>,
+
+    private readonly businessReferenceCatalogService: BusinessReferenceCatalogService,
+
     private readonly cloudinaryService: CloudinaryService,
 
     private readonly configService: ConfigService,
@@ -70,11 +85,14 @@ export class BusinessService {
     private readonly mailService: MailService,
   ) {}
 
-  getBusinessOptions() {
+  async getBusinessOptions() {
+    const options =
+      await this.businessReferenceCatalogService.getActiveOptions();
+
     return {
       message: 'Lấy danh mục doanh nghiệp thành công',
       data: {
-        businessTypes: BUSINESS_TYPES,
+        ...options,
         taxCodeRules: {
           format: '10 digits or 10 digits-3 digits',
           examples: ['910000888292'.slice(0, 10), '0100109106-001'],
@@ -180,9 +198,7 @@ export class BusinessService {
     };
   }
 
-  async validateBusinessUniqueness(
-    body: ValidateBusinessUniquenessDto,
-  ) {
+  async validateBusinessUniqueness(body: ValidateBusinessUniquenessDto) {
     const taxCode = this.normalizeTaxCode(body.taxCode);
     const email = this.normalizeRequiredEmail(body.email);
     const currentBusiness = body.businessId
@@ -305,6 +321,11 @@ export class BusinessService {
   ) {
     const business = await this.findBusinessByAccountUserId(userId);
     this.validateBusinessPayload(updateBusinessDto, false);
+    const referenceSelection = await this.resolveBusinessReferenceSelection(
+      updateBusinessDto,
+      business,
+      false,
+    );
     await this.validateUniqueRepresentativePhone(
       updateBusinessDto.representativePhone,
       business.id,
@@ -335,14 +356,16 @@ export class BusinessService {
           business.foreignName,
         );
         business.businessType =
-          this.toTrimmedValue(updateBusinessDto.businessType) ??
-          business.businessType;
+          referenceSelection.businessTypeCatalog?.name ?? business.businessType;
+        business.businessTypeCatalog =
+          referenceSelection.businessTypeCatalog ??
+          business.businessTypeCatalog;
         business.industryCode =
-          this.toTrimmedValue(updateBusinessDto.industryCode) ??
-          business.industryCode;
+          referenceSelection.industryCatalog?.code ?? business.industryCode;
         business.industryName =
-          this.toTrimmedValue(updateBusinessDto.industryName) ??
-          business.industryName;
+          referenceSelection.industryCatalog?.name ?? business.industryName;
+        business.industryCatalog =
+          referenceSelection.industryCatalog ?? business.industryCatalog;
         business.licenseIssueDate =
           updateBusinessDto.licenseIssueDate === undefined
             ? business.licenseIssueDate
@@ -556,6 +579,11 @@ export class BusinessService {
     const taxCode = this.normalizeTaxCode(createBusinessDto.taxCode);
 
     this.validateBusinessPayload(createBusinessDto);
+    const referenceSelection = await this.resolveBusinessReferenceSelection(
+      createBusinessDto,
+      undefined,
+      true,
+    );
     await this.validateUniqueTaxCode(taxCode);
     await this.validateUniqueBusinessAccount(taxCode, createBusinessDto.email);
     await this.validateUniqueRepresentativePhone(
@@ -576,9 +604,11 @@ export class BusinessService {
           businessName: this.toRequiredValue(createBusinessDto.businessName),
           foreignName: this.toOptionalValue(createBusinessDto.foreignName),
           taxCode,
-          businessType: this.toRequiredValue(createBusinessDto.businessType),
-          industryCode: this.toRequiredValue(createBusinessDto.industryCode),
-          industryName: this.toRequiredValue(createBusinessDto.industryName),
+          businessType: referenceSelection.businessTypeCatalog!.name,
+          businessTypeCatalog: referenceSelection.businessTypeCatalog!,
+          industryCode: referenceSelection.industryCatalog!.code,
+          industryName: referenceSelection.industryCatalog!.name,
+          industryCatalog: referenceSelection.industryCatalog!,
           licenseIssueDate: this.toDateValue(
             createBusinessDto.licenseIssueDate,
           ),
@@ -738,6 +768,11 @@ export class BusinessService {
   ) {
     const business = await this.findBusiness(id);
     this.validateBusinessPayload(updateBusinessDto, false);
+    const referenceSelection = await this.resolveBusinessReferenceSelection(
+      updateBusinessDto,
+      business,
+      false,
+    );
     const accountUserId = business.accountUser?.id;
 
     const nextTaxCode = updateBusinessDto.taxCode
@@ -775,14 +810,16 @@ export class BusinessService {
           business.foreignName,
         );
         business.businessType =
-          this.toTrimmedValue(updateBusinessDto.businessType) ??
-          business.businessType;
+          referenceSelection.businessTypeCatalog?.name ?? business.businessType;
+        business.businessTypeCatalog =
+          referenceSelection.businessTypeCatalog ??
+          business.businessTypeCatalog;
         business.industryCode =
-          this.toTrimmedValue(updateBusinessDto.industryCode) ??
-          business.industryCode;
+          referenceSelection.industryCatalog?.code ?? business.industryCode;
         business.industryName =
-          this.toTrimmedValue(updateBusinessDto.industryName) ??
-          business.industryName;
+          referenceSelection.industryCatalog?.name ?? business.industryName;
+        business.industryCatalog =
+          referenceSelection.industryCatalog ?? business.industryCatalog;
         business.licenseIssueDate =
           updateBusinessDto.licenseIssueDate === undefined
             ? business.licenseIssueDate
@@ -964,6 +1001,8 @@ export class BusinessService {
       relations: {
         attachments: true,
         accountUser: true,
+        businessTypeCatalog: true,
+        industryCatalog: true,
       },
       order: {
         attachments: {
@@ -987,6 +1026,8 @@ export class BusinessService {
       relations: {
         attachments: true,
         accountUser: true,
+        businessTypeCatalog: true,
+        industryCatalog: true,
       },
       order: {
         attachments: {
@@ -1327,6 +1368,184 @@ export class BusinessService {
     );
   }
 
+  private async resolveBusinessReferenceSelection(
+    payload: CreateBusinessDto | UpdateBusinessDto,
+    currentBusiness?: Business,
+    requireAll = true,
+  ): Promise<ResolvedBusinessReferenceSelection> {
+    const selection: ResolvedBusinessReferenceSelection = {};
+    const businessTypeId = this.toOptionalPositiveInteger(
+      payload.businessTypeId,
+      'Loại hình kinh doanh',
+    );
+    const businessTypeName = this.toTrimmedValue(payload.businessType);
+    const hasBusinessTypeSelection =
+      businessTypeId !== undefined || businessTypeName !== undefined;
+
+    if (hasBusinessTypeSelection) {
+      if (
+        currentBusiness &&
+        this.isCurrentBusinessTypeSelection(
+          currentBusiness,
+          businessTypeId,
+          businessTypeName,
+        )
+      ) {
+        if (!currentBusiness.businessTypeCatalog) {
+          throw new BadRequestException(
+            'Loại hình hiện tại chưa được liên kết danh mục, vui lòng chọn lại',
+          );
+        }
+        selection.businessTypeCatalog = currentBusiness.businessTypeCatalog;
+      } else {
+        const businessType = businessTypeId
+          ? await this.businessTypeRepository.findOne({
+              where: { id: businessTypeId, isActive: true },
+            })
+          : await this.businessTypeRepository
+              .createQueryBuilder('business_type')
+              .where('LOWER(business_type.name) = LOWER(:name)', {
+                name: businessTypeName,
+              })
+              .andWhere('business_type.isActive = true')
+              .getOne();
+
+        if (!businessType) {
+          throw new BadRequestException(
+            'Loại hình kinh doanh không tồn tại hoặc không còn sử dụng',
+          );
+        }
+        if (
+          businessTypeName &&
+          businessType.name.localeCompare(businessTypeName, 'vi', {
+            sensitivity: 'accent',
+          }) !== 0
+        ) {
+          throw new BadRequestException(
+            'ID và tên loại hình kinh doanh không khớp',
+          );
+        }
+        selection.businessTypeCatalog = businessType;
+      }
+    } else if (requireAll) {
+      throw new BadRequestException('Loại hình kinh doanh không được để trống');
+    }
+
+    const industryId = this.toOptionalPositiveInteger(
+      payload.industryId,
+      'Ngành nghề kinh doanh',
+    );
+    const industryCode = this.toTrimmedValue(payload.industryCode);
+    const industryName = this.toTrimmedValue(payload.industryName);
+    const hasIndustrySelection =
+      industryId !== undefined ||
+      industryCode !== undefined ||
+      industryName !== undefined;
+
+    if (hasIndustrySelection) {
+      if (
+        currentBusiness &&
+        this.isCurrentIndustrySelection(
+          currentBusiness,
+          industryId,
+          industryCode,
+          industryName,
+        )
+      ) {
+        if (!currentBusiness.industryCatalog) {
+          throw new BadRequestException(
+            'Ngành nghề hiện tại chưa được liên kết danh mục, vui lòng chọn lại',
+          );
+        }
+        selection.industryCatalog = currentBusiness.industryCatalog;
+      } else {
+        if (!industryId && !industryCode) {
+          throw new BadRequestException(
+            'Vui lòng chọn ngành nghề kinh doanh từ danh mục',
+          );
+        }
+        const industry = industryId
+          ? await this.businessIndustryRepository.findOne({
+              where: { id: industryId, level: 4, isActive: true },
+            })
+          : await this.businessIndustryRepository.findOne({
+              where: {
+                code: industryCode!,
+                level: 4,
+                isActive: true,
+              },
+            });
+
+        if (!industry) {
+          throw new BadRequestException(
+            'Ngành nghề cấp 4 không tồn tại hoặc không còn sử dụng',
+          );
+        }
+        if (industryCode && industry.code !== industryCode) {
+          throw new BadRequestException('ID và mã ngành nghề không khớp');
+        }
+        if (
+          industryName &&
+          industry.name.localeCompare(industryName, 'vi', {
+            sensitivity: 'accent',
+          }) !== 0
+        ) {
+          throw new BadRequestException('Mã và tên ngành nghề không khớp');
+        }
+        selection.industryCatalog = industry;
+      }
+    } else if (requireAll) {
+      throw new BadRequestException(
+        'Ngành nghề kinh doanh không được để trống',
+      );
+    }
+
+    return selection;
+  }
+
+  private isCurrentBusinessTypeSelection(
+    business: Business,
+    id?: number,
+    name?: string,
+  ) {
+    if (id !== undefined && id !== business.businessTypeCatalog?.id) {
+      return false;
+    }
+    if (name !== undefined && name !== business.businessType) {
+      return false;
+    }
+    return id !== undefined || name !== undefined;
+  }
+
+  private isCurrentIndustrySelection(
+    business: Business,
+    id?: number,
+    code?: string,
+    name?: string,
+  ) {
+    if (id !== undefined && id !== business.industryCatalog?.id) {
+      return false;
+    }
+    if (code !== undefined && code !== business.industryCode) {
+      return false;
+    }
+    if (name !== undefined && name !== business.industryName) {
+      return false;
+    }
+    return id !== undefined || code !== undefined || name !== undefined;
+  }
+
+  private toOptionalPositiveInteger(value: unknown, label: string) {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+    const normalized = Number(value);
+    if (!Number.isInteger(normalized) || normalized <= 0) {
+      throw new BadRequestException(`${label} không hợp lệ`);
+    }
+    return normalized;
+  }
+
   private validatePhone(value: string | undefined, label: string) {
     const phone = this.normalizePhoneNumber(value);
 
@@ -1515,8 +1734,11 @@ export class BusinessService {
       foreignName: business.foreignName,
       taxCode: business.taxCode,
       businessType: business.businessType,
+      businessTypeId: business.businessTypeCatalog?.id ?? null,
+      businessTypeCode: business.businessTypeCatalog?.code ?? null,
       industryCode: business.industryCode,
       industryName: business.industryName,
+      industryId: business.industryCatalog?.id ?? null,
       industryDisplay: `${business.industryCode} - ${business.industryName}`,
       licenseIssueDate: this.formatDateInput(business.licenseIssueDate),
       provinceCity: business.provinceCity,

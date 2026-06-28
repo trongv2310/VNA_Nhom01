@@ -1,23 +1,11 @@
 import {
   IsEmail,
-  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
-export const BUSINESS_TYPES = [
-  'Công ty TNHH 1 thành viên',
-  'Công ty TNHH 2 thành viên trở lên',
-  'Công ty cổ phần',
-  'Công ty hợp danh',
-  'Doanh nghiệp tư nhân',
-  'Hộ kinh doanh',
-  'Hợp tác xã',
-  'Chi nhánh',
-] as const;
 
 export class CreateBusinessDto {
   @ApiProperty({
@@ -47,30 +35,46 @@ export class CreateBusinessDto {
   })
   taxCode!: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'Công ty TNHH 1 thành viên',
-    enum: BUSINESS_TYPES,
+    description:
+      'Tên loại hình cũ để tương thích. Có thể gửi businessTypeId thay thế.',
   })
-  @IsNotEmpty({ message: 'Loại hình kinh doanh không được để trống' })
-  @IsIn(BUSINESS_TYPES, { message: 'Loại hình kinh doanh không hợp lệ' })
-  businessType!: string;
+  @IsOptional()
+  @IsString()
+  businessType?: string;
 
-  @ApiProperty({
-    example: '4669',
-    description: 'Mã ngành nghề kinh doanh cấp 4 theo VSIC, gồm đúng 4 chữ số',
+  @ApiPropertyOptional({
+    example: 1,
+    description: 'ID loại hình kinh doanh từ API danh mục',
   })
-  @IsNotEmpty({ message: 'Mã ngành nghề cấp 4 không được để trống' })
+  @IsOptional()
+  businessTypeId?: string | number;
+
+  @ApiPropertyOptional({
+    example: '4669',
+    description:
+      'Mã ngành cấp 4 cũ để tương thích. Có thể gửi industryId thay thế.',
+  })
+  @IsOptional()
   @Matches(/^\d{4}$/, {
     message: 'Mã ngành nghề kinh doanh cấp 4 phải gồm 4 chữ số',
   })
-  industryCode!: string;
+  industryCode?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'Bán buôn chuyên doanh khác chưa được phân vào đâu',
   })
-  @IsNotEmpty({ message: 'Tên ngành nghề kinh doanh chính không được để trống' })
+  @IsOptional()
   @IsString()
-  industryName!: string;
+  industryName?: string;
+
+  @ApiPropertyOptional({
+    example: 1,
+    description: 'ID ngành nghề cấp 4 từ API danh mục',
+  })
+  @IsOptional()
+  industryId?: string | number;
 
   @ApiPropertyOptional({
     example: '2020-01-01',

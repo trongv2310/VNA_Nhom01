@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   Entity,
   JoinColumn,
+  ManyToOne,
   OneToOne,
   OneToMany,
   PrimaryGeneratedColumn,
@@ -10,6 +11,8 @@ import {
 } from 'typeorm';
 
 import { BusinessAttachment } from './business-attachment.entity';
+import { BusinessIndustry } from './business-industry.entity';
+import { BusinessType } from './business-type.entity';
 import { User } from './user.entity';
 
 @Entity('businesses')
@@ -46,6 +49,15 @@ export class Business {
   })
   businessType!: string | null;
 
+  @ManyToOne(() => BusinessType, (businessType) => businessType.businesses, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({
+    name: 'business_type_id',
+  })
+  businessTypeCatalog!: BusinessType | null;
+
   @Column({
     name: 'industry_code',
     length: 4,
@@ -57,6 +69,15 @@ export class Business {
     length: 255,
   })
   industryName!: string;
+
+  @ManyToOne(() => BusinessIndustry, (industry) => industry.businesses, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({
+    name: 'industry_id',
+  })
+  industryCatalog!: BusinessIndustry | null;
 
   @Column({
     name: 'license_issue_date',

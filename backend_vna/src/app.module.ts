@@ -9,6 +9,8 @@ import { UserRole } from './entities/user-role.entity';
 import { Permission } from './entities/permission.entity';
 import { RolePermission } from './entities/role-permission.entity';
 import { BusinessAttachment } from './entities/business-attachment.entity';
+import { BusinessIndustry } from './entities/business-industry.entity';
+import { BusinessType } from './entities/business-type.entity';
 import { Business } from './entities/business.entity';
 import { RoleSeedService } from './services/role-seed.service';
 import { UserSeedService } from './services/user-seed.service';
@@ -16,8 +18,13 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './controllers/auth.controller';
 import { BusinessProfileController } from './controllers/business-profile.controller';
 import { BusinessRegistrationController } from './controllers/business-registration.controller';
+import {
+  BusinessIndustryController,
+  BusinessTypeController,
+} from './controllers/business-reference-catalog.controller';
 import { AuthService } from './services/auth.service';
 import { BusinessController } from './controllers/business.controller';
+import { BusinessReferenceCatalogService } from './services/business-reference-catalog.service';
 import { BusinessService } from './services/business.service';
 import { UserController } from './controllers/user.controller';
 import { UserService } from './services/user.service';
@@ -84,6 +91,8 @@ import { LaborAccidentCatalogSeedService } from './services/labor-accident-catal
           EmailOtp,
           Business,
           BusinessAttachment,
+          BusinessIndustry,
+          BusinessType,
           LaborAccidentCatalog,
           LaborAccidentReportAttachment,
           LaborAccidentReportDetail,
@@ -105,6 +114,8 @@ import { LaborAccidentCatalogSeedService } from './services/labor-accident-catal
       EmailOtp,
       Business,
       BusinessAttachment,
+      BusinessIndustry,
+      BusinessType,
       LaborAccidentCatalog,
       LaborAccidentReportAttachment,
       LaborAccidentReportDetail,
@@ -138,6 +149,8 @@ import { LaborAccidentCatalogSeedService } from './services/labor-accident-catal
     RoleManagementController,
     BusinessProfileController,
     BusinessRegistrationController,
+    BusinessTypeController,
+    BusinessIndustryController,
     BusinessController,
     LaborAccidentCatalogController,
     LaborAccidentReportPeriodController,
@@ -149,6 +162,7 @@ import { LaborAccidentCatalogSeedService } from './services/labor-accident-catal
     AuthService,
     UserService,
     RoleManagementService,
+    BusinessReferenceCatalogService,
     BusinessService,
     CloudinaryService,
     MailService,
@@ -165,4 +179,4 @@ import { LaborAccidentCatalogSeedService } from './services/labor-accident-catal
     LaborAccidentCatalogSeedService,
   ],
 })
-export class AppModule { }
+export class AppModule {}

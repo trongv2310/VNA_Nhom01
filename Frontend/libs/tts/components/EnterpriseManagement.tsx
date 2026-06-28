@@ -14,7 +14,10 @@ import {
 import { ResetPasswordModal } from "./ResetPasswordModal";
 import { CreateEnterprise } from "./CreateEnterprise";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
-import { IndustrySearchSelect, type IndustryLevel4 } from "./IndustrySearchSelect";
+import {
+  IndustrySearchSelect,
+  type IndustryLevel4,
+} from "./IndustrySearchSelect";
 import { SearchSelect } from "./SearchSelect";
 import {
   getBusinesses,
@@ -28,6 +31,7 @@ import {
   getIndustries,
   type BusinessListItem,
   type BusinessListMeta,
+  type BusinessTypeCatalogItem,
 } from "../services/api";
 
 export const BUSINESS_TYPE_LABELS: Record<string, string> = {
@@ -76,6 +80,9 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
   // Lists & Options state
   const [businesses, setBusinesses] = useState<BusinessListItem[]>([]);
   const [businessTypes, setBusinessTypes] = useState<string[]>([]);
+  const [businessTypeOptions, setBusinessTypeOptions] = useState<
+    BusinessTypeCatalogItem[]
+  >([]);
   const [industries, setIndustries] = useState<IndustryLevel4[]>([]);
 
   // Pagination State
@@ -105,17 +112,27 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   // Modals & Wizard state
-  const [passwordResetEnterprise, setPasswordResetEnterprise] = useState<BusinessListItem | null>(null);
-  const [wizardMode, setWizardMode] = useState<"create" | "edit" | "view" | null>(null);
+  const [passwordResetEnterprise, setPasswordResetEnterprise] =
+    useState<BusinessListItem | null>(null);
+  const [wizardMode, setWizardMode] = useState<
+    "create" | "edit" | "view" | null
+  >(null);
   const [editingId, setEditingId] = useState<number | undefined>(undefined);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   const resolveBusinessAccountUserId = async (business: BusinessListItem) => {
-    if (business.accountUserId !== undefined && business.accountUserId !== null) {
+    if (
+      business.accountUserId !== undefined &&
+      business.accountUserId !== null
+    ) {
       return business.accountUserId;
     }
 
-    const username = (business.accountUsername || business.taxCode || "").trim();
+    const username = (
+      business.accountUsername ||
+      business.taxCode ||
+      ""
+    ).trim();
     if (!username) {
       return null;
     }
@@ -142,12 +159,16 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
         ]);
         if (optRes.success && optRes.data) {
           setBusinessTypes(optRes.data.businessTypes);
+          setBusinessTypeOptions(optRes.data.businessTypeOptions || []);
         }
         if (indRes.success && indRes.data) {
           setIndustries(indRes.data);
         }
       } catch (error) {
-        showToast("Không thể tải cấu hình danh mục hoặc ngành nghề doanh nghiệp", "error");
+        showToast(
+          "Không thể tải cấu hình danh mục hoặc ngành nghề doanh nghiệp",
+          "error",
+        );
       }
     };
     fetchOptions();
@@ -177,7 +198,12 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
         }
       } catch (error) {
         if (active) {
-          showToast(error instanceof Error ? error.message : "Không thể tải danh sách doanh nghiệp", "error");
+          showToast(
+            error instanceof Error
+              ? error.message
+              : "Không thể tải danh sách doanh nghiệp",
+            "error",
+          );
         }
       } finally {
         if (active) {
@@ -202,7 +228,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
   const handleSelectRow = (id: number) => {
     if (!canDelete) return;
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
   };
 
@@ -222,11 +248,16 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
     const originalBusinesses = [...businesses];
     // Optimistic UI Update
     setBusinesses((prev) =>
-      prev.map((b) => (b.id === enterprise.id ? { ...b, isActive: !b.isActive } : b))
+      prev.map((b) =>
+        b.id === enterprise.id ? { ...b, isActive: !b.isActive } : b,
+      ),
     );
 
     try {
-      const response = await updateBusinessStatus(enterprise.id, !enterprise.isActive);
+      const response = await updateBusinessStatus(
+        enterprise.id,
+        !enterprise.isActive,
+      );
       if (response.success) {
         showToast("Cập nhật trạng thái doanh nghiệp thành công", "success");
       } else {
@@ -235,7 +266,10 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
     } catch (error) {
       // Revert if error
       setBusinesses(originalBusinesses);
-      showToast(error instanceof Error ? error.message : "Cập nhật trạng thái thất bại", "error");
+      showToast(
+        error instanceof Error ? error.message : "Cập nhật trạng thái thất bại",
+        "error",
+      );
     }
   };
 
@@ -259,7 +293,10 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
       setPage(1); // Refresh list
       setRefreshTrigger((prev) => prev + 1);
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "Xóa doanh nghiệp thất bại", "error");
+      showToast(
+        error instanceof Error ? error.message : "Xóa doanh nghiệp thất bại",
+        "error",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -277,6 +314,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
     return (
       <CreateEnterprise
         businessTypes={businessTypes}
+        businessTypeOptions={businessTypeOptions}
         onSave={handleSaveWizard}
         onCancel={() => {
           setWizardMode(null);
@@ -299,7 +337,12 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
         {canCreate && (
           <div className="flex items-center gap-3">
             <button
-              onClick={() => showToast("Chức năng thêm từ file đang được phát triển", "success")}
+              onClick={() =>
+                showToast(
+                  "Chức năng thêm từ file đang được phát triển",
+                  "success",
+                )
+              }
               className="flex items-center gap-2 px-4 py-2 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 font-bold text-xs select-none transition-all cursor-pointer"
             >
               <Upload className="w-4 h-4" />
@@ -323,7 +366,9 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-zinc-950/60 backdrop-blur-[1px] transition-all">
             <div className="flex flex-col items-center gap-2.5 animate-in fade-in zoom-in-95 duration-150">
               <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-              <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 select-none">Đang tải danh sách...</span>
+              <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 select-none">
+                Đang tải danh sách...
+              </span>
             </div>
           </div>
         )}
@@ -335,7 +380,10 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                 <th className="p-4 w-12 text-center">
                   <input
                     type="checkbox"
-                    checked={businesses.length > 0 && selectedIds.length === businesses.length}
+                    checked={
+                      businesses.length > 0 &&
+                      selectedIds.length === businesses.length
+                    }
                     onChange={handleSelectAll}
                     disabled={!canDelete}
                     className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
@@ -359,7 +407,9 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                     className="w-full text-xs px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
                     placeholder="Tìm tên DN"
                     value={filters.businessName}
-                    onChange={(e) => handleFilterChange("businessName", e.target.value)}
+                    onChange={(e) =>
+                      handleFilterChange("businessName", e.target.value)
+                    }
                   />
                 </td>
                 <td className="p-2">
@@ -368,14 +418,18 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                     className="w-full text-xs px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
                     placeholder="Tìm mã số thuế"
                     value={filters.taxCode}
-                    onChange={(e) => handleFilterChange("taxCode", e.target.value)}
+                    onChange={(e) =>
+                      handleFilterChange("taxCode", e.target.value)
+                    }
                   />
                 </td>
                 <td className="p-2 relative min-w-[150px]">
                   <select
                     className="w-full text-xs pl-3 pr-8 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
                     value={filters.businessType}
-                    onChange={(e) => handleFilterChange("businessType", e.target.value)}
+                    onChange={(e) =>
+                      handleFilterChange("businessType", e.target.value)
+                    }
                   >
                     <option value="">Tất cả</option>
                     {businessTypes.map((t) => (
@@ -390,7 +444,9 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                   <select
                     className="w-full text-xs pl-3 pr-8 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
                     value={filters.industryCode}
-                    onChange={(e) => handleFilterChange("industryCode", e.target.value)}
+                    onChange={(e) =>
+                      handleFilterChange("industryCode", e.target.value)
+                    }
                   >
                     <option value="">Tất cả</option>
                     {industries.map((ind) => (
@@ -405,11 +461,15 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                   <select
                     className="w-full text-xs pl-3 pr-8 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
                     value={filters.wardCommune}
-                    onChange={(e) => handleFilterChange("wardCommune", e.target.value)}
+                    onChange={(e) =>
+                      handleFilterChange("wardCommune", e.target.value)
+                    }
                   >
                     <option value="">Tất cả</option>
                     {WARD_OPTIONS.map((w) => (
-                      <option key={w} value={w}>{w}</option>
+                      <option key={w} value={w}>
+                        {w}
+                      </option>
                     ))}
                   </select>
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
@@ -418,7 +478,9 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                   <select
                     className="w-full text-xs pl-3 pr-8 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
                     value={filters.isActive}
-                    onChange={(e) => handleFilterChange("isActive", e.target.value)}
+                    onChange={(e) =>
+                      handleFilterChange("isActive", e.target.value)
+                    }
                   >
                     <option value="">Tất cả</option>
                     <option value="true">Hoạt động</option>
@@ -431,7 +493,10 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
             <tbody>
               {businesses.length === 0 && !isLoading ? (
                 <tr>
-                  <td colSpan={8} className="p-12 text-center text-zinc-400 dark:text-zinc-500 font-semibold select-none text-sm">
+                  <td
+                    colSpan={8}
+                    className="p-12 text-center text-zinc-400 dark:text-zinc-500 font-semibold select-none text-sm"
+                  >
                     Không tìm thấy doanh nghiệp nào phù hợp.
                   </td>
                 </tr>
@@ -460,7 +525,15 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                           title="Xem chi tiết"
                           className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all cursor-pointer group"
                         >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] text-slate-400 group-hover:text-green-600 transition-colors">
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="h-[18px] w-[18px] text-slate-400 group-hover:text-green-600 transition-colors"
+                          >
                             <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
                             <circle cx="12" cy="12" r="3" />
                           </svg>
@@ -474,7 +547,15 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                             title="Chỉnh sửa"
                             className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all cursor-pointer group"
                           >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] text-slate-400 group-hover:text-blue-600 transition-colors">
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="h-[18px] w-[18px] text-slate-400 group-hover:text-blue-600 transition-colors"
+                            >
                               <path d="M12 20h9" />
                               <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
                             </svg>
@@ -486,7 +567,15 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                             title="Đổi mật khẩu"
                             className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all cursor-pointer group"
                           >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] text-slate-400 group-hover:text-amber-600 transition-colors">
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="h-[18px] w-[18px] text-slate-400 group-hover:text-amber-600 transition-colors"
+                            >
                               <path d="M21 2L12.7 10.3" />
                               <path d="M15 5.5l3 3" />
                               <path d="M11 9.5l2 2" />
@@ -496,17 +585,25 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                         )}
                       </div>
                     </td>
-                    <td className="p-4 font-bold text-zinc-900 dark:text-zinc-100">{ent.businessName}</td>
-                    <td className="p-4 font-mono text-xs text-zinc-650 dark:text-zinc-350">{ent.taxCode}</td>
+                    <td className="p-4 font-bold text-zinc-900 dark:text-zinc-100">
+                      {ent.businessName}
+                    </td>
+                    <td className="p-4 font-mono text-xs text-zinc-650 dark:text-zinc-350">
+                      {ent.taxCode}
+                    </td>
                     <td className="p-4">
                       <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300">
-                        {BUSINESS_TYPE_LABELS[ent.businessType] || ent.businessType}
+                        {BUSINESS_TYPE_LABELS[ent.businessType] ||
+                          ent.businessType}
                       </span>
                     </td>
                     <td className="p-4 text-xs text-zinc-600 dark:text-zinc-400">
-                      {ent.industryDisplay || `${ent.industryCode} - ${ent.industryName}`}
+                      {ent.industryDisplay ||
+                        `${ent.industryCode} - ${ent.industryName}`}
                     </td>
-                    <td className="p-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400">{ent.wardCommune}</td>
+                    <td className="p-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                      {ent.wardCommune}
+                    </td>
                     <td className="p-4 text-center">
                       <button
                         onClick={() => handleToggleActive(ent)}
@@ -533,7 +630,12 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
         {/* Footer Pagination Controls */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs font-semibold text-zinc-500 select-none">
           <button
-            onClick={() => showToast("Chức năng xuất dữ liệu đang được phát triển", "success")}
+            onClick={() =>
+              showToast(
+                "Chức năng xuất dữ liệu đang được phát triển",
+                "success",
+              )
+            }
             className="flex items-center gap-2 px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-lg text-zinc-600 dark:text-zinc-400 transition-colors cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
@@ -556,7 +658,9 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
               </select>
             </div>
             <span>
-              {meta.totalItems > 0 ? `${startIdx} - ${endIdx} of ${meta.totalItems}` : "0 - 0 of 0"}
+              {meta.totalItems > 0
+                ? `${startIdx} - ${endIdx} of ${meta.totalItems}`
+                : "0 - 0 of 0"}
             </span>
             <div className="flex items-center gap-1">
               <button
@@ -578,19 +682,23 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
         </div>
       </div>
 
-
-
-
-
       {/* Reset Password Modal */}
       {passwordResetEnterprise && canResetPassword && (
         <ResetPasswordModal
-          username={passwordResetEnterprise.accountUsername || passwordResetEnterprise.taxCode}
+          username={
+            passwordResetEnterprise.accountUsername ||
+            passwordResetEnterprise.taxCode
+          }
           onSave={async (pw) => {
             try {
-              const resolvedUserId = await resolveBusinessAccountUserId(passwordResetEnterprise);
+              const resolvedUserId = await resolveBusinessAccountUserId(
+                passwordResetEnterprise,
+              );
               if (!resolvedUserId) {
-                showToast("Không tìm thấy tài khoản liên kết với doanh nghiệp này", "error");
+                showToast(
+                  "Không tìm thấy tài khoản liên kết với doanh nghiệp này",
+                  "error",
+                );
                 return;
               }
               const response = await updateUserAdmin(resolvedUserId, {
@@ -603,7 +711,12 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                 throw new Error(response.message || "Đổi mật khẩu thất bại");
               }
             } catch (error) {
-              showToast(error instanceof Error ? error.message : "Đổi mật khẩu thất bại", "error");
+              showToast(
+                error instanceof Error
+                  ? error.message
+                  : "Đổi mật khẩu thất bại",
+                "error",
+              );
               throw error;
             }
           }}
@@ -628,7 +741,15 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
               onClick={() => setIsDeleteConfirmOpen(true)}
               className="bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs px-3.5 py-1.5 flex items-center gap-1.5 transition-all shadow-md shadow-red-500/10 cursor-pointer"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-3.5 h-3.5"
+              >
                 <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
               </svg>
               <span>Xoá</span>
@@ -651,7 +772,9 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
         title="Xác nhận xóa doanh nghiệp"
         description={
           <>
-            Bạn có chắc chắn muốn xóa <strong>{selectedIds.length}</strong> doanh nghiệp đã chọn không? Hành động này sẽ xóa vĩnh viễn dữ liệu doanh nghiệp khỏi hệ thống và không thể hoàn tác.
+            Bạn có chắc chắn muốn xóa <strong>{selectedIds.length}</strong>{" "}
+            doanh nghiệp đã chọn không? Hành động này sẽ xóa vĩnh viễn dữ liệu
+            doanh nghiệp khỏi hệ thống và không thể hoàn tác.
           </>
         }
       />
@@ -669,10 +792,16 @@ interface EnterpriseDetailModalProps {
   onCancel: () => void;
 }
 
-const EnterpriseDetailModal: React.FC<EnterpriseDetailModalProps> = ({ enterprise, onCancel }) => {
+const EnterpriseDetailModal: React.FC<EnterpriseDetailModalProps> = ({
+  enterprise,
+  onCancel,
+}) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div onClick={onCancel} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        onClick={onCancel}
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+      />
       <div className="relative bg-white dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/80 rounded-[20px] w-full max-w-[460px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
         <div className="bg-blue-600 dark:bg-blue-700 text-white py-4 text-center font-bold text-base select-none tracking-wide">
           Chi tiết doanh nghiệp
@@ -714,7 +843,10 @@ const EnterpriseDetailModal: React.FC<EnterpriseDetailModalProps> = ({ enterpris
               type="text"
               readOnly
               className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-semibold pt-2 pb-0.5"
-              value={BUSINESS_TYPE_LABELS[enterprise.businessType] || enterprise.businessType}
+              value={
+                BUSINESS_TYPE_LABELS[enterprise.businessType] ||
+                enterprise.businessType
+              }
             />
           </div>
 
@@ -727,7 +859,10 @@ const EnterpriseDetailModal: React.FC<EnterpriseDetailModalProps> = ({ enterpris
               type="text"
               readOnly
               className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-semibold pt-2 pb-0.5"
-              value={enterprise.industryDisplay || `${enterprise.industryCode} - ${enterprise.industryName}`}
+              value={
+                enterprise.industryDisplay ||
+                `${enterprise.industryCode} - ${enterprise.industryName}`
+              }
             />
           </div>
 
@@ -857,7 +992,12 @@ const EditEnterpriseModal: React.FC<EditEnterpriseModalProps> = ({
         throw new Error(response.message || "Cập nhật thất bại");
       }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "Cập nhật doanh nghiệp thất bại", "error");
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "Cập nhật doanh nghiệp thất bại",
+        "error",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -865,7 +1005,10 @@ const EditEnterpriseModal: React.FC<EditEnterpriseModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div onClick={isSubmitting ? undefined : onCancel} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        onClick={isSubmitting ? undefined : onCancel}
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+      />
       <form
         onSubmit={handleSubmit}
         className="relative bg-white dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/80 rounded-[20px] w-full max-w-[460px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col"
@@ -972,5 +1115,3 @@ const EditEnterpriseModal: React.FC<EditEnterpriseModalProps> = ({
     </div>
   );
 };
-
-

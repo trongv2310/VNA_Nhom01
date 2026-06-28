@@ -1,13 +1,5 @@
-import {
-  IsEmail,
-  IsIn,
-  IsOptional,
-  IsString,
-  Matches,
-} from 'class-validator';
+import { IsEmail, IsOptional, IsString, Matches } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-
-import { BUSINESS_TYPES } from './create-business.dto';
 
 export class UpdateBusinessDto {
   @ApiPropertyOptional({ example: 'Cong ty co phan cong nghe quoc te VNA' })
@@ -34,11 +26,14 @@ export class UpdateBusinessDto {
 
   @ApiPropertyOptional({
     example: 'Cong ty TNHH 1 thanh vien',
-    enum: BUSINESS_TYPES,
   })
   @IsOptional()
-  @IsIn(BUSINESS_TYPES, { message: 'Loại hình kinh doanh không hợp lệ' })
+  @IsString()
   businessType?: string;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  businessTypeId?: string | number;
 
   @ApiPropertyOptional({ example: '4669', description: 'Ma cap 4 VSIC' })
   @IsOptional()
@@ -53,6 +48,10 @@ export class UpdateBusinessDto {
   @IsOptional()
   @IsString()
   industryName?: string;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  industryId?: string | number;
 
   @ApiPropertyOptional({ example: '2020-01-01' })
   @IsOptional()

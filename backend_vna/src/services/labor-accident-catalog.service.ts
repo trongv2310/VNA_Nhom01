@@ -117,10 +117,7 @@ export class LaborAccidentCatalogService {
 
     if (query.parentId?.trim()) {
       queryBuilder.andWhere('parent.id = :parentId', {
-        parentId: this.normalizePositiveInteger(
-          query.parentId,
-          'Danh mục cha',
-        ),
+        parentId: this.normalizePositiveInteger(query.parentId, 'Danh mục cha'),
       });
     }
 
@@ -215,6 +212,21 @@ export class LaborAccidentCatalogService {
     body: UpdateLaborAccidentCatalogStatusDto,
   ) {
     const catalog = await this.findCatalog(id);
+
+    if (!this.toBoolean(body.isActive)) {
+      const activeChildren = await this.catalogRepository.count({
+        where: {
+          parent: { id },
+          isActive: true,
+        },
+      });
+      if (activeChildren > 0) {
+        throw new BadRequestException(
+          'Không thể ngừng sử dụng danh mục đang có danh mục con hoạt động',
+        );
+      }
+    }
+
     catalog.isActive = this.toBoolean(body.isActive);
 
     const savedCatalog = await this.catalogRepository.save(catalog);
@@ -278,7 +290,26 @@ export class LaborAccidentCatalogService {
     }
 
     if (type === LaborAccidentCatalogType.INJURY_FACTOR && parent) {
-      throw new BadRequestException('Yếu tố gây chấn thương không có danh mục cha');
+      throw new BadRequestException(
+        'Yếu tố gây chấn thương không có danh mục cha',
+      );
+    }
+
+    if (currentValue?.id) {
+      const currentParentId = currentValue.parent?.id ?? null;
+      const nextParentId = parent?.id ?? null;
+      const isChangingParent =
+        payload.parentId !== undefined && currentParentId !== nextParentId;
+      const isChangingType = type !== currentValue.type;
+
+      if (isChangingParent || isChangingType) {
+        await this.assertCatalogHasNoChildrenBeforeMoving(
+          currentValue.id,
+          isChangingType
+            ? 'Không thể đổi loại danh mục vì danh mục đang có danh mục con'
+            : 'Không thể đổi danh mục cha vì danh mục đang có danh mục con',
+        );
+      }
     }
 
     return {
@@ -330,6 +361,10 @@ export class LaborAccidentCatalogService {
       throw new BadRequestException('Danh mục cha không tồn tại');
     }
 
+    if (!parent.isActive) {
+      throw new BadRequestException('Danh mục cha không còn sử dụng');
+    }
+
     if (parent.type !== type) {
       throw new BadRequestException('Danh mục cha phải cùng loại danh mục');
     }
@@ -354,12 +389,27 @@ export class LaborAccidentCatalogService {
         );
       }
 
-      currentParent = await this.catalogRepository.findOne({
-        where: { id: currentParent.id },
-        relations: {
-          parent: true,
-        },
-      }).then((catalog) => catalog?.parent ?? null);
+      currentParent = await this.catalogRepository
+        .findOne({
+          where: { id: currentParent.id },
+          relations: {
+            parent: true,
+          },
+        })
+        .then((catalog) => catalog?.parent ?? null);
+    }
+  }
+
+  private async assertCatalogHasNoChildrenBeforeMoving(
+    id: number,
+    message: string,
+  ) {
+    const childCount = await this.catalogRepository.count({
+      where: { parent: { id } },
+    });
+
+    if (childCount > 0) {
+      throw new BadRequestException(message);
     }
   }
 

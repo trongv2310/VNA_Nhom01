@@ -87,7 +87,10 @@ export class UserListItemResponseDto {
   @ApiProperty({ example: 'user01@gmail.com' })
   email!: string;
 
-  @ApiProperty({ example: 'https://res.cloudinary.com/.../avatar.jpg', nullable: true })
+  @ApiProperty({
+    example: 'https://res.cloudinary.com/.../avatar.jpg',
+    nullable: true,
+  })
   avatar!: string | null;
 
   @ApiProperty({ example: 'Chuyen vien', nullable: true })
@@ -188,7 +191,10 @@ export class BusinessResponseDto {
   @ApiProperty({ example: 'Cong ty co phan cong nghe quoc te VNA' })
   businessName!: string;
 
-  @ApiProperty({ example: 'VNA International Technology Joint Stock Company', nullable: true })
+  @ApiProperty({
+    example: 'VNA International Technology Joint Stock Company',
+    nullable: true,
+  })
   foreignName!: string | null;
 
   @ApiProperty({ example: '0312345678' })
@@ -197,13 +203,24 @@ export class BusinessResponseDto {
   @ApiProperty({ example: 'Cong ty TNHH 1 thanh vien' })
   businessType!: string;
 
+  @ApiProperty({ example: 1, nullable: true })
+  businessTypeId!: number | null;
+
+  @ApiProperty({ example: 'BT001', nullable: true })
+  businessTypeCode!: string | null;
+
   @ApiProperty({ example: '4669' })
   industryCode!: string;
 
   @ApiProperty({ example: 'Ban buon chuyen doanh khac chua duoc phan vao dau' })
   industryName!: string;
 
-  @ApiProperty({ example: '4669 - Ban buon chuyen doanh khac chua duoc phan vao dau' })
+  @ApiProperty({ example: 1, nullable: true })
+  industryId!: number | null;
+
+  @ApiProperty({
+    example: '4669 - Ban buon chuyen doanh khac chua duoc phan vao dau',
+  })
   industryDisplay!: string;
 
   @ApiProperty({ example: '2020-01-01', nullable: true })
@@ -215,7 +232,10 @@ export class BusinessResponseDto {
   @ApiProperty({ example: 'Phuong Hiep Binh Phuoc' })
   wardCommune!: string;
 
-  @ApiProperty({ example: '162 duong so 2, khu do thi Van Phuc', nullable: true })
+  @ApiProperty({
+    example: '162 duong so 2, khu do thi Van Phuc',
+    nullable: true,
+  })
   address!: string | null;
 
   @ApiProperty({ example: 'vna@gmail.com', nullable: true })
@@ -230,7 +250,10 @@ export class BusinessResponseDto {
   @ApiProperty({ example: 'Phuong Hiep Binh Phuoc', nullable: true })
   operatingWardCommune!: string | null;
 
-  @ApiProperty({ example: '162 duong so 2, khu do thi Van Phuc', nullable: true })
+  @ApiProperty({
+    example: '162 duong so 2, khu do thi Van Phuc',
+    nullable: true,
+  })
   businessLocation!: string | null;
 
   @ApiProperty({ example: 'Nguyen Van A', nullable: true })
@@ -264,7 +287,8 @@ export class BusinessResponseDto {
 export class BusinessAccountInfoResponseDto {
   @ApiProperty({
     example: '0312345678',
-    description: 'Tai khoan dang nhap mac dinh cua doanh nghiep, bang ma so thue',
+    description:
+      'Tai khoan dang nhap mac dinh cua doanh nghiep, bang ma so thue',
   })
   username!: string;
 

@@ -3,7 +3,22 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, LogOut, X } from "lucide-react";
-import { ChangePassword, DashboardLayout, Sidebar, UserProfile, UserManagement, EnterpriseManagement, CreateEnterprise, DepartmentReports, TnldTheoHdld, ReportPeriodManagement, PermissionManagement, RoleManagement } from "../../components";
+import {
+  ChangePassword,
+  DashboardLayout,
+  Sidebar,
+  UserProfile,
+  UserManagement,
+  EnterpriseManagement,
+  CreateEnterprise,
+  DepartmentReports,
+  TnldTheoHdld,
+  ReportPeriodManagement,
+  PermissionManagement,
+  RoleManagement,
+  BusinessReferenceManagement,
+  LaborCatalogManagement,
+} from "../../components";
 import type { UserData } from "../../components/UserProfile";
 import {
   changePassword,
@@ -41,6 +56,9 @@ type ActiveView =
   | "enterprise-management"
   | "permission-management"
   | "role-management"
+  | "business-type-management"
+  | "industry-management"
+  | "labor-catalog-management"
   | "company-info"
   | "tnld-reports"
   | "tnld-theo-hdld"
@@ -60,6 +78,9 @@ const VIEW_PERMISSIONS: Partial<Record<ActiveView, string>> = {
   "enterprise-management": "SYSTEM_C_BUSINESS_VIEW",
   "permission-management": "SYSTEM_C_PERMISSION_VIEW",
   "role-management": "SYSTEM_C_ROLE_VIEW",
+  "business-type-management": "SYSTEM_C_BUSINESS_TYPE_VIEW",
+  "industry-management": "SYSTEM_C_INDUSTRY_VIEW",
+  "labor-catalog-management": "LABOR_C_CATALOG_VIEW",
   "report-period": "SYSTEM_C_REPORT_PERIOD_VIEW",
   "tnld-reports": "LABOR_C_REPORT_VIEW",
 };
@@ -73,10 +94,19 @@ const getDefaultActiveView = (data: UserData): ActiveView => {
   if (hasUserRole(data, "ADMIN")) return "user-management";
   if (data.accountType === "BUSINESS") return "company-info";
   if (hasUserPermission(data, "SYSTEM_C_USER_VIEW")) return "user-management";
-  if (hasUserPermission(data, "SYSTEM_C_BUSINESS_VIEW")) return "enterprise-management";
-  if (hasUserPermission(data, "SYSTEM_C_PERMISSION_VIEW")) return "permission-management";
+  if (hasUserPermission(data, "SYSTEM_C_BUSINESS_VIEW"))
+    return "enterprise-management";
+  if (hasUserPermission(data, "SYSTEM_C_BUSINESS_TYPE_VIEW"))
+    return "business-type-management";
+  if (hasUserPermission(data, "SYSTEM_C_INDUSTRY_VIEW"))
+    return "industry-management";
+  if (hasUserPermission(data, "SYSTEM_C_PERMISSION_VIEW"))
+    return "permission-management";
   if (hasUserPermission(data, "SYSTEM_C_ROLE_VIEW")) return "role-management";
-  if (hasUserPermission(data, "SYSTEM_C_REPORT_PERIOD_VIEW")) return "report-period";
+  if (hasUserPermission(data, "SYSTEM_C_REPORT_PERIOD_VIEW"))
+    return "report-period";
+  if (hasUserPermission(data, "LABOR_C_CATALOG_VIEW"))
+    return "labor-catalog-management";
   if (hasUserPermission(data, "LABOR_C_REPORT_VIEW")) return "tnld-reports";
   return "profile";
 };
@@ -85,14 +115,18 @@ export const DepartmentDashboardScreen: React.FC = () => {
   const router = useRouter();
 
   const [userData, setUserData] = useState<UserData>(EMPTY_USER_DATA);
-  const [initialUserData, setInitialUserData] = useState<UserData>(EMPTY_USER_DATA);
+  const [initialUserData, setInitialUserData] =
+    useState<UserData>(EMPTY_USER_DATA);
   const [profileResetKey, setProfileResetKey] = useState(0);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [activeView, setActiveView] = useState<ActiveView>("profile");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
 
   const isSelfUpdatingRef = useRef(false);
 
@@ -111,18 +145,21 @@ export const DepartmentDashboardScreen: React.FC = () => {
         const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         };
 
         const res = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/users/me`, {
           method: "GET",
-          headers
+          headers,
         });
 
         // If the polling request receives a 401, session is invalid
         if (res.status === 401) {
           clearAuthTokens();
-          showToastMsg("Phiên đăng nhập đã hết hạn hoặc tài khoản đã thay đổi. Vui lòng đăng nhập lại.", "error");
+          showToastMsg(
+            "Phiên đăng nhập đã hết hạn hoặc tài khoản đã thay đổi. Vui lòng đăng nhập lại.",
+            "error",
+          );
           router.push("/department/login");
           return;
         }
@@ -130,7 +167,10 @@ export const DepartmentDashboardScreen: React.FC = () => {
         // If the account was deleted by Admin
         if (res.status === 404) {
           clearAuthTokens();
-          showToastMsg("Tài khoản của bạn đã bị xóa bởi quản trị viên.", "error");
+          showToastMsg(
+            "Tài khoản của bạn đã bị xóa bởi quản trị viên.",
+            "error",
+          );
           router.push("/department/login");
           return;
         }
@@ -143,7 +183,10 @@ export const DepartmentDashboardScreen: React.FC = () => {
             // Check if user was deactivated
             if (freshUser.isActive === false) {
               clearAuthTokens();
-              showToastMsg("Tài khoản của bạn đã bị khóa bởi quản trị viên.", "error");
+              showToastMsg(
+                "Tài khoản của bạn đã bị khóa bởi quản trị viên.",
+                "error",
+              );
               router.push("/department/login");
               return;
             }
@@ -156,7 +199,10 @@ export const DepartmentDashboardScreen: React.FC = () => {
               freshUser.updatedAt !== storedUser.updatedAt
             ) {
               clearAuthTokens();
-              showToastMsg("Thông tin tài khoản hoặc mật khẩu đã bị thay đổi. Vui lòng đăng nhập lại.", "error");
+              showToastMsg(
+                "Thông tin tài khoản hoặc mật khẩu đã bị thay đổi. Vui lòng đăng nhập lại.",
+                "error",
+              );
               router.push("/department/login");
               return;
             }
@@ -227,7 +273,10 @@ export const DepartmentDashboardScreen: React.FC = () => {
     setToast({ message, type });
   };
 
-  const handleSaveProfile = async (updatedData: UserData, successMessage?: string) => {
+  const handleSaveProfile = async (
+    updatedData: UserData,
+    successMessage?: string,
+  ) => {
     isSelfUpdatingRef.current = true;
     try {
       const response = await updateMe(updatedData);
@@ -235,9 +284,17 @@ export const DepartmentDashboardScreen: React.FC = () => {
       setUserData(nextUserData);
       setInitialUserData(nextUserData);
       setProfileResetKey((current) => current + 1);
-      showToastMsg(String(successMessage || response.message || "Cập nhật thông tin thành công"), "success");
+      showToastMsg(
+        String(
+          successMessage || response.message || "Cập nhật thông tin thành công",
+        ),
+        "success",
+      );
     } catch (error) {
-      showToastMsg(error instanceof Error ? error.message : "Cập nhật thông tin thất bại", "error");
+      showToastMsg(
+        error instanceof Error ? error.message : "Cập nhật thông tin thất bại",
+        "error",
+      );
     } finally {
       setTimeout(() => {
         isSelfUpdatingRef.current = false;
@@ -253,7 +310,10 @@ export const DepartmentDashboardScreen: React.FC = () => {
       setUserData(nextUserData);
       setInitialUserData(nextUserData);
       setProfileResetKey((current) => current + 1);
-      showToastMsg(String(response.message || "Xóa ảnh đại diện thành công"), "success");
+      showToastMsg(
+        String(response.message || "Xóa ảnh đại diện thành công"),
+        "success",
+      );
       return true;
     } catch (error) {
       showToastMsg(
@@ -290,16 +350,24 @@ export const DepartmentDashboardScreen: React.FC = () => {
     isSelfUpdatingRef.current = true;
     try {
       const response = await changePassword(currentPw, newPw, confirmPw);
-      showToastMsg(String(response.message || "Đổi mật khẩu thành công. Đang đăng xuất..."), "success");
+      showToastMsg(
+        String(
+          response.message || "Đổi mật khẩu thành công. Đang đăng xuất...",
+        ),
+        "success",
+      );
       setShowChangePasswordModal(false);
-      
+
       // Clear auth tokens and redirect to login page
       clearAuthTokens();
       window.setTimeout(() => {
         router.push("/department/login");
       }, 1000);
     } catch (error) {
-      showToastMsg(error instanceof Error ? error.message : "Đổi mật khẩu thất bại", "error");
+      showToastMsg(
+        error instanceof Error ? error.message : "Đổi mật khẩu thất bại",
+        "error",
+      );
     } finally {
       setTimeout(() => {
         isSelfUpdatingRef.current = false;
@@ -339,20 +407,28 @@ export const DepartmentDashboardScreen: React.FC = () => {
         activeView === "user-management"
           ? "quan_ly_nguoi_dung"
           : activeView === "permission-management"
-          ? "quan_ly_quyen"
-          : activeView === "role-management"
-          ? "quan_ly_vai_tro"
-          : activeView === "enterprise-management"
-          ? "quan_ly_doanh_nghiep"
-          : activeView === "company-info"
-          ? "thong_tin_doanh_nghiep"
-          : activeView === "tnld-reports" || activeView === "tnld-theo-hdld"
-          ? "tnld_theo_hdld"
-          : activeView === "report-period"
-          ? "ky_bao_cao"
-          : activeView === "profile" && userData.accountType === "DEPARTMENT"
-          ? "thong_tin_tai_khoan"
-          : ""
+            ? "quan_ly_quyen"
+            : activeView === "role-management"
+              ? "quan_ly_vai_tro"
+              : activeView === "enterprise-management"
+                ? "quan_ly_doanh_nghiep"
+                : activeView === "business-type-management"
+                  ? "quan_ly_loai_hinh"
+                  : activeView === "industry-management"
+                    ? "quan_ly_nganh_nghe"
+                    : activeView === "labor-catalog-management"
+                      ? "danh_muc_chung"
+                      : activeView === "company-info"
+                        ? "thong_tin_doanh_nghiep"
+                        : activeView === "tnld-reports" ||
+                            activeView === "tnld-theo-hdld"
+                          ? "tnld_theo_hdld"
+                          : activeView === "report-period"
+                            ? "ky_bao_cao"
+                            : activeView === "profile" &&
+                                userData.accountType === "DEPARTMENT"
+                              ? "thong_tin_tai_khoan"
+                              : ""
       }
       onCloseMobile={() => setMobileMenuOpen(false)}
     />
@@ -399,7 +475,9 @@ export const DepartmentDashboardScreen: React.FC = () => {
               <LogOut className="h-6 w-6" />
             </div>
             <div className="flex flex-col gap-2">
-              <h3 className="text-lg font-bold text-zinc-900 dark:text-white">Xác nhận đăng xuất</h3>
+              <h3 className="text-lg font-bold text-zinc-900 dark:text-white">
+                Xác nhận đăng xuất
+              </h3>
               <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
                 Bạn có chắc chắn muốn đăng xuất khỏi tài khoản này không?
               </p>
@@ -450,6 +528,26 @@ export const DepartmentDashboardScreen: React.FC = () => {
             />
           ) : activeView === "enterprise-management" ? (
             <EnterpriseManagement
+              showToast={showToastMsg}
+              permissions={userData.permissions}
+              isAdmin={hasUserRole(userData, "ADMIN")}
+            />
+          ) : activeView === "business-type-management" ? (
+            <BusinessReferenceManagement
+              kind="business-type"
+              showToast={showToastMsg}
+              permissions={userData.permissions}
+              isAdmin={hasUserRole(userData, "ADMIN")}
+            />
+          ) : activeView === "industry-management" ? (
+            <BusinessReferenceManagement
+              kind="industry"
+              showToast={showToastMsg}
+              permissions={userData.permissions}
+              isAdmin={hasUserRole(userData, "ADMIN")}
+            />
+          ) : activeView === "labor-catalog-management" ? (
+            <LaborCatalogManagement
               showToast={showToastMsg}
               permissions={userData.permissions}
               isAdmin={hasUserRole(userData, "ADMIN")}

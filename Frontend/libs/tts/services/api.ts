@@ -58,18 +58,25 @@ type ChangeGmailOtpPayload = ForgotPasswordPayload;
 
 export function getAccessToken() {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(ACCESS_TOKEN_KEY) || sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  return (
+    localStorage.getItem(ACCESS_TOKEN_KEY) ||
+    sessionStorage.getItem(ACCESS_TOKEN_KEY)
+  );
 }
 
 export function getUserId() {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(USER_ID_KEY) || sessionStorage.getItem(USER_ID_KEY);
+  return (
+    localStorage.getItem(USER_ID_KEY) || sessionStorage.getItem(USER_ID_KEY)
+  );
 }
 
 export function getStoredBackendUser(): BackendUser | null {
   if (typeof window === "undefined") return null;
 
-  const raw = localStorage.getItem(USER_DATA_KEY) || sessionStorage.getItem(USER_DATA_KEY);
+  const raw =
+    localStorage.getItem(USER_DATA_KEY) ||
+    sessionStorage.getItem(USER_DATA_KEY);
   if (!raw) return null;
 
   try {
@@ -155,7 +162,9 @@ export function clearAuthTokens() {
 
 export function mapBackendUserToUserData(user: BackendUser): UserData {
   const roleCodes = (user.roles || [])
-    .map((item) => (typeof item === "string" ? item : item.code || item.name || ""))
+    .map((item) =>
+      typeof item === "string" ? item : item.code || item.name || "",
+    )
     .filter(Boolean);
   const role = roleCodes.join(", ");
   const normalizedPosition = user.position?.trim().toLowerCase();
@@ -164,7 +173,8 @@ export function mapBackendUserToUserData(user: BackendUser): UserData {
       ? user.accountType
       : roleCodes.includes("ADMIN")
         ? "DEPARTMENT"
-        : normalizedPosition === "doanh nghiệp" || normalizedPosition === "doanh nghiep"
+        : normalizedPosition === "doanh nghiệp" ||
+            normalizedPosition === "doanh nghiep"
           ? "BUSINESS"
           : "DEPARTMENT";
 
@@ -222,7 +232,11 @@ export function mapUserDataToUpdateMe(data: UserData): FormData {
   return formData;
 }
 
-export async function login(username: string, password: string, rememberMe: boolean = true) {
+export async function login(
+  username: string,
+  password: string,
+  rememberMe: boolean = true,
+) {
   const response = await request<LoginPayload>("/auth/login", {
     method: "POST",
     body: JSON.stringify({ username, password, rememberMe }),
@@ -424,12 +438,16 @@ export async function updateUserAdmin(
   if (data.fullName !== undefined) formData.append("fullName", data.fullName);
   if (data.email !== undefined) formData.append("email", data.email);
   if (data.gender !== undefined) formData.append("gender", data.gender);
-  if (data.dateOfBirth !== undefined) formData.append("dateOfBirth", data.dateOfBirth);
+  if (data.dateOfBirth !== undefined)
+    formData.append("dateOfBirth", data.dateOfBirth);
   if (data.position !== undefined) formData.append("position", data.position);
   if (data.roleCode !== undefined) formData.append("roleCode", data.roleCode);
-  if (data.isActive !== undefined) formData.append("isActive", String(data.isActive));
-  if (data.provinceCity !== undefined) formData.append("provinceCity", data.provinceCity);
-  if (data.wardCommune !== undefined) formData.append("wardCommune", data.wardCommune);
+  if (data.isActive !== undefined)
+    formData.append("isActive", String(data.isActive));
+  if (data.provinceCity !== undefined)
+    formData.append("provinceCity", data.provinceCity);
+  if (data.wardCommune !== undefined)
+    formData.append("wardCommune", data.wardCommune);
   if (data.address !== undefined) formData.append("address", data.address);
 
   if (data.avatar?.startsWith("data:")) {
@@ -449,7 +467,12 @@ export async function updateUserAdmin(
 }
 
 export async function createUser(
-  data: Partial<BackendUser> & { roleCode?: string; password?: string; provinceCity?: string; wardCommune?: string },
+  data: Partial<BackendUser> & {
+    roleCode?: string;
+    password?: string;
+    provinceCity?: string;
+    wardCommune?: string;
+  },
 ) {
   const formData = new FormData();
   if (data.username !== undefined) formData.append("username", data.username);
@@ -457,12 +480,16 @@ export async function createUser(
   if (data.fullName !== undefined) formData.append("fullName", data.fullName);
   if (data.email !== undefined) formData.append("email", data.email);
   if (data.gender !== undefined) formData.append("gender", data.gender);
-  if (data.dateOfBirth !== undefined) formData.append("dateOfBirth", data.dateOfBirth);
+  if (data.dateOfBirth !== undefined)
+    formData.append("dateOfBirth", data.dateOfBirth);
   if (data.position !== undefined) formData.append("position", data.position);
   if (data.roleCode !== undefined) formData.append("roleCode", data.roleCode);
-  if (data.isActive !== undefined) formData.append("isActive", String(data.isActive));
-  if (data.provinceCity !== undefined) formData.append("provinceCity", data.provinceCity);
-  if (data.wardCommune !== undefined) formData.append("wardCommune", data.wardCommune);
+  if (data.isActive !== undefined)
+    formData.append("isActive", String(data.isActive));
+  if (data.provinceCity !== undefined)
+    formData.append("provinceCity", data.provinceCity);
+  if (data.wardCommune !== undefined)
+    formData.append("wardCommune", data.wardCommune);
   if (data.address !== undefined) formData.append("address", data.address);
 
   if (data.avatar?.startsWith("data:")) {
@@ -615,7 +642,6 @@ export async function bulkDeleteRoles(ids: number[]) {
   });
 }
 
-
 function authHeaders(): Record<string, string> {
   const token = getAccessToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -638,7 +664,9 @@ function normalizeMessage(message: unknown) {
 }
 
 async function request<T>(path: string, init: RequestInit = {}) {
-  const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };
+  const headers: Record<string, string> = {
+    ...(init.headers as Record<string, string>),
+  };
 
   if (!(init.body instanceof FormData) && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
@@ -653,10 +681,14 @@ async function request<T>(path: string, init: RequestInit = {}) {
     });
   } catch (error) {
     console.error("Fetch API error:", { url, error });
-    throw new Error("Không thể kết nối đến máy chủ. Kiểm tra backend và cấu hình API.");
+    throw new Error(
+      "Không thể kết nối đến máy chủ. Kiểm tra backend và cấu hình API.",
+    );
   }
 
-  const payload = (await response.json().catch(() => null)) as ApiResponse<T> | null;
+  const payload = (await response
+    .json()
+    .catch(() => null)) as ApiResponse<T> | null;
 
   if (!response.ok || !payload?.success) {
     const message =
@@ -682,14 +714,41 @@ export interface BusinessAttachment {
   createdAt: string;
 }
 
+export interface BusinessTypeCatalogItem {
+  id: number;
+  code: string;
+  name: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BusinessIndustryCatalogItem {
+  id: number;
+  code: string;
+  name: string;
+  level: number;
+  parentId: number | null;
+  parentCode: string | null;
+  parentName: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface BusinessListItem {
   id: number;
   businessName: string;
   foreignName?: string | null;
   taxCode: string;
   businessType: string;
+  businessTypeId?: number | null;
+  businessTypeCode?: string | null;
   industryCode: string;
   industryName: string;
+  industryId?: number | null;
   industryDisplay: string;
   licenseIssueDate?: string | null;
   provinceCity: string;
@@ -731,6 +790,8 @@ export interface BusinessListResponse {
 
 export interface BusinessOptionsResponse {
   businessTypes: string[];
+  businessTypeOptions: BusinessTypeCatalogItem[];
+  industries: BusinessIndustryCatalogItem[];
   taxCodeRules: {
     format: string;
     examples: string[];
@@ -767,36 +828,150 @@ export async function getBusinesses(query?: {
   });
 }
 
-export async function getBusinessOptions(): Promise<ApiResponse<BusinessOptionsResponse>> {
+export interface CatalogListResponse<T> {
+  items: T[];
+  meta: BusinessListMeta;
+}
+
+export async function getBusinessOptions(): Promise<
+  ApiResponse<BusinessOptionsResponse>
+> {
+  try {
+    return await request<BusinessOptionsResponse>("/businesses/options", {
+      method: "GET",
+      headers: authHeaders(),
+    });
+  } catch {
+    return getRegistrationOptions();
+  }
+}
+
+export async function getIndustries(): Promise<
+  ApiResponse<BusinessIndustryCatalogItem[]>
+> {
+  const response = await getRegistrationOptions();
   return {
-    success: true,
-    statusCode: 200,
-    message: "Lấy danh mục doanh nghiệp thành công",
-    data: {
-      businessTypes: [...STATIC_BUSINESS_TYPES],
-      taxCodeRules: {
-        format: "10 digits or 10 digits-3 digits",
-        examples: ["9100008882", "0100109106-001"],
-      },
-      industryLevel: 4,
-      industryCodeRule: "Mã ngành nghề cấp 4 gồm 4 chữ số theo VSIC",
+    ...response,
+    data: response.data.industries,
+  };
+}
+
+function buildCatalogQuery(
+  query?: Record<string, string | number | boolean | undefined | null>,
+) {
+  const params = new URLSearchParams();
+  Object.entries(query || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      params.set(key, String(value));
+    }
+  });
+  const queryString = params.toString();
+  return queryString ? `?${queryString}` : "";
+}
+
+export async function getBusinessTypes(query?: {
+  page?: number;
+  limit?: number;
+  keyword?: string;
+  code?: string;
+  name?: string;
+  isActive?: string | boolean;
+}) {
+  return request<CatalogListResponse<BusinessTypeCatalogItem>>(
+    `/business-types${buildCatalogQuery(query)}`,
+    { method: "GET", headers: authHeaders() },
+  );
+}
+
+export async function createBusinessType(body: {
+  code: string;
+  name: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}) {
+  return request<BusinessTypeCatalogItem>("/business-types", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateBusinessType(
+  id: number,
+  body: { name?: string; sortOrder?: number },
+) {
+  return request<BusinessTypeCatalogItem>(`/business-types/${id}`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateBusinessTypeCatalogStatus(
+  id: number,
+  isActive: boolean,
+) {
+  return request<BusinessTypeCatalogItem>(`/business-types/${id}/status`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ isActive }),
+  });
+}
+
+export async function getBusinessIndustries(query?: {
+  page?: number;
+  limit?: number;
+  keyword?: string;
+  code?: string;
+  name?: string;
+  level?: number | string;
+  parentId?: number | string;
+  isActive?: string | boolean;
+}) {
+  return request<CatalogListResponse<BusinessIndustryCatalogItem>>(
+    `/business-industries${buildCatalogQuery(query)}`,
+    { method: "GET", headers: authHeaders() },
+  );
+}
+
+export async function createBusinessIndustry(body: {
+  code: string;
+  name: string;
+  parentId?: number;
+  sortOrder?: number;
+  isActive?: boolean;
+}) {
+  return request<BusinessIndustryCatalogItem>("/business-industries", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateBusinessIndustry(
+  id: number,
+  body: { name?: string; parentId?: number | null; sortOrder?: number },
+) {
+  return request<BusinessIndustryCatalogItem>(`/business-industries/${id}`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateBusinessIndustryStatus(
+  id: number,
+  isActive: boolean,
+) {
+  return request<BusinessIndustryCatalogItem>(
+    `/business-industries/${id}/status`,
+    {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify({ isActive }),
     },
-    timestamp: new Date().toISOString(),
-    path: "/businesses/options",
-  };
+  );
 }
-
-export async function getIndustries(): Promise<ApiResponse<Array<{ code: string; name: string }>>> {
-  return {
-    success: true,
-    statusCode: 200,
-    message: "Lấy danh sách ngành nghề thành công",
-    data: [...STATIC_INDUSTRIES_LEVEL4],
-    timestamp: new Date().toISOString(),
-    path: "/businesses/industries",
-  };
-}
-
 
 export async function getBusinessDetail(id: number | string) {
   return request<BusinessListItem>(`/businesses/${id}`, {
@@ -833,7 +1008,10 @@ export async function updateBusiness(id: number | string, formData: FormData) {
   });
 }
 
-export async function updateBusinessStatus(id: number | string, isActive: boolean) {
+export async function updateBusinessStatus(
+  id: number | string,
+  isActive: boolean,
+) {
   return request<BusinessListItem>(`/businesses/${id}/status`, {
     method: "PATCH",
     headers: {
@@ -851,38 +1029,93 @@ export async function deleteBusiness(id: number | string) {
   });
 }
 
-export async function deleteBusinessAttachment(businessId: number | string, attachmentId: number | string) {
-  return request<{ id: number }>(`/businesses/${businessId}/attachments/${attachmentId}`, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
-}
-
-export async function getRegistrationOptions(): Promise<ApiResponse<{ businessTypes: string[] }>> {
-  return {
-    success: true,
-    statusCode: 200,
-    message: "Thành công",
-    data: {
-      businessTypes: [...STATIC_BUSINESS_TYPES],
+export async function deleteBusinessAttachment(
+  businessId: number | string,
+  attachmentId: number | string,
+) {
+  return request<{ id: number }>(
+    `/businesses/${businessId}/attachments/${attachmentId}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(),
     },
-    timestamp: new Date().toISOString(),
-    path: "/businesses/register/options",
-  };
+  );
 }
 
-export async function sendRegistrationOtp(body: { email: string; taxCode?: string }) {
-  return request<{ email: string; expiresInSeconds: number }>("/businesses/register/send-otp", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+export async function getRegistrationOptions(): Promise<
+  ApiResponse<BusinessOptionsResponse>
+> {
+  try {
+    return await request<BusinessOptionsResponse>(
+      "/businesses/register/options",
+      {
+        method: "GET",
+      },
+    );
+  } catch {
+    const businessTypeOptions = STATIC_BUSINESS_TYPES.map((name, index) => ({
+      id: -(index + 1),
+      code: `LEGACY_${index + 1}`,
+      name,
+      isActive: true,
+      sortOrder: index + 1,
+    }));
+    const industries = STATIC_INDUSTRIES_LEVEL4.map((item, index) => ({
+      id: -(index + 1),
+      ...item,
+      level: 4,
+      parentId: null,
+      parentCode: null,
+      parentName: null,
+      isActive: true,
+      sortOrder: index + 1,
+    }));
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Đang sử dụng danh mục dự phòng",
+      data: {
+        businessTypes: [...STATIC_BUSINESS_TYPES],
+        businessTypeOptions,
+        industries,
+        taxCodeRules: {
+          format: "10 digits or 10 digits-3 digits",
+          examples: ["9100008882", "0100109106-001"],
+        },
+        industryLevel: 4,
+        industryCodeRule: "Mã ngành nghề cấp 4 gồm 4 chữ số theo VSIC",
+      },
+      timestamp: new Date().toISOString(),
+      path: "/businesses/register/options",
+    };
+  }
 }
 
-export async function verifyRegistrationOtp(body: { email: string; otp: string }) {
-  return request<{ email: string; verified: boolean }>("/businesses/register/verify-otp", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+export async function sendRegistrationOtp(body: {
+  email: string;
+  taxCode?: string;
+}) {
+  return request<{ email: string; expiresInSeconds: number }>(
+    "/businesses/register/send-otp",
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function verifyRegistrationOtp(body: {
+  email: string;
+  otp: string;
+}) {
+  return request<{ email: string; verified: boolean }>(
+    "/businesses/register/verify-otp",
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
 }
 
 export async function confirmRegistration(formData: FormData) {
@@ -947,7 +1180,7 @@ function getCatalogName(type: string, id: number): string {
       "Điều kiện làm việc không tốt",
       "Vi phạm nội quy, quy trình, biện pháp làm việc an toàn",
       "Không sử dụng phương tiện bảo vệ cá nhân",
-      "Khách quan khó tránh/ Nguyên nhân chưa kể đến"
+      "Khách quan khó tránh/ Nguyên nhân chưa kể đến",
     ];
   } else if (type === "INJURY_FACTOR") {
     categories = [
@@ -957,7 +1190,7 @@ function getCatalogName(type: string, id: number): string {
       "Ngã từ trên cao",
       "Vật rơi, vật văng bắn",
       "Nhiệt độ cao, bỏng lửa",
-      "Khác"
+      "Khác",
     ];
   } else if (type === "OCCUPATION") {
     categories = [
@@ -967,7 +1200,7 @@ function getCatalogName(type: string, id: number): string {
       "Kỹ sư, kỹ thuật viên chuyên nghiệp",
       "Thợ vận hành máy và thiết bị",
       "Lao động thủ công giản đơn",
-      "Khác"
+      "Khác",
     ];
   }
   return categories[id - 1] || "";
@@ -983,10 +1216,13 @@ export async function getDepartmentReports(query?: ListDepartmentReportsQuery) {
     });
   }
   const queryString = params.toString();
-  return request<any>(`/labor-accident-reports/admin${queryString ? `?${queryString}` : ""}`, {
-    method: "GET",
-    headers: authHeaders(),
-  });
+  return request<any>(
+    `/labor-accident-reports/admin${queryString ? `?${queryString}` : ""}`,
+    {
+      method: "GET",
+      headers: authHeaders(),
+    },
+  );
 }
 
 export async function receiveDepartmentReport(id: number | string) {
@@ -1004,7 +1240,10 @@ export async function bulkReceiveDepartmentReports(ids: number[]) {
   });
 }
 
-export async function bulkRejectDepartmentReports(ids: number[], rejectReason: string) {
+export async function bulkRejectDepartmentReports(
+  ids: number[],
+  rejectReason: string,
+) {
   return request<any>(`/labor-accident-reports/admin/bulk-reject`, {
     method: "POST",
     headers: authHeaders(),
@@ -1028,10 +1267,13 @@ export async function getMyLaborAccidentReports(query?: {
     });
   }
   const queryString = params.toString();
-  return request<any>(`/labor-accident-reports/my${queryString ? `?${queryString}` : ""}`, {
-    method: "GET",
-    headers: authHeaders(),
-  });
+  return request<any>(
+    `/labor-accident-reports/my${queryString ? `?${queryString}` : ""}`,
+    {
+      method: "GET",
+      headers: authHeaders(),
+    },
+  );
 }
 
 export async function getMyLaborAccidentReportPeriods() {
@@ -1056,7 +1298,10 @@ export async function saveLaborAccidentReportDraft(body: FormData) {
   });
 }
 
-export async function submitLaborAccidentReport(id: number | string, body: FormData) {
+export async function submitLaborAccidentReport(
+  id: number | string,
+  body: FormData,
+) {
   return request<any>(`/labor-accident-reports/my/${id}/submit`, {
     method: "POST",
     headers: authHeaders(),
@@ -1064,11 +1309,95 @@ export async function submitLaborAccidentReport(id: number | string, body: FormD
   });
 }
 
-export async function getCatalogOptions(type?: string) {
+export type LaborCatalogType =
+  "ACCIDENT_CAUSE" | "INJURY_FACTOR" | "INJURY_TYPE" | "OCCUPATION";
+
+export interface LaborCatalogItem {
+  id: number;
+  type: LaborCatalogType;
+  typeLabel: string;
+  code: string;
+  name: string;
+  level: number;
+  parentId: number | null;
+  parentCode: string | null;
+  parentName: string | null;
+  isActive: boolean;
+  statusLabel: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export async function getCatalogTypes() {
+  return request<Array<{ value: LaborCatalogType; label: string }>>(
+    "/labor-accident-catalogs/types",
+    { method: "GET", headers: authHeaders() },
+  );
+}
+
+export async function getLaborCatalogs(query?: {
+  page?: number;
+  limit?: number;
+  type?: LaborCatalogType;
+  keyword?: string;
+  code?: string;
+  name?: string;
+  level?: number | string;
+  parentId?: number | string;
+  isActive?: string | boolean;
+}) {
+  return request<CatalogListResponse<LaborCatalogItem>>(
+    `/labor-accident-catalogs${buildCatalogQuery(query)}`,
+    { method: "GET", headers: authHeaders() },
+  );
+}
+
+export async function getCatalogOptions(type?: LaborCatalogType) {
   const query = type ? `?type=${type}` : "";
-  return request<any>(`/labor-accident-catalogs/options${query}`, {
-    method: "GET",
+  return request<LaborCatalogItem[]>(
+    `/labor-accident-catalogs/options${query}`,
+    {
+      method: "GET",
+      headers: authHeaders(),
+    },
+  );
+}
+
+export async function createLaborCatalog(body: {
+  type: LaborCatalogType;
+  code: string;
+  name: string;
+  parentId?: number;
+  isActive?: boolean;
+}) {
+  return request<LaborCatalogItem>("/labor-accident-catalogs", {
+    method: "POST",
     headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateLaborCatalog(
+  id: number,
+  body: {
+    type?: LaborCatalogType;
+    code?: string;
+    name?: string;
+    parentId?: number | null;
+  },
+) {
+  return request<LaborCatalogItem>(`/labor-accident-catalogs/${id}`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateLaborCatalogStatus(id: number, isActive: boolean) {
+  return request<LaborCatalogItem>(`/labor-accident-catalogs/${id}/status`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ isActive }),
   });
 }
 
@@ -1098,10 +1427,13 @@ export async function getReportPeriods(query?: {
     });
   }
   const queryString = params.toString();
-  return request<any>(`/labor-accident-report-periods${queryString ? `?${queryString}` : ""}`, {
-    method: "GET",
-    headers: authHeaders(),
-  });
+  return request<any>(
+    `/labor-accident-report-periods${queryString ? `?${queryString}` : ""}`,
+    {
+      method: "GET",
+      headers: authHeaders(),
+    },
+  );
 }
 
 export async function getReportPeriodYears() {
@@ -1126,14 +1458,17 @@ export async function createReportPeriod(body: {
   });
 }
 
-export async function updateReportPeriod(id: number | string, body: {
-  reportName?: string;
-  year?: number | string;
-  periodType?: string;
-  startDate?: string;
-  endDate?: string;
-  isActive?: boolean;
-}) {
+export async function updateReportPeriod(
+  id: number | string,
+  body: {
+    reportName?: string;
+    year?: number | string;
+    periodType?: string;
+    startDate?: string;
+    endDate?: string;
+    isActive?: boolean;
+  },
+) {
   return request<any>(`/labor-accident-report-periods/${id}`, {
     method: "PATCH",
     headers: authHeaders(),
@@ -1141,13 +1476,13 @@ export async function updateReportPeriod(id: number | string, body: {
   });
 }
 
-export async function updateReportPeriodStatus(id: number | string, isActive: boolean) {
+export async function updateReportPeriodStatus(
+  id: number | string,
+  isActive: boolean,
+) {
   return request<any>(`/labor-accident-report-periods/${id}/status`, {
     method: "PATCH",
     headers: authHeaders(),
     body: JSON.stringify({ isActive }),
   });
 }
-
-
-
