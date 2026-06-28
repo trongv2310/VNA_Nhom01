@@ -56,9 +56,23 @@ const WARD_OPTIONS = [
 
 interface EnterpriseManagementProps {
   showToast: (message: string, type: "success" | "error") => void;
+  permissions?: string[];
+  isAdmin?: boolean;
 }
 
-export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({ showToast }) => {
+export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
+  showToast,
+  permissions = [],
+  isAdmin = false,
+}) => {
+  const hasPermission = (permission: string) =>
+    isAdmin || permissions.includes(permission);
+  const canCreate = hasPermission("SYSTEM_C_BUSINESS_CREATE");
+  const canUpdate = hasPermission("SYSTEM_C_BUSINESS_UPDATE");
+  const canDelete = hasPermission("SYSTEM_C_BUSINESS_DELETE");
+  const canChangeStatus = hasPermission("SYSTEM_C_BUSINESS_STATUS");
+  const canResetPassword = isAdmin;
+
   // Lists & Options state
   const [businesses, setBusinesses] = useState<BusinessListItem[]>([]);
   const [businessTypes, setBusinessTypes] = useState<string[]>([]);
@@ -186,6 +200,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({ show
 
   // Toggle Single Checkbox Selection
   const handleSelectRow = (id: number) => {
+    if (!canDelete) return;
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
@@ -193,6 +208,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({ show
 
   // Toggle All Checkboxes
   const handleSelectAll = () => {
+    if (!canDelete) return;
     if (selectedIds.length === businesses.length) {
       setSelectedIds([]);
     } else {
@@ -202,6 +218,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({ show
 
   // Toggle Enterprise Status Switch
   const handleToggleActive = async (enterprise: BusinessListItem) => {
+    if (!canChangeStatus) return;
     const originalBusinesses = [...businesses];
     // Optimistic UI Update
     setBusinesses((prev) =>
@@ -230,6 +247,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({ show
   };
 
   const handleDeleteSelected = async () => {
+    if (!canDelete) return;
     try {
       setIsLoading(true);
       // Delete sequentially
@@ -250,7 +268,12 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({ show
   const startIdx = meta.totalItems > 0 ? (meta.page - 1) * meta.limit + 1 : 0;
   const endIdx = Math.min(meta.page * meta.limit, meta.totalItems);
 
-  if (wizardMode) {
+  if (
+    wizardMode &&
+    (wizardMode === "view" ||
+      (wizardMode === "create" && canCreate) ||
+      (wizardMode === "edit" && canUpdate))
+  ) {
     return (
       <CreateEnterprise
         businessTypes={businessTypes}
@@ -273,22 +296,24 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({ show
         <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 select-none">
           Danh sách doanh nghiệp
         </h2>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => showToast("Chức năng thêm từ file đang được phát triển", "success")}
-            className="flex items-center gap-2 px-4 py-2 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 font-bold text-xs select-none transition-all cursor-pointer"
-          >
-            <Upload className="w-4 h-4" />
-            <span>Thêm từ file</span>
-          </button>
-          <button
-            onClick={() => setWizardMode("create")}
-            className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-md shadow-blue-500/10 active:scale-98 transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Thêm mới</span>
-          </button>
-        </div>
+        {canCreate && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => showToast("Chức năng thêm từ file đang được phát triển", "success")}
+              className="flex items-center gap-2 px-4 py-2 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 font-bold text-xs select-none transition-all cursor-pointer"
+            >
+              <Upload className="w-4 h-4" />
+              <span>Thêm từ file</span>
+            </button>
+            <button
+              onClick={() => setWizardMode("create")}
+              className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-md shadow-blue-500/10 active:scale-98 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Thêm mới</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Table Container */}
@@ -312,7 +337,8 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({ show
                     type="checkbox"
                     checked={businesses.length > 0 && selectedIds.length === businesses.length}
                     onChange={handleSelectAll}
-                    className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    disabled={!canDelete}
+                    className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
                   />
                 </th>
                 <th className="p-4 w-28 text-center">Thao tác</th>
@@ -420,7 +446,8 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({ show
                         type="checkbox"
                         checked={selectedIds.includes(ent.id)}
                         onChange={() => handleSelectRow(ent.id)}
-                        className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        disabled={!canDelete}
+                        className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
                       />
                     </td>
                     <td className="p-4 text-center">
@@ -438,31 +465,35 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({ show
                             <circle cx="12" cy="12" r="3" />
                           </svg>
                         </button>
-                        <button
-                          onClick={() => {
-                            setWizardMode("edit");
-                            setEditingId(ent.id);
-                          }}
-                          title="Chỉnh sửa"
-                          className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all cursor-pointer group"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] text-slate-400 group-hover:text-blue-600 transition-colors">
-                            <path d="M12 20h9" />
-                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => setPasswordResetEnterprise(ent)}
-                          title="Đổi mật khẩu"
-                          className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all cursor-pointer group"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] text-slate-400 group-hover:text-amber-600 transition-colors">
-                            <path d="M21 2L12.7 10.3" />
-                            <path d="M15 5.5l3 3" />
-                            <path d="M11 9.5l2 2" />
-                            <circle cx="7.5" cy="16.5" r="4.5" />
-                          </svg>
-                        </button>
+                        {canUpdate && (
+                          <button
+                            onClick={() => {
+                              setWizardMode("edit");
+                              setEditingId(ent.id);
+                            }}
+                            title="Chỉnh sửa"
+                            className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all cursor-pointer group"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] text-slate-400 group-hover:text-blue-600 transition-colors">
+                              <path d="M12 20h9" />
+                              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                            </svg>
+                          </button>
+                        )}
+                        {canResetPassword && (
+                          <button
+                            onClick={() => setPasswordResetEnterprise(ent)}
+                            title="Đổi mật khẩu"
+                            className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all cursor-pointer group"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] text-slate-400 group-hover:text-amber-600 transition-colors">
+                              <path d="M21 2L12.7 10.3" />
+                              <path d="M15 5.5l3 3" />
+                              <path d="M11 9.5l2 2" />
+                              <circle cx="7.5" cy="16.5" r="4.5" />
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     </td>
                     <td className="p-4 font-bold text-zinc-900 dark:text-zinc-100">{ent.businessName}</td>
@@ -479,8 +510,10 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({ show
                     <td className="p-4 text-center">
                       <button
                         onClick={() => handleToggleActive(ent)}
+                        disabled={!canChangeStatus}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none cursor-pointer
                           ${ent.isActive ? "bg-blue-600" : "bg-zinc-200 dark:bg-zinc-800"}
+                          ${canChangeStatus ? "" : "cursor-not-allowed opacity-50"}
                         `}
                       >
                         <span
@@ -504,7 +537,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({ show
             className="flex items-center gap-2 px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-lg text-zinc-600 dark:text-zinc-400 transition-colors cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Export Data</span>
+            <span>Xuất dữ liệu</span>
           </button>
 
           <div className="flex items-center gap-6">
@@ -550,7 +583,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({ show
 
 
       {/* Reset Password Modal */}
-      {passwordResetEnterprise && (
+      {passwordResetEnterprise && canResetPassword && (
         <ResetPasswordModal
           username={passwordResetEnterprise.accountUsername || passwordResetEnterprise.taxCode}
           onSave={async (pw) => {
@@ -580,7 +613,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({ show
       )}
 
       {/* Selection Action Bar */}
-      {selectedIds.length > 0 && (
+      {canDelete && selectedIds.length > 0 && (
         <div className="fixed bottom-6 left-1/2 z-50 flex items-center justify-between overflow-hidden rounded-xl border border-zinc-200/80 bg-white shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-300 dark:border-zinc-800 dark:bg-zinc-900 -translate-x-1/2">
           <div className="flex items-center">
             <div className="flex min-w-[40px] h-10 items-center justify-center bg-blue-600 px-3 text-sm font-bold text-white">
@@ -612,7 +645,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({ show
       )}
 
       <DeleteConfirmModal
-        isOpen={isDeleteConfirmOpen}
+        isOpen={canDelete && isDeleteConfirmOpen}
         onClose={() => setIsDeleteConfirmOpen(false)}
         onConfirm={handleDeleteSelected}
         title="Xác nhận xóa doanh nghiệp"

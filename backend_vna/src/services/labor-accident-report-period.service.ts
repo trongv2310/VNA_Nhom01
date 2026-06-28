@@ -17,17 +17,24 @@ import {
   LaborAccidentReportPeriod,
   LaborAccidentReportPeriodType,
 } from '../entities/labor-accident-report-period.entity';
+import { LaborAccidentReport } from '../entities/labor-accident-report.entity';
 
 const PERIOD_TYPE_LABELS: Record<LaborAccidentReportPeriodType, string> = {
   [LaborAccidentReportPeriodType.FULL_YEAR]: 'Cả năm',
   [LaborAccidentReportPeriodType.SIX_MONTHS]: '6 tháng',
 };
 
+const MIN_REPORT_PERIOD_YEAR = 2000;
+const MAX_REPORT_PERIOD_YEAR = new Date().getFullYear() + 3;
+
 @Injectable()
 export class LaborAccidentReportPeriodService {
   constructor(
     @InjectRepository(LaborAccidentReportPeriod)
     private readonly reportPeriodRepository: Repository<LaborAccidentReportPeriod>,
+
+    @InjectRepository(LaborAccidentReport)
+    private readonly reportRepository: Repository<LaborAccidentReport>,
   ) {}
 
   getOptions() {
@@ -46,6 +53,21 @@ export class LaborAccidentReportPeriodService {
           { value: false, label: 'Không hoạt động' },
         ],
         dateFormat: 'YYYY-MM-DD',
+      },
+    };
+  }
+
+  async getReportPeriodYears() {
+    const rows = await this.reportPeriodRepository
+      .createQueryBuilder('reportPeriod')
+      .select('DISTINCT reportPeriod.year', 'year')
+      .orderBy('reportPeriod.year', 'DESC')
+      .getRawMany<{ year: number | string }>();
+
+    return {
+      message: 'Lấy danh sách năm báo cáo thành công',
+      data: {
+        years: rows.map((row) => Number(row.year)),
       },
     };
   }
@@ -158,6 +180,10 @@ export class LaborAccidentReportPeriodService {
       reportPeriod,
     );
 
+    await this.assertIdentityFieldsCanBeChanged(
+      reportPeriod,
+      normalizedPayload,
+    );
     await this.validateUniqueReportPeriod(normalizedPayload, id);
 
     Object.assign(reportPeriod, normalizedPayload);
@@ -304,11 +330,49 @@ export class LaborAccidentReportPeriodService {
     }
   }
 
+  private async assertIdentityFieldsCanBeChanged(
+    currentValue: LaborAccidentReportPeriod,
+    nextValue: {
+      reportName: string;
+      year: number;
+      periodType: LaborAccidentReportPeriodType;
+    },
+  ) {
+    const changesIdentity =
+      currentValue.reportName !== nextValue.reportName ||
+      currentValue.year !== nextValue.year ||
+      currentValue.periodType !== nextValue.periodType;
+
+    if (!changesIdentity) {
+      return;
+    }
+
+    const linkedReportCount = await this.reportRepository.count({
+      where: {
+        reportPeriod: {
+          id: currentValue.id,
+        },
+      },
+    });
+
+    if (linkedReportCount > 0) {
+      throw new BadRequestException(
+        'Không thể thay đổi tên, năm hoặc loại kỳ vì đã có báo cáo phát sinh; chỉ được điều chỉnh thời gian và trạng thái',
+      );
+    }
+  }
+
   private normalizeYear(value: string | number) {
     const year = Number(value);
 
-    if (!Number.isInteger(year) || year < 1900 || year > 2100) {
-      throw new BadRequestException('Năm báo cáo không hợp lệ');
+    if (
+      !Number.isInteger(year) ||
+      year < MIN_REPORT_PERIOD_YEAR ||
+      year > MAX_REPORT_PERIOD_YEAR
+    ) {
+      throw new BadRequestException(
+        `Năm báo cáo phải nằm trong khoảng ${MIN_REPORT_PERIOD_YEAR} - ${MAX_REPORT_PERIOD_YEAR}`,
+      );
     }
 
     return year;

@@ -19,6 +19,7 @@ import {
 } from '@nestjs/swagger';
 
 import { Roles } from '../decorators/roles.decorator';
+import { Permissions } from '../decorators/permissions.decorator';
 import {
   CreateLaborAccidentCatalogDto,
   ListLaborAccidentCatalogsQueryDto,
@@ -33,11 +34,12 @@ import {
 } from '../dtos/swagger-response.dto';
 import { LaborAccidentCatalogType } from '../entities/labor-accident-catalog.entity';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { PermissionsGuard } from '../guards/permissions.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { LaborAccidentCatalogService } from '../services/labor-accident-catalog.service';
 
 @Controller('labor-accident-catalogs')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Roles('ADMIN')
 @ApiTags('Danh mục TNLĐ')
 @ApiBearerAuth('access-token')
@@ -51,6 +53,7 @@ export class LaborAccidentCatalogController {
   constructor(private readonly catalogService: LaborAccidentCatalogService) {}
 
   @Get()
+  @Permissions('LABOR_C_CATALOG_VIEW')
   @ApiOperation({
     summary: 'Danh sách danh mục tai nạn lao động',
     description:
@@ -77,6 +80,7 @@ export class LaborAccidentCatalogController {
 
   @Get('types')
   @Roles('ADMIN', 'USER')
+  @Permissions('LABOR_C_CATALOG_VIEW')
   @ApiOperation({
     summary: 'Loại danh mục tai nạn lao động',
   })
@@ -90,6 +94,7 @@ export class LaborAccidentCatalogController {
 
   @Get('options')
   @Roles('ADMIN', 'USER')
+  @Permissions('LABOR_C_CATALOG_VIEW')
   @ApiOperation({
     summary: 'Tùy chọn danh mục tai nạn lao động đang sử dụng',
   })
@@ -102,6 +107,7 @@ export class LaborAccidentCatalogController {
   }
 
   @Get(':id')
+  @Permissions('LABOR_C_CATALOG_VIEW')
   @ApiOperation({
     summary: 'Chi tiết danh mục tai nạn lao động',
   })
@@ -123,6 +129,7 @@ export class LaborAccidentCatalogController {
   }
 
   @Post()
+  @Permissions('LABOR_C_CATALOG_MANAGE')
   @ApiOperation({
     summary: 'Thêm danh mục tai nạn lao động',
   })
@@ -144,6 +151,7 @@ export class LaborAccidentCatalogController {
   }
 
   @Patch(':id')
+  @Permissions('LABOR_C_CATALOG_MANAGE')
   @ApiOperation({
     summary: 'Cập nhật danh mục tai nạn lao động',
   })
@@ -168,6 +176,7 @@ export class LaborAccidentCatalogController {
   }
 
   @Patch(':id/status')
+  @Permissions('LABOR_C_CATALOG_MANAGE')
   @ApiOperation({
     summary: 'Cập nhật trạng thái danh mục tai nạn lao động',
   })

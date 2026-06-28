@@ -82,6 +82,22 @@ export class LaborAccidentReportController {
     return this.reportService.getMyReports(currentUser.id, query);
   }
 
+  @Get('periods')
+  @ApiOperation({
+    summary:
+      'Danh sách kỳ báo cáo doanh nghiệp đủ điều kiện xem và thực hiện',
+  })
+  @ApiOkResponse({
+    description:
+      'Danh sách kỳ báo cáo kèm trạng thái thời gian và quyền chỉnh sửa, gửi',
+    type: ApiSuccessResponseDto,
+  })
+  getMyAvailableReportPeriods(
+    @CurrentUser() currentUser: CurrentUserData,
+  ) {
+    return this.reportService.getMyAvailableReportPeriods(currentUser.id);
+  }
+
   @Get(':id')
   @ApiOperation({
     summary: 'Chi tiết báo cáo TNLĐ của doanh nghiệp đang đăng nhập',
@@ -203,14 +219,27 @@ export class LaborAccidentReportController {
   @ApiOperation({
     summary: 'Gửi báo cáo TNLĐ',
     description:
-      'Doanh nghiệp gửi báo cáo nháp cho Sở. Bắt buộc báo cáo đã có ít nhất một file đính kèm, hoặc gửi file trong chính request này.',
+      'Cập nhật toàn bộ nội dung và gửi báo cáo cho Sở trong cùng một giao dịch. Bắt buộc báo cáo có file dấu mộc hiện hành.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
-    required: false,
+    required: true,
     schema: {
       type: 'object',
+      required: ['reportPeriodId'],
       properties: {
+        reportPeriodId: {
+          type: 'number',
+          example: 1,
+        },
+        totalEmployees: {
+          type: 'number',
+          example: 10,
+        },
+        details: {
+          type: 'string',
+          description: 'JSON array chi tiết báo cáo',
+        },
         attachmentNames: {
           type: 'string',
           example: '["Báo cáo TNLĐ có dấu mộc"]',

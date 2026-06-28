@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import {
-  Calendar,
   ChevronDown,
   Upload,
   Eye,
@@ -16,8 +15,7 @@ import {
   getBusinessDetail,
   updateBusiness,
   deleteBusinessAttachment,
-  getBusinesses,
-  getUsers,
+  validateBusinessUniqueness,
   getRegistrationOptions,
   sendRegistrationOtp,
   verifyRegistrationOtp,
@@ -33,16 +31,18 @@ import { IndustrySearchSelect } from "./IndustrySearchSelect";
 import { SearchSelect } from "./SearchSelect";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
 import { useAddress } from "../hooks/useAddress";
+import { LocalizedDateInput } from "./LocalizedDateInput";
 
 export interface CreateEnterpriseProps {
   businessTypes: string[];
-  onSave: () => void;
+  onSave: () => void | Promise<void>;
   onCancel: () => void;
   showToast: (message: string, type: "success" | "error") => void;
   mode?: "create" | "edit" | "view";
   enterpriseId?: number;
   isRegistration?: boolean;
   isProfileEdit?: boolean;
+  onProfileSavingChange?: (isSaving: boolean) => void;
 }
 
 interface AttachmentState {
@@ -61,6 +61,7 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
   enterpriseId,
   isRegistration = false,
   isProfileEdit = false,
+  onProfileSavingChange,
 }) => {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -161,7 +162,6 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
   ]);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [accountUserId, setAccountUserId] = useState<number | null>(null);
   const [localEnterpriseId, setLocalEnterpriseId] = useState<number | undefined>(enterpriseId);
   const [deleteConfirmKey, setDeleteConfirmKey] = useState<string | null>(null);
 
@@ -201,9 +201,6 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
             });
             if (ent.id) {
               setLocalEnterpriseId(ent.id);
-            }
-            if (ent.accountUserId) {
-              setAccountUserId(ent.accountUserId);
             }
 
             // Map attachments
@@ -273,9 +270,6 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
             if (ent.id) {
               setLocalEnterpriseId(ent.id);
             }
-            if (ent.accountUserId) {
-              setAccountUserId(ent.accountUserId);
-            }
 
             // Map attachments
             const nextAttachments: Record<string, AttachmentState> = {
@@ -320,11 +314,6 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
   // File Upload Reference and Target
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<string | null>(null);
-
-  // Date input Ref
-  const dateInputRef = useRef<HTMLInputElement>(null);
-
-
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -373,15 +362,6 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
         delete next[name];
         return next;
       });
-    }
-  };
-
-  const handleDateClick = () => {
-    if (isReadOnly) return;
-    try {
-      dateInputRef.current?.showPicker();
-    } catch {
-      dateInputRef.current?.focus();
     }
   };
 
@@ -473,15 +453,32 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
     }
   };
 
-  // Start the email change flow for Profile Edit - asks for the new email first
-  const handleStartEmailChange = () => {
+  // Start the email change flow by verifying the current email first
+  const handleStartEmailChange = async () => {
+    if (isSavingNewEmail) return;
+
     setNewEmailValue("");
     setNewEmailError("");
-    setShowNewEmailModal(true);
+    setIsSavingNewEmail(true);
+    try {
+      const res = await sendBusinessProfileEmailOtp();
+      if (res.success) {
+        showToast(res.message || "Đã gửi mã OTP về email hiện tại", "success");
+        setOtpValue("");
+        setOtpTimer(res.data?.expiresInSeconds || 300);
+        setShowProfileOtpModal(true);
+      } else {
+        throw new Error(res.message || "Gửi mã OTP thất bại");
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Gửi mã OTP thất bại", "error");
+    } finally {
+      setIsSavingNewEmail(false);
+    }
   };
 
-  // Validate the new email and send OTP to the current email
-  const handleSendOtpForNewEmail = async () => {
+  // Validate and save the new email after the current email has been verified
+  const handleSaveNewEmail = async () => {
     const email = newEmailValue.trim();
     if (!email) {
       setNewEmailError("Email không được để trống");
@@ -497,28 +494,7 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
     }
     setNewEmailError("");
     setIsSavingNewEmail(true);
-    try {
-      const res = await sendBusinessProfileEmailOtp(email);
-      if (res.success) {
-        showToast(res.message || "Đã gửi mã OTP về email hiện tại", "success");
-        setShowNewEmailModal(false);
-        setOtpValue("");
-        setOtpTimer(300);
-        setShowProfileOtpModal(true);
-      } else {
-        throw new Error(res.message || "Gửi mã OTP thất bại");
-      }
-    } catch (err) {
-      setNewEmailError(err instanceof Error ? err.message : "Gửi mã OTP thất bại");
-    } finally {
-      setIsSavingNewEmail(false);
-    }
-  };
-
-  // Save the new email address
-  const executeSaveNewEmail = async () => {
-    const email = newEmailValue.trim();
-    setIsSubmitting(true);
+    onProfileSavingChange?.(true);
     try {
       const fd = new FormData();
       fd.append("email", email);
@@ -526,17 +502,21 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
       if (res.success && res.data) {
         showToast("Thay đổi email thành công", "success");
         setFormData((prev) => ({ ...prev, email: res.data.email || email }));
+        setShowNewEmailModal(false);
+        setNewEmailValue("");
+        await onSave();
       } else {
         throw new Error(res.message || "Thay đổi email thất bại");
       }
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "Thay đổi email thất bại", "error");
+      setNewEmailError(err instanceof Error ? err.message : "Thay đổi email thất bại");
     } finally {
-      setIsSubmitting(false);
+      setIsSavingNewEmail(false);
+      onProfileSavingChange?.(false);
     }
   };
 
-  // Verify OTP and save the new email
+  // Verify the current email before allowing a new email to be entered
   const handleVerifyProfileOtp = async () => {
     setIsVerifyingOtp(true);
     try {
@@ -544,7 +524,9 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
       if (res.success) {
         showToast(res.message || "Xác thực OTP thành công", "success");
         setShowProfileOtpModal(false);
-        await executeSaveNewEmail();
+        setNewEmailValue("");
+        setNewEmailError("");
+        setShowNewEmailModal(true);
       } else {
         throw new Error(res.message);
       }
@@ -645,44 +627,32 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
       return;
     }
 
-    // Check tax code uniqueness on backend when creating new business
-    if (mode === "create") {
-      try {
-        const checkRes = await getBusinesses({ taxCode: txCode });
-        if (checkRes.success && checkRes.data && checkRes.data.items) {
-          const isDuplicate = checkRes.data.items.some(
-            (item) => item.taxCode.toLowerCase() === txCode.toLowerCase()
-          );
-          if (isDuplicate) {
-            setErrors((prev) => ({ ...prev, taxCode: "Mã số thuế đã tồn tại" }));
-            showToast("Mã số thuế đã tồn tại", "error");
-            return;
-          }
-        }
-      } catch (error) {
-        showToast(error instanceof Error ? error.message : "Kiểm tra mã số thuế thất bại", "error");
-        return;
-      }
-    }
-
-    // Check email uniqueness on backend (for both create and edit modes, skip for profile edit)
+    // Check uniqueness through the business domain so this flow does not
+    // require permission to view the user-management module.
     if (!isProfileEdit) {
       try {
-        const checkEmailRes = await getUsers({ email });
-        if (checkEmailRes.success && checkEmailRes.data && checkEmailRes.data.items) {
-          const duplicateUser = checkEmailRes.data.items.find(
-            (item) => item.email.toLowerCase() === email.toLowerCase()
-          );
-          if (duplicateUser) {
-            if (mode !== "edit" || duplicateUser.id !== accountUserId) {
-              setErrors((prev) => ({ ...prev, email: "Email đã được sử dụng bởi một doanh nghiệp khác." }));
-              showToast("Email đã được sử dụng bởi một doanh nghiệp khác.", "error");
-              return;
-            }
-          }
-        }
+        await validateBusinessUniqueness({
+          taxCode: txCode,
+          email,
+          businessId: mode === "edit" ? enterpriseId : undefined,
+        });
       } catch (error) {
-        showToast(error instanceof Error ? error.message : "Kiểm tra email thất bại", "error");
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Kiểm tra thông tin doanh nghiệp thất bại";
+        const normalizedMessage = message.toLowerCase();
+
+        if (
+          normalizedMessage.includes("mã số thuế") ||
+          normalizedMessage.includes("tài khoản đăng nhập")
+        ) {
+          setErrors((prev) => ({ ...prev, taxCode: message }));
+        } else if (normalizedMessage.includes("email")) {
+          setErrors((prev) => ({ ...prev, email: message }));
+        }
+
+        showToast(message, "error");
         return;
       }
     }
@@ -693,6 +663,9 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
   // Step 2 Submission to Backend API
   const handleSubmit = async () => {
     setIsSubmitting(true);
+    if (isProfileEdit) {
+      onProfileSavingChange?.(true);
+    }
     try {
       const fd = new FormData();
       fd.append("businessName", formData.businessName.trim());
@@ -744,7 +717,7 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
         if (response.success) {
           showToast("Cập nhật doanh nghiệp thành công", "success");
           setStep(1);
-          onSave();
+          await onSave();
         } else {
           throw new Error(response.message || "Cập nhật doanh nghiệp thất bại");
         }
@@ -763,7 +736,7 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
         const response = await updateBusiness(enterpriseId, fd);
         if (response.success) {
           showToast("Cập nhật doanh nghiệp thành công", "success");
-          onSave();
+          await onSave();
         } else {
           throw new Error(response.message || "Cập nhật doanh nghiệp thất bại");
         }
@@ -803,6 +776,9 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
       }
     } finally {
       setIsSubmitting(false);
+      if (isProfileEdit) {
+        onProfileSavingChange?.(false);
+      }
     }
   };
 
@@ -842,7 +818,7 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
             </div>
             <span className={`text-xs font-bold ${step === 2 ? "text-zinc-800 dark:text-zinc-200" : "text-slate-400 dark:text-zinc-500"
               }`}>
-              {isRegistration ? "Xác nhận thông tin" : "Xác nhận đăng ký"}
+              {isRegistration ? "Xác nhận thông tin" : "Xác nhận chỉnh sửa"}
             </span>
           </div>
 
@@ -938,29 +914,23 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                   />
                 </div>
 
-                {/* Ngày cấp GPKD */}
-                <div
-                  onClick={handleDateClick}
-                  className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all ${errors.licenseIssueDate ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"
-                    } ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : "cursor-pointer"}`}
+              {/* Ngày cấp GPKD */}
+              <div
+                className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all ${errors.licenseIssueDate ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"
+                  } ${isReadOnly ? "opacity-60 cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40" : "cursor-pointer"}`}
                 >
                   <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold pointer-events-none ${errors.licenseIssueDate ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"
                     }`}>
                     Ngày cấp GPKD <span className="text-red-500">*</span>
                   </label>
-                  <div className="relative flex items-center justify-between w-full pt-2 pb-0.5">
-                    <input
-                      ref={dateInputRef}
-                      type="date"
-                      name="licenseIssueDate"
-                      value={formData.licenseIssueDate}
-                      onChange={handleInputChange}
-                      disabled={isReadOnly}
-                      className={`w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-semibold focus:ring-0 ${isReadOnly ? "cursor-not-allowed" : "cursor-pointer"}`}
-                    />
-                    <Calendar className="absolute right-0 w-4 h-4 text-zinc-400 pointer-events-none" />
-                  </div>
-                </div>
+                  <LocalizedDateInput
+                    name="licenseIssueDate"
+                    value={formData.licenseIssueDate}
+                    onChange={handleInputChange}
+                    disabled={isReadOnly}
+                    ariaLabel="Ngày cấp GPKD"
+                  />
+              </div>
 
                 {/* Tỉnh/Thành phố ĐKKD */}
                 <SearchSelect
@@ -1071,7 +1041,8 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                     <button
                       type="button"
                       onClick={handleStartEmailChange}
-                      className="text-blue-600 hover:text-blue-700 text-xs font-bold transition-colors cursor-pointer select-none pl-2 flex-shrink-0"
+                      disabled={isSavingNewEmail}
+                      className="text-blue-600 hover:text-blue-700 text-xs font-bold transition-colors cursor-pointer select-none pl-2 flex-shrink-0 disabled:cursor-not-allowed disabled:text-zinc-400"
                     >
                       Thay đổi
                     </button>
@@ -1792,16 +1763,16 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
               <button
                 type="button"
                 disabled={isSavingNewEmail}
-                onClick={handleSendOtpForNewEmail}
+                onClick={handleSaveNewEmail}
                 className="w-full py-3 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-sm shadow-md shadow-blue-500/10 active:scale-99 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSavingNewEmail ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Đang gửi mã...</span>
+                    <span>Đang lưu...</span>
                   </>
                 ) : (
-                  "Tiếp tục"
+                  "Lưu"
                 )}
               </button>
 

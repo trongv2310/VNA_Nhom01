@@ -3,11 +3,12 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, LogOut, X } from "lucide-react";
-import { ChangePassword, DashboardLayout, Sidebar, UserProfile, UserManagement, EnterpriseManagement, CreateEnterprise, DepartmentReports, TnldTheoHdld, ReportPeriodManagement } from "../../components";
+import { ChangePassword, DashboardLayout, Sidebar, UserProfile, UserManagement, EnterpriseManagement, CreateEnterprise, DepartmentReports, TnldTheoHdld, ReportPeriodManagement, PermissionManagement, RoleManagement } from "../../components";
 import type { UserData } from "../../components/UserProfile";
 import {
   changePassword,
   clearAuthTokens,
+  deleteMyAvatar,
   getAccessToken,
   getProfile,
   getStoredBackendUser,
@@ -18,6 +19,7 @@ import {
 
 const EMPTY_USER_DATA: UserData = {
   avatarUrl: "",
+  accountType: "DEPARTMENT",
   username: "",
   fullName: "",
   dob: "",
@@ -29,6 +31,54 @@ const EMPTY_USER_DATA: UserData = {
   ward: "",
   address: "",
   isActive: true,
+  permissions: [],
+};
+
+type ActiveView =
+  | "profile"
+  | "change-password"
+  | "user-management"
+  | "enterprise-management"
+  | "permission-management"
+  | "role-management"
+  | "company-info"
+  | "tnld-reports"
+  | "tnld-theo-hdld"
+  | "report-period";
+
+const hasUserRole = (data: UserData, role: string) =>
+  data.role
+    .split(",")
+    .map((item) => item.trim())
+    .includes(role);
+
+const hasUserPermission = (data: UserData, permission: string) =>
+  hasUserRole(data, "ADMIN") || data.permissions.includes(permission);
+
+const VIEW_PERMISSIONS: Partial<Record<ActiveView, string>> = {
+  "user-management": "SYSTEM_C_USER_VIEW",
+  "enterprise-management": "SYSTEM_C_BUSINESS_VIEW",
+  "permission-management": "SYSTEM_C_PERMISSION_VIEW",
+  "role-management": "SYSTEM_C_ROLE_VIEW",
+  "report-period": "SYSTEM_C_REPORT_PERIOD_VIEW",
+  "tnld-reports": "LABOR_C_REPORT_VIEW",
+};
+
+const canAccessView = (data: UserData, view: ActiveView) => {
+  const permission = VIEW_PERMISSIONS[view];
+  return !permission || hasUserPermission(data, permission);
+};
+
+const getDefaultActiveView = (data: UserData): ActiveView => {
+  if (hasUserRole(data, "ADMIN")) return "user-management";
+  if (data.accountType === "BUSINESS") return "company-info";
+  if (hasUserPermission(data, "SYSTEM_C_USER_VIEW")) return "user-management";
+  if (hasUserPermission(data, "SYSTEM_C_BUSINESS_VIEW")) return "enterprise-management";
+  if (hasUserPermission(data, "SYSTEM_C_PERMISSION_VIEW")) return "permission-management";
+  if (hasUserPermission(data, "SYSTEM_C_ROLE_VIEW")) return "role-management";
+  if (hasUserPermission(data, "SYSTEM_C_REPORT_PERIOD_VIEW")) return "report-period";
+  if (hasUserPermission(data, "LABOR_C_REPORT_VIEW")) return "tnld-reports";
+  return "profile";
 };
 
 export const DepartmentDashboardScreen: React.FC = () => {
@@ -38,7 +88,7 @@ export const DepartmentDashboardScreen: React.FC = () => {
   const [initialUserData, setInitialUserData] = useState<UserData>(EMPTY_USER_DATA);
   const [profileResetKey, setProfileResetKey] = useState(0);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const [activeView, setActiveView] = useState<"profile" | "change-password" | "user-management" | "enterprise-management" | "company-info" | "tnld-reports" | "tnld-theo-hdld" | "report-period">("profile");
+  const [activeView, setActiveView] = useState<ActiveView>("profile");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
@@ -147,11 +197,7 @@ export const DepartmentDashboardScreen: React.FC = () => {
     setProfileResetKey((current) => current + 1);
     setIsLoadingProfile(false);
 
-    if (storedUserData.role.includes("ADMIN")) {
-      setActiveView("user-management");
-    } else {
-      setActiveView("company-info");
-    }
+    setActiveView(getDefaultActiveView(storedUserData));
 
     // Fetch fresh profile data from DB in background
     let active = true;
@@ -163,6 +209,7 @@ export const DepartmentDashboardScreen: React.FC = () => {
           setUserData(freshUserData);
           setInitialUserData(freshUserData);
           setProfileResetKey((current) => current + 1);
+          setActiveView(getDefaultActiveView(freshUserData));
         }
       } catch (error) {
         console.error("Failed to fetch fresh user profile:", error);
@@ -196,6 +243,37 @@ export const DepartmentDashboardScreen: React.FC = () => {
         isSelfUpdatingRef.current = false;
       }, 2000);
     }
+  };
+
+  const handleDeleteProfileAvatar = async () => {
+    isSelfUpdatingRef.current = true;
+    try {
+      const response = await deleteMyAvatar();
+      const nextUserData = mapBackendUserToUserData(response.data);
+      setUserData(nextUserData);
+      setInitialUserData(nextUserData);
+      setProfileResetKey((current) => current + 1);
+      showToastMsg(String(response.message || "Xóa ảnh đại diện thành công"), "success");
+      return true;
+    } catch (error) {
+      showToastMsg(
+        error instanceof Error ? error.message : "Xóa ảnh đại diện thất bại",
+        "error",
+      );
+      return false;
+    } finally {
+      setTimeout(() => {
+        isSelfUpdatingRef.current = false;
+      }, 2000);
+    }
+  };
+
+  const handleSaveBusinessProfile = async () => {
+    const response = await getProfile();
+    const nextUserData = mapBackendUserToUserData(response.data);
+    setUserData(nextUserData);
+    setInitialUserData(nextUserData);
+    setProfileResetKey((current) => current + 1);
   };
 
   const handleCancelProfile = () => {
@@ -243,11 +321,16 @@ export const DepartmentDashboardScreen: React.FC = () => {
       fullName={userData.fullName}
       avatarUrl={userData.avatarUrl}
       role={userData.role}
+      accountType={userData.accountType}
+      permissions={userData.permissions}
       onSelectView={(view) => {
         if (view === "change-password") {
           setShowChangePasswordModal(true);
-        } else {
+        } else if (canAccessView(userData, view)) {
           setActiveView(view);
+        } else {
+          showToastMsg("Bạn không có quyền truy cập chức năng này", "error");
+          setActiveView(getDefaultActiveView(userData));
         }
         setMobileMenuOpen(false);
       }}
@@ -255,6 +338,10 @@ export const DepartmentDashboardScreen: React.FC = () => {
       activeItem={
         activeView === "user-management"
           ? "quan_ly_nguoi_dung"
+          : activeView === "permission-management"
+          ? "quan_ly_quyen"
+          : activeView === "role-management"
+          ? "quan_ly_vai_tro"
           : activeView === "enterprise-management"
           ? "quan_ly_doanh_nghiep"
           : activeView === "company-info"
@@ -263,6 +350,8 @@ export const DepartmentDashboardScreen: React.FC = () => {
           ? "tnld_theo_hdld"
           : activeView === "report-period"
           ? "ky_bao_cao"
+          : activeView === "profile" && userData.accountType === "DEPARTMENT"
+          ? "thong_tin_tai_khoan"
           : ""
       }
       onCloseMobile={() => setMobileMenuOpen(false)}
@@ -346,16 +435,35 @@ export const DepartmentDashboardScreen: React.FC = () => {
           setMobileMenuOpen={setMobileMenuOpen}
         >
           {activeView === "user-management" ? (
-            <UserManagement showToast={showToastMsg} />
+            <UserManagement
+              showToast={showToastMsg}
+              permissions={userData.permissions}
+              isAdmin={hasUserRole(userData, "ADMIN")}
+            />
+          ) : activeView === "permission-management" ? (
+            <PermissionManagement showToast={showToastMsg} />
+          ) : activeView === "role-management" ? (
+            <RoleManagement
+              showToast={showToastMsg}
+              permissions={userData.permissions}
+              isAdmin={hasUserRole(userData, "ADMIN")}
+            />
           ) : activeView === "enterprise-management" ? (
-            <EnterpriseManagement showToast={showToastMsg} />
+            <EnterpriseManagement
+              showToast={showToastMsg}
+              permissions={userData.permissions}
+              isAdmin={hasUserRole(userData, "ADMIN")}
+            />
           ) : activeView === "company-info" ? (
             <CreateEnterprise
               key={profileResetKey}
               businessTypes={[]}
               isProfileEdit={true}
               mode="edit"
-              onSave={() => setProfileResetKey((curr) => curr + 1)}
+              onSave={handleSaveBusinessProfile}
+              onProfileSavingChange={(isSaving) => {
+                isSelfUpdatingRef.current = isSaving;
+              }}
               onCancel={() => {
                 setProfileResetKey((curr) => curr + 1);
                 showToastMsg("Đã khôi phục dữ liệu ban đầu.", "success");
@@ -363,9 +471,17 @@ export const DepartmentDashboardScreen: React.FC = () => {
               showToast={showToastMsg}
             />
           ) : activeView === "report-period" ? (
-            <ReportPeriodManagement showToast={showToastMsg} />
+            <ReportPeriodManagement
+              showToast={showToastMsg}
+              permissions={userData.permissions}
+              isAdmin={hasUserRole(userData, "ADMIN")}
+            />
           ) : activeView === "tnld-reports" ? (
-            <DepartmentReports showToast={showToastMsg} />
+            <DepartmentReports
+              showToast={showToastMsg}
+              permissions={userData.permissions}
+              isAdmin={hasUserRole(userData, "ADMIN")}
+            />
           ) : activeView === "tnld-theo-hdld" ? (
             <TnldTheoHdld showToast={showToastMsg} />
           ) : (
@@ -373,6 +489,7 @@ export const DepartmentDashboardScreen: React.FC = () => {
               key={profileResetKey}
               initialData={userData}
               onSave={handleSaveProfile}
+              onDeleteAvatar={handleDeleteProfileAvatar}
               onCancel={handleCancelProfile}
               showToast={showToastMsg}
             />

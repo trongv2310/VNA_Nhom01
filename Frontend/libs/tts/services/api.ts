@@ -32,7 +32,9 @@ export interface BackendUser {
   wardCommune?: string;
   address?: string;
   isActive?: boolean;
+  accountType?: "DEPARTMENT" | "BUSINESS";
   roles?: Array<string | { code?: string; name?: string }>;
+  permissions?: string[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -152,13 +154,23 @@ export function clearAuthTokens() {
 }
 
 export function mapBackendUserToUserData(user: BackendUser): UserData {
-  const role = (user.roles || [])
+  const roleCodes = (user.roles || [])
     .map((item) => (typeof item === "string" ? item : item.code || item.name || ""))
-    .filter(Boolean)
-    .join(", ");
+    .filter(Boolean);
+  const role = roleCodes.join(", ");
+  const normalizedPosition = user.position?.trim().toLowerCase();
+  const accountType =
+    user.accountType === "BUSINESS" || user.accountType === "DEPARTMENT"
+      ? user.accountType
+      : roleCodes.includes("ADMIN")
+        ? "DEPARTMENT"
+        : normalizedPosition === "doanh nghiệp" || normalizedPosition === "doanh nghiep"
+          ? "BUSINESS"
+          : "DEPARTMENT";
 
   return {
     avatarUrl: user.avatar || "",
+    accountType,
     username: user.username || "",
     fullName: user.fullName || "",
     dob: user.dateOfBirth || "",
@@ -170,6 +182,7 @@ export function mapBackendUserToUserData(user: BackendUser): UserData {
     ward: user.wardCommune || "",
     address: user.address || "",
     isActive: user.isActive ?? true,
+    permissions: user.permissions || [],
   };
 }
 
@@ -191,7 +204,6 @@ export function dataURLtoFile(dataurl: string, filename: string): File | null {
 export function mapUserDataToUpdateMe(data: UserData): FormData {
   const formData = new FormData();
   if (data.fullName) formData.append("fullName", data.fullName);
-  if (data.email) formData.append("email", data.email);
   if (data.gender) formData.append("gender", data.gender);
   if (data.dob) formData.append("dateOfBirth", data.dob);
   if (data.title) formData.append("position", data.title);
@@ -249,13 +261,21 @@ export async function getProfile() {
   return response;
 }
 
-export async function updateMe(data: UserData) {
-  const userId = getUserId();
-  if (!userId) {
-    throw new Error("Không tìm thấy user id. Vui lòng đăng nhập lại.");
+export async function deleteMyAvatar() {
+  const response = await request<BackendUser>("/users/me/avatar", {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+
+  if (response.data) {
+    setStoredBackendUser(response.data);
   }
 
-  const response = await request<BackendUser>(`/users/${userId}`, {
+  return response;
+}
+
+export async function updateMe(data: UserData) {
+  const response = await request<BackendUser>("/users/me", {
     method: "PATCH",
     headers: authHeaders(),
     body: mapUserDataToUpdateMe(data),
@@ -306,9 +326,8 @@ export async function resetPassword(
   });
 }
 
-export async function sendChangeGmailOtp(newEmail?: string) {
-  const path = `/auth/change-gmail/send-otp${newEmail ? `?newEmail=${encodeURIComponent(newEmail)}` : ""}`;
-  return request<ChangeGmailOtpPayload>(path, {
+export async function sendChangeGmailOtp() {
+  return request<ChangeGmailOtpPayload>("/auth/change-gmail/send-otp", {
     method: "POST",
     headers: authHeaders(),
   });
@@ -353,6 +372,7 @@ export interface UserListItem {
   avatar: string | null;
   position: string;
   isActive: boolean;
+  accountType?: "DEPARTMENT" | "BUSINESS";
   statusLabel: string;
   roles: Array<{ id: number; code: string; name: string }>;
   roleCodes: string[];
@@ -470,6 +490,128 @@ export async function deleteUser(id: number | string) {
   return request<{ id: number }>(`/users/${id}`, {
     method: "DELETE",
     headers: authHeaders(),
+  });
+}
+
+export interface PermissionItem {
+  id: number;
+  code: string;
+  name: string;
+  type: "GROUP" | "COMPONENT";
+  parentId: number | null;
+  sortOrder: number;
+}
+
+export interface ManagedRole {
+  id: number;
+  code: string;
+  name: string;
+  isSystem: boolean;
+  scope: "DEPARTMENT" | "BUSINESS" | "LEGACY";
+  permissionIds: number[];
+  permissionCount: number;
+  assignedUserCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssignableRole {
+  id: number;
+  code: string;
+  name: string;
+  isSystem: boolean;
+  scope: "DEPARTMENT" | "BUSINESS" | "LEGACY";
+}
+
+export interface RoleListResponse {
+  items: ManagedRole[];
+  meta: UserListMeta;
+}
+
+export async function getPermissions() {
+  return request<{ items: PermissionItem[] }>("/permissions", {
+    method: "GET",
+    headers: authHeaders(),
+  });
+}
+
+export async function getRoles(query?: {
+  page?: number;
+  limit?: number;
+  code?: string;
+  name?: string;
+}) {
+  const params = new URLSearchParams();
+  if (query) {
+    Object.entries(query).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        params.append(key, String(value));
+      }
+    });
+  }
+
+  const queryString = params.toString();
+  return request<RoleListResponse>(
+    `/roles${queryString ? `?${queryString}` : ""}`,
+    {
+      method: "GET",
+      headers: authHeaders(),
+    },
+  );
+}
+
+export async function getRoleDetail(id: number) {
+  return request<ManagedRole>(`/roles/${id}`, {
+    method: "GET",
+    headers: authHeaders(),
+  });
+}
+
+export async function getAssignableRoles() {
+  return request<{ items: AssignableRole[] }>("/roles/assignable", {
+    method: "GET",
+    headers: authHeaders(),
+  });
+}
+
+export async function createRole(data: {
+  code: string;
+  name: string;
+  permissionIds: number[];
+}) {
+  return request<ManagedRole>("/roles", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateRole(
+  id: number,
+  data: {
+    name: string;
+    permissionIds: number[];
+  },
+) {
+  return request<ManagedRole>(`/roles/${id}`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteRole(id: number) {
+  return request<null>(`/roles/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+}
+
+export async function bulkDeleteRoles(ids: number[]) {
+  return request<null>("/roles/bulk-delete", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ ids }),
   });
 }
 
@@ -663,6 +805,18 @@ export async function getBusinessDetail(id: number | string) {
   });
 }
 
+export async function validateBusinessUniqueness(data: {
+  taxCode: string;
+  email: string;
+  businessId?: number;
+}) {
+  return request<{ available: boolean }>("/businesses/validate-uniqueness", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+}
+
 export async function createBusiness(formData: FormData) {
   return request<BusinessListItem>("/businesses", {
     method: "POST",
@@ -745,9 +899,8 @@ export async function getMyBusinessProfile() {
   });
 }
 
-export async function sendBusinessProfileEmailOtp(newEmail?: string) {
-  const path = `/businesses/me/email/send-otp${newEmail ? `?newEmail=${encodeURIComponent(newEmail)}` : ""}`;
-  return request<any>(path, {
+export async function sendBusinessProfileEmailOtp() {
+  return request<any>("/businesses/me/email/send-otp", {
     method: "POST",
     headers: authHeaders(),
   });
@@ -881,6 +1034,13 @@ export async function getMyLaborAccidentReports(query?: {
   });
 }
 
+export async function getMyLaborAccidentReportPeriods() {
+  return request<any>("/labor-accident-reports/my/periods", {
+    method: "GET",
+    headers: authHeaders(),
+  });
+}
+
 export async function getMyLaborAccidentReportDetail(id: number | string) {
   return request<any>(`/labor-accident-reports/my/${id}`, {
     method: "GET",
@@ -939,6 +1099,13 @@ export async function getReportPeriods(query?: {
   }
   const queryString = params.toString();
   return request<any>(`/labor-accident-report-periods${queryString ? `?${queryString}` : ""}`, {
+    method: "GET",
+    headers: authHeaders(),
+  });
+}
+
+export async function getReportPeriodYears() {
+  return request<{ years: number[] }>("/labor-accident-report-periods/years", {
     method: "GET",
     headers: authHeaders(),
   });

@@ -17,4 +17,6 @@ export * from "./DepartmentReports";
 export * from "./DepartmentReportDetail";
 export * from "./TnldTheoHdld";
 export * from "./ReportPeriodManagement";
+export * from "./PermissionManagement";
+export * from "./RoleManagement";
 

@@ -6,7 +6,6 @@ import {
   HttpStatus,
   Patch,
   Post,
-  Query,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -86,12 +85,8 @@ export class BusinessProfileController {
   })
   sendEmailChangeOtp(
     @CurrentUser() currentUser: CurrentUserData,
-    @Query('newEmail') newEmail?: string,
   ) {
-    return this.businessService.sendBusinessProfileEmailOtp(
-      currentUser.id,
-      newEmail,
-    );
+    return this.businessService.sendBusinessProfileEmailOtp(currentUser.id);
   }
 
   @Post('email/verify-otp')

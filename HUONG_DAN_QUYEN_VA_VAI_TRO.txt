@@ -1,0 +1,629 @@
+HƯỚNG DẪN HỌC VÀ KIỂM THỬ QUYỀN - VAI TRÒ TRONG PROJECT VNA
+======================================================================
+
+Ngày đối chiếu mã nguồn: 28/06/2026
+
+Mục đích của tài liệu
+---------------------
+1. Giải thích mô hình quyền và vai trò hiện có trong project.
+2. Giúp phân biệt tài khoản Sở và tài khoản doanh nghiệp.
+3. Hướng dẫn tạo vai trò mới bằng giao diện.
+4. Hướng dẫn tạo người dùng mang vai trò mới.
+5. Cung cấp kịch bản kiểm thử cả trường hợp được phép và bị từ chối.
+
+Tài liệu này mô tả đúng trạng thái hiện tại của FE và BE. Không cần sửa trực
+tiếp cơ sở dữ liệu để tạo vai trò hoặc gán vai trò cho người dùng.
+
+
+I. CÁC KHÁI NIỆM CẦN HIỂU
+======================================================================
+
+1. Tài khoản (User)
+-------------------
+Là thông tin dùng để đăng nhập, gồm tên đăng nhập, mật khẩu, email, trạng thái,
+accountType và vai trò được gán.
+
+Hiện tại accountType có hai giá trị:
+
+- DEPARTMENT: tài khoản thuộc phía Sở.
+- BUSINESS: tài khoản thuộc phía doanh nghiệp.
+
+Điểm rất quan trọng:
+
+- accountType quyết định tài khoản đi vào giao diện Sở hay giao diện doanh
+  nghiệp.
+- Role và Permission quyết định tài khoản được thấy và thực hiện chức năng nào.
+- Không nên dùng riêng mã role USER để suy luận đây là tài khoản doanh nghiệp.
+  Một tài khoản role USER vẫn có thể là tài khoản Sở nếu accountType là
+  DEPARTMENT.
+
+
+2. Vai trò (Role)
+-----------------
+Vai trò là một tập hợp quyền. Gán vai trò cho người dùng giúp tránh phải gán
+từng quyền trực tiếp cho từng tài khoản.
+
+Ví dụ:
+
+- Vai trò: BUSINESS_MANAGER
+- Tên hiển thị: Người quản lý doanh nghiệp
+- Tập quyền: xem, thêm, cập nhật, xóa và đổi trạng thái doanh nghiệp
+
+Mô hình dữ liệu liên quan:
+
+- roles: danh sách vai trò.
+- permissions: danh sách quyền.
+- role_permissions: liên kết nhiều-nhiều giữa vai trò và quyền.
+- user_roles: liên kết giữa người dùng và vai trò.
+
+Giao diện quản lý người dùng hiện tại gán một vai trò chính cho mỗi người dùng.
+Khi đổi vai trò, liên kết vai trò cũ của người dùng được thay bằng vai trò mới.
+
+
+3. Quyền (Permission)
+---------------------
+Quyền là một hành động cụ thể mà người dùng được phép thực hiện.
+
+Quy ước mã:
+
+- G trong mã, ví dụ SYSTEM_G_BUSINESS: GROUP - nhóm để tổ chức giao diện.
+- C trong mã, ví dụ SYSTEM_C_BUSINESS_CREATE: COMPONENT - quyền thao tác thật.
+
+Ví dụ:
+
+- SYSTEM_G_BUSINESS: nhóm "Quản lý doanh nghiệp".
+- SYSTEM_C_BUSINESS_VIEW: được xem danh sách/chi tiết doanh nghiệp.
+- SYSTEM_C_BUSINESS_CREATE: được tạo doanh nghiệp.
+
+Lưu ý:
+
+- Quyền GROUP chủ yếu dùng để gom các quyền con và hiển thị dạng cây.
+- Chỉ chọn GROUP mà không có quyền COMPONENT tương ứng thì không đủ để gọi API
+  nghiệp vụ.
+- Khi chọn một quyền con trên giao diện, nhóm cha được chọn kèm để bảo toàn cấu
+  trúc cây.
+
+
+4. Vai trò hệ thống và vai trò tùy chỉnh
+----------------------------------------
+Vai trò hệ thống hiện có:
+
+- ADMIN
+  + accountType thông thường: DEPARTMENT.
+  + Có toàn bộ quyền.
+  + Backend cho ADMIN đi qua kiểm tra quyền.
+  + Không được sửa, xóa hoặc gán ADMIN từ màn quản lý người dùng.
+
+- USER
+  + Là vai trò tương thích dữ liệu cũ (scope LEGACY).
+  + Tài khoản doanh nghiệp được tạo với role USER và accountType BUSINESS.
+  + Nếu admin tạo một người dùng Sở với role USER thì accountType vẫn là
+    DEPARTMENT; tài khoản đó không tự biến thành tài khoản doanh nghiệp.
+  + USER hiện không được backfill các quyền quản trị Sở.
+
+Vai trò tùy chỉnh:
+
+- Được tạo từ màn "Quản lý vai trò".
+- Có scope DEPARTMENT.
+- Có thể sửa tên và danh sách quyền.
+- Mã vai trò không đổi sau khi đã tạo.
+- Chỉ xóa được khi chưa được gán cho bất kỳ người dùng nào.
+
+
+II. HỆ THỐNG KIỂM TRA QUYỀN NHƯ THẾ NÀO?
+======================================================================
+
+Một yêu cầu được xử lý theo thứ tự khái quát:
+
+1. JwtAuthGuard kiểm tra access token và xác định người đăng nhập.
+2. RolesGuard kiểm tra loại luồng Sở/doanh nghiệp và vai trò nền.
+3. PermissionsGuard tải quyền mới nhất của người dùng từ DB.
+4. Backend chỉ cho phép thực hiện API khi có quyền phù hợp.
+5. Frontend đồng thời ẩn menu/nút mà tài khoản không có quyền.
+
+Vì vậy:
+
+- Ẩn nút ở FE giúp giao diện rõ ràng nhưng không phải lớp bảo mật duy nhất.
+- Nếu người dùng tự gọi API không được cấp quyền, BE vẫn trả về HTTP 403.
+- ADMIN được phép thực hiện mọi thao tác.
+- Khi một API khai báo nhiều quyền, PermissionsGuard hiện dùng điều kiện
+  "có ít nhất một quyền" (any-of).
+
+Sau khi admin đổi vai trò hoặc quyền của tài khoản đang đăng nhập:
+
+- Backend đọc quyền mới ở yêu cầu tiếp theo.
+- Frontend có thể vẫn đang giữ danh sách quyền cũ trong phiên.
+- Nên đăng xuất rồi đăng nhập lại tài khoản kiểm thử để menu và nút được làm
+  mới hoàn toàn.
+
+
+III. DANH SÁCH QUYỀN HIỆN CÓ
+======================================================================
+
+Toàn hệ thống hiện có 40 bản ghi:
+
+- 9 quyền loại GROUP.
+- 31 quyền loại COMPONENT.
+
+
+1. SYSTEM_G_USER - Quản lý người dùng
+-------------------------------------
+- SYSTEM_C_USER_VIEW
+  Xem danh sách và chi tiết người dùng Sở.
+
+- SYSTEM_C_USER_CREATE
+  Thêm người dùng Sở.
+
+- SYSTEM_C_USER_UPDATE
+  Cập nhật thông tin, vai trò hoặc trạng thái người dùng Sở.
+
+- SYSTEM_C_USER_DELETE
+  Xóa người dùng Sở.
+
+- SYSTEM_C_USER_RESET_PASSWORD
+  Đặt lại mật khẩu người dùng Sở.
+
+
+2. SYSTEM_G_BUSINESS - Quản lý doanh nghiệp
+-------------------------------------------
+- SYSTEM_C_BUSINESS_VIEW
+  Xem danh sách và chi tiết doanh nghiệp.
+
+- SYSTEM_C_BUSINESS_CREATE
+  Thêm doanh nghiệp. Khi tạo thành công, hệ thống đồng thời tạo tài khoản
+  doanh nghiệp với:
+  + username: mã số thuế.
+  + password mặc định: 12345678.
+  + accountType: BUSINESS.
+  + role: USER.
+
+- SYSTEM_C_BUSINESS_UPDATE
+  Cập nhật thông tin doanh nghiệp.
+
+- SYSTEM_C_BUSINESS_DELETE
+  Xóa doanh nghiệp.
+
+- SYSTEM_C_BUSINESS_STATUS
+  Bật hoặc tắt trạng thái doanh nghiệp.
+
+Đây là nhóm quyền được dùng trong bài thực hành ở phần IV.
+
+
+3. SYSTEM_G_ROLE - Quản lý vai trò
+----------------------------------
+- SYSTEM_C_ROLE_VIEW: xem danh sách và chi tiết vai trò.
+- SYSTEM_C_ROLE_CREATE: thêm vai trò tùy chỉnh.
+- SYSTEM_C_ROLE_UPDATE: cập nhật vai trò tùy chỉnh.
+- SYSTEM_C_ROLE_DELETE: xóa vai trò tùy chỉnh chưa được gán.
+
+
+4. SYSTEM_G_PERMISSION - Quản lý quyền
+--------------------------------------
+- SYSTEM_C_PERMISSION_VIEW: xem cây danh sách quyền.
+
+Ngoài quyền này, API tải cây quyền cũng cho phép tài khoản có
+SYSTEM_C_ROLE_CREATE hoặc SYSTEM_C_ROLE_UPDATE truy cập, vì popup thêm/sửa vai
+trò cần dữ liệu quyền để hiển thị.
+
+
+5. SYSTEM_G_REPORT_PERIOD - Quản lý kỳ báo cáo
+----------------------------------------------
+- SYSTEM_C_REPORT_PERIOD_VIEW: xem kỳ báo cáo.
+- SYSTEM_C_REPORT_PERIOD_CREATE: thêm kỳ báo cáo.
+- SYSTEM_C_REPORT_PERIOD_UPDATE: cập nhật kỳ báo cáo.
+- SYSTEM_C_REPORT_PERIOD_STATUS: thay đổi trạng thái kỳ báo cáo.
+
+
+6. LABOR_G_CATALOG - Danh mục tai nạn lao động
+----------------------------------------------
+- LABOR_C_CATALOG_VIEW: xem danh mục.
+- LABOR_C_CATALOG_MANAGE: quản lý dữ liệu danh mục.
+
+
+7. LABOR_G_REPORT - Báo cáo tai nạn lao động cấp Sở
+---------------------------------------------------
+- LABOR_C_REPORT_VIEW: xem danh sách, tổng hợp và chi tiết báo cáo cấp Sở.
+- LABOR_C_REPORT_RECEIVE: tiếp nhận hoặc từ chối báo cáo.
+- LABOR_C_REPORT_EXPORT: xuất Excel/Word báo cáo cấp Sở.
+
+
+8. BUSINESS_G_PROFILE - Thông tin doanh nghiệp
+----------------------------------------------
+- BUSINESS_C_PROFILE_VIEW: xem thông tin doanh nghiệp.
+- BUSINESS_C_PROFILE_UPDATE: cập nhật thông tin doanh nghiệp.
+
+
+9. BUSINESS_G_REPORT - Báo cáo tai nạn lao động doanh nghiệp
+------------------------------------------------------------
+- BUSINESS_C_REPORT_VIEW: xem báo cáo doanh nghiệp.
+- BUSINESS_C_REPORT_CREATE: tạo báo cáo doanh nghiệp.
+- BUSINESS_C_REPORT_UPDATE: cập nhật báo cáo doanh nghiệp.
+- BUSINESS_C_REPORT_SUBMIT: nộp báo cáo doanh nghiệp.
+- BUSINESS_C_REPORT_EXPORT: xuất báo cáo doanh nghiệp.
+
+Trạng thái triển khai cần biết:
+
+- Các quyền SYSTEM_C_*, LABOR_C_CATALOG_* và LABOR_C_REPORT_* phía trên đã
+  tham gia kiểm soát menu/nút/API tương ứng.
+- Các mã BUSINESS_C_PROFILE_* và BUSINESS_C_REPORT_* đã tồn tại trong DB để
+  hoàn thiện mô hình quyền, nhưng luồng tài khoản BUSINESS hiện vẫn chủ yếu
+  được kiểm soát bằng accountType BUSINESS kết hợp role USER.
+- Vì vậy, không nên dùng các quyền BUSINESS_C_* cho một vai trò Sở và kỳ vọng
+  chúng mở luồng doanh nghiệp ở thời điểm hiện tại.
+
+
+IV. BÀI THỰC HÀNH: TẠO "NGƯỜI QUẢN LÝ DOANH NGHIỆP"
+======================================================================
+
+Mục tiêu
+--------
+Tạo một tài khoản Sở có quyền quản lý bản ghi doanh nghiệp:
+
+- Xem danh sách và chi tiết.
+- Thêm mới.
+- Chỉnh sửa.
+- Xóa.
+- Bật/tắt trạng thái.
+
+Tài khoản này không được quản lý người dùng, vai trò, quyền, kỳ báo cáo hoặc
+các chức năng khác nếu không cấp thêm quyền.
+
+
+A. Điều kiện trước khi thực hành
+--------------------------------
+1. Backend và frontend đang chạy:
+
+   Backend:
+   cd backend_vna
+   npm run start:dev
+
+   Frontend:
+   cd Frontend
+   npm run dev
+
+2. Đăng nhập bằng tài khoản ADMIN.
+3. Migration quyền/vai trò đã được chạy.
+4. Dùng dữ liệu thử nghiệm, không xóa doanh nghiệp thật.
+
+
+B. Tạo vai trò mới
+------------------
+1. Vào menu:
+
+   Hệ thống -> Quản lý vai trò
+
+2. Chọn "Thêm mới".
+
+3. Nhập:
+
+   Mã vai trò: BUSINESS_MANAGER
+   Tên vai trò: Người quản lý doanh nghiệp
+
+4. Trong cây quyền, mở nhóm "Quản lý doanh nghiệp".
+
+5. Chọn đủ năm quyền thao tác:
+
+   [x] SYSTEM_C_BUSINESS_VIEW
+   [x] SYSTEM_C_BUSINESS_CREATE
+   [x] SYSTEM_C_BUSINESS_UPDATE
+   [x] SYSTEM_C_BUSINESS_DELETE
+   [x] SYSTEM_C_BUSINESS_STATUS
+
+Có thể chọn checkbox của cả nhóm "Quản lý doanh nghiệp". Giao diện sẽ chọn
+nhóm cha và toàn bộ năm quyền con.
+
+6. Chọn "Lưu".
+
+7. Kiểm tra kết quả:
+
+- Danh sách có role BUSINESS_MANAGER.
+- Phạm vi hiển thị là "Sở".
+- Nếu chọn cả nhóm, số quyền thường là 6 bản ghi:
+  1 GROUP + 5 COMPONENT.
+- Loại là vai trò tùy chỉnh, không phải vai trò hệ thống.
+
+Quy tắc mã vai trò:
+
+- Bắt đầu bằng chữ cái.
+- Chỉ chứa chữ cái, chữ số và dấu gạch dưới.
+- Tối đa 50 ký tự.
+- Backend chuẩn hóa mã thành chữ in hoa.
+- Mã phải duy nhất.
+- Vai trò phải có ít nhất một quyền.
+
+
+C. Tạo người dùng mang vai trò mới
+----------------------------------
+1. Vẫn đăng nhập ADMIN, vào:
+
+   Hệ thống -> Quản lý người dùng
+
+2. Chọn "Thêm mới".
+
+3. Nhập dữ liệu thử nghiệm, ví dụ:
+
+   Tên đăng nhập: business_manager_test
+   Mật khẩu: Test@123456
+   Họ và tên: Người quản lý doanh nghiệp kiểm thử
+   Vai trò: Người quản lý doanh nghiệp
+   Email: dùng một email hợp lệ và chưa tồn tại
+   Kích hoạt: bật
+
+4. Chọn "Lưu".
+
+5. Kiểm tra dòng người dùng vừa tạo:
+
+- Vai trò hiển thị là "Người quản lý doanh nghiệp".
+- Tài khoản được kích hoạt.
+- Tài khoản này tự động có accountType DEPARTMENT vì được tạo từ màn quản lý
+  người dùng Sở.
+
+
+D. Kiểm thử đăng nhập và điều hướng
+----------------------------------
+1. Đăng xuất ADMIN.
+2. Đăng nhập bằng:
+
+   username: business_manager_test
+   password: Test@123456
+
+3. Kết quả mong đợi:
+
+- Đi vào dashboard phía Sở.
+- Không đi vào màn "Thông tin doanh nghiệp" của tài khoản BUSINESS.
+- Sidebar có "Thông tin tài khoản".
+- Sidebar có "Quản lý doanh nghiệp".
+- Không tự động có toàn bộ menu của ADMIN.
+
+Nếu vừa chỉnh vai trò trong lúc tài khoản kiểm thử đang đăng nhập, hãy đăng
+xuất và đăng nhập lại trước khi kết luận.
+
+
+E. Kiểm thử các quyền được cấp
+------------------------------
+Thực hiện lần lượt và ghi lại kết quả:
+
+01. Xem danh sách doanh nghiệp
+    Mong đợi: danh sách tải thành công.
+
+02. Xem chi tiết một doanh nghiệp
+    Mong đợi: mở được màn chi tiết ở chế độ xem.
+
+03. Thêm doanh nghiệp thử nghiệm
+    Mong đợi: thấy nút "Thêm mới" và lưu thành công.
+
+    Dữ liệu cần chú ý:
+    - Tên doanh nghiệp không để trống.
+    - Mã số thuế là 10 chữ số hoặc dạng 10 chữ số-3 chữ số.
+    - Mã số thuế phải chưa tồn tại.
+    - Chọn loại hình kinh doanh.
+    - Chọn ngành nghề kinh doanh.
+    - Ngày cấp GPKD không lớn hơn ngày hiện tại.
+    - Chọn tỉnh/thành phố và phường/xã ĐKKD.
+    - Email đúng định dạng và chưa được dùng.
+
+    Nên đặt tên dễ nhận biết, ví dụ:
+    RBAC TEST - DOANH NGHIEP TAM
+
+04. Cập nhật doanh nghiệp thử nghiệm
+    Mong đợi: có biểu tượng chỉnh sửa, lưu thành công và danh sách hiển thị dữ
+    liệu mới.
+
+05. Thay đổi trạng thái
+    Mong đợi: công tắc trạng thái hoạt động và backend lưu giá trị mới.
+
+06. Xóa doanh nghiệp thử nghiệm
+    Mong đợi: chọn được checkbox, popup xác nhận xuất hiện và xóa thành công.
+
+    Cảnh báo: thao tác xóa hiện xóa vĩnh viễn doanh nghiệp, tài khoản đăng nhập
+    liên kết, liên kết vai trò và file đính kèm trong DB. Chỉ xóa bản ghi test.
+
+
+F. Kiểm thử các quyền không được cấp
+------------------------------------
+Tài khoản BUSINESS_MANAGER chỉ có năm quyền doanh nghiệp nên kết quả mong đợi:
+
+- Không thấy menu "Quản lý người dùng".
+- Không thấy menu "Quản lý quyền".
+- Không thấy menu "Quản lý vai trò".
+- Không thấy menu "Kỳ báo cáo".
+- Không thấy chức năng báo cáo cấp Sở nếu chưa cấp LABOR_C_REPORT_VIEW.
+
+Kiểm tra bảo mật backend:
+
+1. Mở Swagger tại:
+
+   http://localhost:3000/docs
+
+2. Gọi POST /api/v1/auth/login với tài khoản kiểm thử.
+3. Sao chép data.accessToken.
+4. Bấm "Authorize" và nhập access token.
+5. Gọi các API được phép:
+
+   GET    /api/v1/businesses                  -> mong đợi 200
+   GET    /api/v1/businesses/{id}             -> mong đợi 200
+   POST   /api/v1/businesses                  -> được phép nếu body hợp lệ
+   PATCH  /api/v1/businesses/{id}             -> được phép nếu body hợp lệ
+   PATCH  /api/v1/businesses/{id}/status      -> mong đợi thành công
+   DELETE /api/v1/businesses/{id}             -> chỉ thử với bản ghi test
+
+6. Gọi các API không được phép:
+
+   GET /api/v1/users                          -> mong đợi 403
+   GET /api/v1/roles                          -> mong đợi 403
+   GET /api/v1/permissions                    -> mong đợi 403
+
+Nếu FE ẩn nút nhưng API vẫn cho phép, hoặc FE hiện nút nhưng API trả 403, cần
+ghi nhận là lỗi không đồng bộ FE-BE.
+
+
+G. Kiểm thử thu hồi một quyền
+-----------------------------
+Ví dụ kiểm tra việc thu hồi quyền xóa:
+
+1. Đăng xuất tài khoản BUSINESS_MANAGER và đăng nhập ADMIN.
+2. Vào "Quản lý vai trò".
+3. Sửa BUSINESS_MANAGER.
+4. Bỏ chọn SYSTEM_C_BUSINESS_DELETE.
+5. Lưu.
+6. Đăng xuất ADMIN và đăng nhập lại business_manager_test.
+
+Kết quả mong đợi:
+
+- Vẫn xem, thêm, sửa và đổi trạng thái doanh nghiệp.
+- Checkbox chọn để xóa bị vô hiệu hóa hoặc không còn luồng xóa.
+- Nếu tự gọi DELETE /api/v1/businesses/{id}, backend trả 403.
+
+Sau khi học xong có thể cấp lại quyền xóa nếu vai trò thật sự cần quyền này.
+
+
+V. GIỚI HẠN HIỆN TẠI CỦA VAI TRÒ BUSINESS_MANAGER
+======================================================================
+
+Năm quyền trong ví dụ cho phép quản lý vòng đời bản ghi doanh nghiệp, nhưng
+không đồng nghĩa với mọi thao tác đặc biệt liên quan đến tài khoản doanh
+nghiệp.
+
+1. Đặt lại mật khẩu tài khoản doanh nghiệp
+-------------------------------------------
+Nút đặt lại mật khẩu ở màn quản lý doanh nghiệp hiện chỉ dành cho ADMIN.
+Hệ thống chưa có mã quyền riêng như SYSTEM_C_BUSINESS_RESET_PASSWORD.
+
+2. Xóa riêng file đính kèm đã lưu
+---------------------------------
+Endpoint xóa riêng file đính kèm hiện chưa được gắn một quyền
+SYSTEM_C_BUSINESS_* tương ứng. Một custom role có thể cập nhật doanh nghiệp
+nhưng gặp 403 khi cố xóa riêng file cũ.
+
+3. Quyền BUSINESS_C_* của cổng doanh nghiệp
+-------------------------------------------
+Các mã này đã được tạo trong DB nhưng chưa phải cơ chế chính điều khiển luồng
+tài khoản BUSINESS. Không cấp chúng cho BUSINESS_MANAGER trừ khi sau này BE và
+FE được nối đầy đủ với các mã quyền đó.
+
+Ba điểm trên là giới hạn đã biết của thiết kế hiện tại, không phải lỗi trong
+các bước tạo vai trò của tài liệu này.
+
+
+VI. CÁC LỖI THƯỜNG GẶP VÀ CÁCH KIỂM TRA
+======================================================================
+
+1. Không thấy menu "Quản lý doanh nghiệp"
+-----------------------------------------
+Kiểm tra:
+
+- Tài khoản đã được gán đúng BUSINESS_MANAGER chưa?
+- Vai trò có SYSTEM_C_BUSINESS_VIEW chưa?
+- Đã đăng xuất và đăng nhập lại chưa?
+- Tài khoản có đang hoạt động không?
+
+
+2. Thấy danh sách nhưng không thấy nút "Thêm mới"
+-------------------------------------------------
+Nguyên nhân thường là thiếu SYSTEM_C_BUSINESS_CREATE.
+
+
+3. Không thấy biểu tượng chỉnh sửa
+----------------------------------
+Nguyên nhân thường là thiếu SYSTEM_C_BUSINESS_UPDATE.
+
+
+4. Không dùng được checkbox hoặc nút xóa
+----------------------------------------
+Nguyên nhân thường là thiếu SYSTEM_C_BUSINESS_DELETE.
+
+
+5. Công tắc trạng thái bị vô hiệu hóa
+-------------------------------------
+Nguyên nhân thường là thiếu SYSTEM_C_BUSINESS_STATUS.
+
+
+6. Giao diện có chức năng nhưng API trả 403
+-------------------------------------------
+Kiểm tra:
+
+- access token có thuộc đúng tài khoản không?
+- Người dùng có accountType DEPARTMENT không?
+- Vai trò đang gán có đúng quyền COMPONENT không?
+- Có phải chỉ chọn GROUP mà chưa chọn quyền con không?
+- Đã lưu vai trò thành công chưa?
+
+
+7. Không xóa được vai trò
+-------------------------
+Không thể xóa:
+
+- Vai trò hệ thống ADMIN hoặc USER.
+- Vai trò tùy chỉnh đang được gán cho ít nhất một người dùng.
+
+Cách xử lý an toàn:
+
+1. Đổi người dùng sang một vai trò khác.
+2. Xác nhận số người dùng của vai trò về 0.
+3. Sau đó mới xóa vai trò.
+
+
+8. Không tạo được vai trò
+-------------------------
+Kiểm tra:
+
+- Mã vai trò có trùng không?
+- Mã có bắt đầu bằng chữ cái không?
+- Mã có ký tự ngoài chữ, số và gạch dưới không?
+- Tên có vượt quá 100 ký tự không?
+- Đã chọn ít nhất một quyền chưa?
+
+
+VII. CHECKLIST KẾT LUẬN BÀI THỰC HÀNH
+======================================================================
+
+Đánh dấu sau khi kiểm thử:
+
+[ ] Tạo được role BUSINESS_MANAGER.
+[ ] Role có scope DEPARTMENT.
+[ ] Role có đủ 5 quyền COMPONENT quản lý doanh nghiệp.
+[ ] Tạo được user business_manager_test với role mới.
+[ ] User đăng nhập vào dashboard Sở.
+[ ] User thấy menu Quản lý doanh nghiệp.
+[ ] User xem được danh sách và chi tiết.
+[ ] User thêm được doanh nghiệp test.
+[ ] User cập nhật được doanh nghiệp test.
+[ ] User đổi được trạng thái doanh nghiệp test.
+[ ] User xóa được doanh nghiệp test.
+[ ] User không thấy các menu ngoài phạm vi đã cấp.
+[ ] API được cấp quyền trả về thành công.
+[ ] API không được cấp quyền trả về 403.
+[ ] Thu hồi quyền xóa làm mất khả năng xóa ở cả FE và BE.
+[ ] Không sử dụng hoặc xóa nhầm dữ liệu doanh nghiệp thật.
+
+
+VIII. NGUYÊN TẮC KHI TẠO VAI TRÒ THẬT
+======================================================================
+
+1. Áp dụng nguyên tắc quyền tối thiểu:
+   chỉ cấp đúng quyền cần cho công việc.
+
+2. Luôn cấp quyền VIEW nếu vai trò cần vào một màn quản lý.
+
+3. Tách quyền thao tác:
+   VIEW, CREATE, UPDATE, DELETE và STATUS không nên mặc định đi cùng nhau.
+
+4. Thử cả ca dương và ca âm:
+   không chỉ thử chức năng được phép mà phải thử API bị cấm trả 403.
+
+5. Dùng tài khoản và dữ liệu test riêng.
+
+6. Không sửa trực tiếp role ADMIN/USER hoặc các liên kết quyền trong DB nếu có
+   thể thực hiện an toàn qua giao diện/API.
+
+7. Trước khi xóa vai trò, phải chuyển toàn bộ người dùng sang vai trò khác.
+
+8. Sau khi đổi quyền, đăng nhập lại tài khoản kiểm thử để FE tải quyền mới.
+
+9. Ghi rõ ý nghĩa nghiệp vụ của role, tránh tên mơ hồ như ROLE1 hoặc TEST_ROLE
+   trong dữ liệu thật.
+
+10. Với thao tác nhạy cảm như xóa, đổi trạng thái, đặt lại mật khẩu hoặc xuất
+    dữ liệu, nên tạo quyền riêng thay vì gộp chung vào UPDATE.
+
+KẾT THÚC TÀI LIỆU

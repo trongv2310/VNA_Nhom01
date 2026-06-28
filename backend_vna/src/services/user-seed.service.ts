@@ -4,7 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 
 import { Role } from '../entities/role.entity';
-import { User } from '../entities/user.entity';
+import { User, UserAccountType } from '../entities/user.entity';
 import { UserRole } from '../entities/user-role.entity';
 
 @Injectable()
@@ -46,6 +46,7 @@ export class UserSeedService implements OnApplicationBootstrap {
       password: '123456',
       fullName: 'Quản trị viên',
       email: 'maytinh519gmail.com',
+      accountType: UserAccountType.DEPARTMENT,
       role: adminRole,
       position: 'Admin hệ thống',
     });
@@ -55,6 +56,7 @@ export class UserSeedService implements OnApplicationBootstrap {
       password: '123456',
       fullName: 'Người dùng mẫu',
       email: 'user@gmail.com',
+      accountType: UserAccountType.DEPARTMENT,
       role: userRole,
       position: 'Khách hàng',
     });
@@ -65,6 +67,7 @@ export class UserSeedService implements OnApplicationBootstrap {
     password: string;
     fullName: string;
     email: string;
+    accountType: UserAccountType;
     role: Role;
     position: string;
   }) {
@@ -86,6 +89,7 @@ export class UserSeedService implements OnApplicationBootstrap {
       password: hashedPassword,
       fullName: data.fullName,
       email: data.email,
+      accountType: data.accountType,
       position: data.position,
       isActive: true,
     });

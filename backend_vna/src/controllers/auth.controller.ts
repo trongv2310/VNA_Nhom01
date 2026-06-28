@@ -7,7 +7,6 @@ import {
   Ip,
   Patch,
   Post,
-  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -146,9 +145,8 @@ export class AuthController {
   @ApiOkResponse({ description: 'Gui OTP thanh cong', type: ApiSuccessResponseDto })
   sendChangeGmailOtp(
     @CurrentUser() currentUser: CurrentUserData,
-    @Query('newEmail') newEmail?: string,
   ) {
-    return this.authService.sendChangeGmailOtp(currentUser.id, newEmail);
+    return this.authService.sendChangeGmailOtp(currentUser.id);
   }
 
   @Post('change-gmail/verify-otp')

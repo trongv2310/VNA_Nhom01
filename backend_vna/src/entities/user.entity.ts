@@ -9,6 +9,11 @@ import {
 
 import { UserRole } from './user-role.entity';
 
+export enum UserAccountType {
+  DEPARTMENT = 'DEPARTMENT',
+  BUSINESS = 'BUSINESS',
+}
+
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('increment')
@@ -91,6 +96,14 @@ export class User {
     default: true,
   })
   isActive!: boolean;
+
+  @Column({
+    name: 'account_type',
+    type: 'varchar',
+    length: 20,
+    default: UserAccountType.DEPARTMENT,
+  })
+  accountType!: UserAccountType;
 
   @OneToMany(() => UserRole, (userRole) => userRole.user)
   userRoles!: UserRole[];

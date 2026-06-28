@@ -21,9 +21,22 @@ import { DeleteConfirmModal } from "./DeleteConfirmModal";
 
 interface UserManagementProps {
   showToast: (message: string, type: "success" | "error") => void;
+  permissions?: string[];
+  isAdmin?: boolean;
 }
 
-export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => {
+export const UserManagement: React.FC<UserManagementProps> = ({
+  showToast,
+  permissions = [],
+  isAdmin = false,
+}) => {
+  const hasPermission = (permission: string) =>
+    isAdmin || permissions.includes(permission);
+  const canCreate = hasPermission("SYSTEM_C_USER_CREATE");
+  const canUpdate = hasPermission("SYSTEM_C_USER_UPDATE");
+  const canDelete = hasPermission("SYSTEM_C_USER_DELETE");
+  const canResetPassword = hasPermission("SYSTEM_C_USER_RESET_PASSWORD");
+
   // State for list & metadata
   const [users, setUsers] = useState<UserListItem[]>([]);
   const [meta, setMeta] = useState<UserListMeta>({
@@ -75,18 +88,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => 
         });
 
         if (active && response.success && response.data) {
-          const filteredItems = response.data.items.filter(
-            (u) =>
-              u.position?.toLowerCase() !== "doanh nghiep" &&
-              u.position?.toLowerCase() !== "doanh nghiệp"
-          );
-          setUsers(filteredItems);
-          
-          const filteredOutCount = response.data.items.length - filteredItems.length;
-          setMeta({
-            ...response.data.meta,
-            totalItems: Math.max(0, response.data.meta.totalItems - filteredOutCount),
-          });
+          setUsers(response.data.items);
+          setMeta(response.data.meta);
         }
       } catch (error) {
         if (active) {
@@ -113,6 +116,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => 
 
   // Toggle Single Checkbox Selection
   const handleSelectRow = (id: number) => {
+    if (!canDelete) return;
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
@@ -120,6 +124,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => 
 
   // Toggle All Checkboxes
   const handleSelectAll = () => {
+    if (!canDelete) return;
     if (selectedIds.length === users.length) {
       setSelectedIds([]);
     } else {
@@ -129,6 +134,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => 
 
   // Toggle User Status Switch
   const handleToggleActive = async (user: UserListItem) => {
+    if (!canUpdate) return;
     const originalUsers = [...users];
     // Optimistic Update
     setUsers((prev) =>
@@ -161,6 +167,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => 
   };
 
   const handleDeleteSelected = async () => {
+    if (!canDelete) return;
     try {
       setIsLoading(true);
       await Promise.all(selectedIds.map((id) => deleteUser(id)));
@@ -176,6 +183,10 @@ export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => 
   };
 
   const handleSaveCreate = async (formData: any) => {
+    if (!canCreate) {
+      throw new Error("Bạn không có quyền thêm người dùng");
+    }
+
     try {
       const response = await createUser({
         username: formData.username,
@@ -226,7 +237,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => 
     }
   };
 
-  if (isAddingNew) {
+  if (isAddingNew && canCreate) {
     return (
       <CreateUser
         onSave={handleSaveCreate}
@@ -236,7 +247,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => 
     );
   }
 
-  if (editingUser) {
+  if (editingUser && canUpdate) {
     return (
       <EditUser
         user={editingUser}
@@ -257,19 +268,21 @@ export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => 
         <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 select-none">
           Danh sách người dùng
         </h2>
-        <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 font-bold text-xs select-none transition-all cursor-pointer">
-            <Upload className="w-4 h-4" />
-            <span>Import</span>
-          </button>
-          <button 
-            onClick={() => setIsAddingNew(true)}
-            className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-md shadow-blue-500/10 active:scale-98 transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Thêm mới</span>
-          </button>
-        </div>
+        {canCreate && (
+          <div className="flex items-center gap-3">
+            <button className="flex items-center gap-2 px-4 py-2 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 font-bold text-xs select-none transition-all cursor-pointer">
+              <Upload className="w-4 h-4" />
+              <span>Thêm từ file</span>
+            </button>
+            <button
+              onClick={() => setIsAddingNew(true)}
+              className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-md shadow-blue-500/10 active:scale-98 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Thêm mới</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Table Container */}
@@ -293,7 +306,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => 
                     type="checkbox"
                     checked={users.length > 0 && selectedIds.length === users.length}
                     onChange={handleSelectAll}
-                    className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    disabled={!canDelete}
+                    className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
                   />
                 </th>
                 <th className="p-4 w-24 text-center">Tác vụ</th>
@@ -388,33 +402,38 @@ export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => 
                         type="checkbox"
                         checked={selectedIds.includes(user.id)}
                         onChange={() => handleSelectRow(user.id)}
-                        className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        disabled={!canDelete}
+                        className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
                       />
                     </td>
                     <td className="p-4 text-center">
                       <div className="flex items-center justify-center gap-4">
-                        <button
-                          onClick={() => setEditingUser(user)}
-                          title="Sửa thông tin"
-                          className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all cursor-pointer group"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] text-slate-400 group-hover:text-blue-600 transition-colors">
-                            <path d="M12 20h9" />
-                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => setPasswordResetUser(user)}
-                          title="Đổi mật khẩu"
-                          className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all cursor-pointer group"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] text-slate-400 group-hover:text-amber-600 transition-colors">
-                            <path d="M21 2L12.7 10.3" />
-                            <path d="M15 5.5l3 3" />
-                            <path d="M11 9.5l2 2" />
-                            <circle cx="7.5" cy="16.5" r="4.5" />
-                          </svg>
-                        </button>
+                        {canUpdate && (
+                          <button
+                            onClick={() => setEditingUser(user)}
+                            title="Sửa thông tin"
+                            className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all cursor-pointer group"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] text-slate-400 group-hover:text-blue-600 transition-colors">
+                              <path d="M12 20h9" />
+                              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                            </svg>
+                          </button>
+                        )}
+                        {canResetPassword && (
+                          <button
+                            onClick={() => setPasswordResetUser(user)}
+                            title="Đổi mật khẩu"
+                            className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all cursor-pointer group"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] text-slate-400 group-hover:text-amber-600 transition-colors">
+                              <path d="M21 2L12.7 10.3" />
+                              <path d="M15 5.5l3 3" />
+                              <path d="M11 9.5l2 2" />
+                              <circle cx="7.5" cy="16.5" r="4.5" />
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     </td>
                     <td className="p-4 font-bold text-zinc-900 dark:text-zinc-100">{user.fullName || "-"}</td>
@@ -429,8 +448,10 @@ export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => 
                     <td className="p-4 text-center">
                       <button
                         onClick={() => handleToggleActive(user)}
+                        disabled={!canUpdate}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none cursor-pointer
                           ${user.isActive ? "bg-blue-600" : "bg-zinc-200 dark:bg-zinc-800"}
+                          ${canUpdate ? "" : "cursor-not-allowed opacity-50"}
                         `}
                       >
                         <span
@@ -454,7 +475,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => 
             className="flex items-center gap-2 px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-lg text-zinc-600 dark:text-zinc-400 transition-colors cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Export Data</span>
+            <span>Xuất dữ liệu</span>
           </button>
           
           <div className="flex items-center gap-6">
@@ -497,7 +518,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => 
 
 
       {/* Reset Password Modal Dialog */}
-      {passwordResetUser && (
+      {passwordResetUser && canResetPassword && (
         <ResetPasswordModal
           username={passwordResetUser.username}
           onSave={async (pw) => {
@@ -521,7 +542,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => 
         />
       )}
 
-      {selectedIds.length > 0 && (
+      {canDelete && selectedIds.length > 0 && (
         <div className="fixed bottom-6 left-1/2 z-50 flex items-center justify-between overflow-hidden rounded-xl border border-zinc-200/80 bg-white shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-300 dark:border-zinc-800 dark:bg-zinc-900 -translate-x-1/2">
           <div className="flex items-center">
             <div className="flex min-w-[40px] h-10 items-center justify-center bg-blue-600 px-3 text-sm font-bold text-white">
@@ -553,7 +574,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ showToast }) => 
       )}
 
       <DeleteConfirmModal
-        isOpen={isDeleteConfirmOpen}
+        isOpen={canDelete && isDeleteConfirmOpen}
         onClose={() => setIsDeleteConfirmOpen(false)}
         onConfirm={handleDeleteSelected}
         title="Xác nhận xóa người dùng"

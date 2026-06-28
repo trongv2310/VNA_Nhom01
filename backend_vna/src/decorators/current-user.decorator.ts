@@ -1,9 +1,12 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { UserAccountType } from '../entities/user.entity';
 
 export interface CurrentUserData {
   id: number;
   username: string;
   roles: string[];
+  permissions?: string[];
+  accountType: UserAccountType;
 }
 
 export const CurrentUser = createParamDecorator(

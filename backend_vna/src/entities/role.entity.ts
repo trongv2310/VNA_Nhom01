@@ -8,6 +8,13 @@ import {
 } from 'typeorm';
 
 import { UserRole } from './user-role.entity';
+import { RolePermission } from './role-permission.entity';
+
+export enum RoleScope {
+  DEPARTMENT = 'DEPARTMENT',
+  BUSINESS = 'BUSINESS',
+  LEGACY = 'LEGACY',
+}
 
 @Entity('roles')
 export class Role {
@@ -25,8 +32,27 @@ export class Role {
   })
   name!: string;
 
+  @Column({
+    name: 'is_system',
+    default: false,
+  })
+  isSystem!: boolean;
+
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: RoleScope.DEPARTMENT,
+  })
+  scope!: RoleScope;
+
   @OneToMany(() => UserRole, (userRole) => userRole.role)
   userRoles!: UserRole[];
+
+  @OneToMany(
+    () => RolePermission,
+    (rolePermission) => rolePermission.role,
+  )
+  rolePermissions!: RolePermission[];
 
   @CreateDateColumn({
     name: 'created_at',

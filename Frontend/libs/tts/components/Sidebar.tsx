@@ -9,11 +9,25 @@ import {
 } from "lucide-react";
 import { UserMenu } from "./UserMenu";
 
+type SidebarView =
+  | "profile"
+  | "change-password"
+  | "user-management"
+  | "enterprise-management"
+  | "permission-management"
+  | "role-management"
+  | "company-info"
+  | "tnld-reports"
+  | "tnld-theo-hdld"
+  | "report-period";
+
 interface SidebarProps {
   fullName: string;
   avatarUrl: string;
   role: string;
-  onSelectView: (view: "profile" | "change-password" | "user-management" | "enterprise-management" | "company-info" | "tnld-reports" | "tnld-theo-hdld" | "report-period") => void;
+  accountType: "DEPARTMENT" | "BUSINESS";
+  permissions?: string[];
+  onSelectView: (view: SidebarView) => void;
   onLogout: () => void;
   activeItem?: string;
   onCloseMobile?: () => void;
@@ -30,6 +44,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   fullName,
   avatarUrl,
   role,
+  accountType,
+  permissions = [],
   onSelectView,
   onLogout,
   activeItem = "quan_ly_nguoi_dung",
@@ -48,15 +64,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }));
   };
 
+  const isAdmin = role
+    .split(",")
+    .map((item) => item.trim())
+    .includes("ADMIN");
+  const hasPermission = (permission: string) =>
+    isAdmin || permissions.includes(permission);
   const menuItems: MenuItem[] = [];
 
-  if (role && role.includes("ADMIN")) {
+  if (isAdmin) {
     menuItems.push({
       id: "he_thong",
       label: "Hệ thống",
       icon: <Settings className="w-5 h-5 flex-shrink-0" />,
       children: [
         { id: "quan_ly_nguoi_dung", label: "Quản lý người dùng" },
+        { id: "quan_ly_quyen", label: "Quản lý quyền" },
+        { id: "quan_ly_vai_tro", label: "Quản lý vai trò" },
         { id: "quan_ly_doanh_nghiep", label: "Quản lý doanh nghiệp" },
         { id: "ky_bao_cao", label: "Kỳ báo cáo" },
       ],
@@ -70,7 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: "tnld_theo_hdld", label: "TNLĐ theo HĐLĐ" },
       ],
     });
-  } else {
+  } else if (accountType === "BUSINESS") {
     menuItems.push({
       id: "he_thong",
       label: "Hệ thống",
@@ -87,6 +111,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: "tnld_theo_hdld", label: "TNLĐ theo HĐLĐ" },
       ],
     });
+  } else {
+    const systemChildren = [
+      { id: "thong_tin_tai_khoan", label: "Thông tin tài khoản" },
+    ];
+
+    if (hasPermission("SYSTEM_C_USER_VIEW")) {
+      systemChildren.push({ id: "quan_ly_nguoi_dung", label: "Quản lý người dùng" });
+    }
+    if (hasPermission("SYSTEM_C_PERMISSION_VIEW")) {
+      systemChildren.push({ id: "quan_ly_quyen", label: "Quản lý quyền" });
+    }
+    if (hasPermission("SYSTEM_C_ROLE_VIEW")) {
+      systemChildren.push({ id: "quan_ly_vai_tro", label: "Quản lý vai trò" });
+    }
+    if (hasPermission("SYSTEM_C_BUSINESS_VIEW")) {
+      systemChildren.push({ id: "quan_ly_doanh_nghiep", label: "Quản lý doanh nghiệp" });
+    }
+    if (hasPermission("SYSTEM_C_REPORT_PERIOD_VIEW")) {
+      systemChildren.push({ id: "ky_bao_cao", label: "Kỳ báo cáo" });
+    }
+
+    menuItems.push({
+      id: "he_thong",
+      label: "Hệ thống",
+      icon: <Settings className="w-5 h-5 flex-shrink-0" />,
+      children: systemChildren,
+    });
+
+    if (hasPermission("LABOR_C_REPORT_VIEW")) {
+      menuItems.push({
+        id: "tai_nan_lao_dong",
+        label: "Tai nạn lao động",
+        icon: <ShieldAlert className="w-5 h-5 flex-shrink-0" />,
+        children: [
+          { id: "tnld_theo_hdld", label: "TNLĐ theo HĐLĐ" },
+        ],
+      });
+    }
   }
 
   return (
@@ -174,12 +236,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         onClick={() => {
                           if (child.id === "quan_ly_nguoi_dung") {
                             onSelectView("user-management");
+                          } else if (child.id === "quan_ly_quyen") {
+                            onSelectView("permission-management");
+                          } else if (child.id === "quan_ly_vai_tro") {
+                            onSelectView("role-management");
                           } else if (child.id === "quan_ly_doanh_nghiep") {
                             onSelectView("enterprise-management");
                           } else if (child.id === "thong_tin_doanh_nghiep") {
                             onSelectView("company-info");
+                          } else if (child.id === "thong_tin_tai_khoan") {
+                            onSelectView("profile");
                           } else if (child.id === "tnld_theo_hdld") {
-                            if (role && role.includes("ADMIN")) {
+                            if (accountType !== "BUSINESS") {
                               onSelectView("tnld-reports");
                             } else {
                               onSelectView("tnld-theo-hdld");

@@ -77,6 +77,25 @@ export class LaborAccidentReportAttachment {
   })
   size!: number | null;
 
+  @Column({
+    type: 'integer',
+    default: 1,
+  })
+  version!: number;
+
+  @Column({
+    name: 'is_current',
+    default: true,
+  })
+  isCurrent!: boolean;
+
+  @Column({
+    name: 'superseded_at',
+    type: 'timestamp',
+    nullable: true,
+  })
+  supersededAt!: Date | null;
+
   @ManyToOne(() => User, {
     nullable: true,
     onDelete: 'SET NULL',

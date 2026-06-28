@@ -28,12 +28,15 @@ import { memoryStorage } from 'multer';
 import type {} from 'multer';
 
 import { Roles } from '../decorators/roles.decorator';
+import { Permissions } from '../decorators/permissions.decorator';
 import { CurrentUser } from '../decorators/current-user.decorator';
 import type { CurrentUserData } from '../decorators/current-user.decorator';
 import { CreateBusinessDto } from '../dtos/create-business.dto';
 import { ListBusinessesQueryDto } from '../dtos/list-businesses-query.dto';
 import { UpdateBusinessDto } from '../dtos/update-business.dto';
+import { ValidateBusinessUniquenessDto } from '../dtos/validate-business-uniqueness.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { PermissionsGuard } from '../guards/permissions.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { BusinessService } from '../services/business.service';
 import {
@@ -45,7 +48,7 @@ import {
 } from '../dtos/swagger-response.dto';
 
 @Controller('businesses')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Roles('ADMIN')
 @ApiTags('Doanh nghiệp')
 @ApiBearerAuth('access-token')
@@ -60,6 +63,7 @@ export class BusinessController {
   constructor(private readonly businessService: BusinessService) {}
 
   @Get()
+  @Permissions('SYSTEM_C_BUSINESS_VIEW')
   @ApiOperation({
     summary: 'Danh sách doanh nghiệp',
     description:
@@ -83,6 +87,7 @@ export class BusinessController {
   }
 
   @Get('options')
+  @Permissions('SYSTEM_C_BUSINESS_VIEW', 'SYSTEM_C_BUSINESS_CREATE', 'SYSTEM_C_BUSINESS_UPDATE')
   @ApiOperation({
     summary: 'Danh mục/ràng buộc cho form doanh nghiệp',
     description:
@@ -96,7 +101,25 @@ export class BusinessController {
     return this.businessService.getBusinessOptions();
   }
 
+  @Post('validate-uniqueness')
+  @Permissions('SYSTEM_C_BUSINESS_CREATE', 'SYSTEM_C_BUSINESS_UPDATE')
+  @ApiOperation({
+    summary: 'Kiểm tra trùng mã số thuế và email doanh nghiệp',
+    description:
+      'Dùng cho bước xác nhận form doanh nghiệp mà không cần quyền xem danh sách người dùng.',
+  })
+  @ApiOkResponse({
+    description: 'Mã số thuế và email có thể sử dụng',
+    type: ApiSuccessResponseDto,
+  })
+  validateBusinessUniqueness(
+    @Body() body: ValidateBusinessUniquenessDto,
+  ) {
+    return this.businessService.validateBusinessUniqueness(body);
+  }
+
   @Get(':id')
+  @Permissions('SYSTEM_C_BUSINESS_VIEW')
   @ApiOperation({ summary: 'Chi tiết doanh nghiệp' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy doanh nghiệp' })
   @ApiOkResponse({
@@ -117,6 +140,7 @@ export class BusinessController {
   }
 
   @Post()
+  @Permissions('SYSTEM_C_BUSINESS_CREATE')
   @ApiOperation({
     summary: 'Thêm mới doanh nghiệp',
     description:
@@ -229,6 +253,7 @@ export class BusinessController {
   }
 
   @Patch(':id')
+  @Permissions('SYSTEM_C_BUSINESS_UPDATE')
   @ApiOperation({
     summary: 'Cập nhật doanh nghiệp',
     description:
@@ -319,6 +344,7 @@ export class BusinessController {
   }
 
   @Patch(':id/status')
+  @Permissions('SYSTEM_C_BUSINESS_STATUS')
   @ApiOperation({ summary: 'Bật/tắt trạng thái doanh nghiệp' })
   @ApiBody({
     schema: {
@@ -350,6 +376,7 @@ export class BusinessController {
   }
 
   @Delete(':id')
+  @Permissions('SYSTEM_C_BUSINESS_DELETE')
   @ApiOperation({ summary: 'Xóa doanh nghiệp' })
   @ApiOkResponse({
     description: 'Kết quả xóa doanh nghiệp',
@@ -375,6 +402,7 @@ export class BusinessController {
 
   @Delete(':id/attachments/:attachmentId')
   @Roles('ADMIN', 'USER')
+  @Permissions('SYSTEM_C_BUSINESS_UPDATE')
   @ApiOperation({ summary: 'Xóa file đính kèm của doanh nghiệp' })
   deleteAttachment(
     @Param('id', ParseIntPipe) id: number,

@@ -93,6 +93,9 @@ export class UserListItemResponseDto {
   @ApiProperty({ example: 'Chuyen vien', nullable: true })
   position!: string | null;
 
+  @ApiProperty({ enum: ['DEPARTMENT', 'BUSINESS'], example: 'DEPARTMENT' })
+  accountType!: string;
+
   @ApiProperty({ example: true })
   isActive!: boolean;
 
@@ -547,6 +550,15 @@ export class LaborAccidentReportAttachmentResponseDto {
   @ApiProperty({ example: 245760, nullable: true })
   size!: number | null;
 
+  @ApiProperty({ example: 2 })
+  version!: number;
+
+  @ApiProperty({ example: true })
+  isCurrent!: boolean;
+
+  @ApiProperty({ example: null, nullable: true })
+  supersededAt!: string | null;
+
   @ApiProperty({ example: 12, nullable: true })
   uploadedByUserId!: number | null;
 
@@ -645,6 +657,12 @@ export class LaborAccidentReportResponseDto {
   @ApiProperty({ type: [LaborAccidentReportAttachmentResponseDto] })
   attachments!: LaborAccidentReportAttachmentResponseDto[];
 
+  @ApiProperty({
+    type: LaborAccidentReportAttachmentResponseDto,
+    nullable: true,
+  })
+  currentAttachment!: LaborAccidentReportAttachmentResponseDto | null;
+
   @ApiProperty({ example: 1 })
   attachmentCount!: number;
 
@@ -681,6 +699,9 @@ export class LoginUserResponseDto {
 
   @ApiProperty({ example: ['ADMIN'] })
   roles!: string[];
+
+  @ApiProperty({ enum: ['DEPARTMENT', 'BUSINESS'], example: 'DEPARTMENT' })
+  accountType!: string;
 }
 
 export class LoginResponseDto {

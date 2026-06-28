@@ -17,6 +17,7 @@ interface ReportDetailProps {
   year: string;
   onBack: () => void;
   showToast: (message: string, type: "success" | "error") => void;
+  canExport?: boolean;
 }
 
 interface TableRowData {
@@ -34,6 +35,7 @@ export const DepartmentReportDetail: React.FC<ReportDetailProps> = ({
   year,
   onBack,
   showToast,
+  canExport = false,
 }) => {
   const [detail, setDetail] = useState<any>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -452,18 +454,20 @@ export const DepartmentReportDetail: React.FC<ReportDetailProps> = ({
           >
             Quay lại
           </button>
-          <button
-            disabled={isGeneratingWord}
-            onClick={handlePrintWord}
-            className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-md shadow-blue-500/10 active:scale-98 transition-all cursor-pointer disabled:opacity-50"
-          >
-            {isGeneratingWord ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Printer className="w-4 h-4" />
-            )}
-            <span>{isGeneratingWord ? "Đang tạo Word..." : "In báo cáo"}</span>
-          </button>
+          {canExport && (
+            <button
+              disabled={isGeneratingWord}
+              onClick={handlePrintWord}
+              className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-md shadow-blue-500/10 active:scale-98 transition-all cursor-pointer disabled:opacity-50"
+            >
+              {isGeneratingWord ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Printer className="w-4 h-4" />
+              )}
+              <span>{isGeneratingWord ? "Đang tạo Word..." : "In báo cáo"}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -483,20 +487,26 @@ export const DepartmentReportDetail: React.FC<ReportDetailProps> = ({
             <span className="font-semibold text-red-500 flex items-center gap-1">
               **Vui lòng đính kèm báo cáo TNLĐ có dấu mộc công ty:
             </span>
-            {detail?.attachments && detail.attachments.length > 0 ? (
+            {detail?.currentAttachment ||
+            (detail?.attachments && detail.attachments.length > 0) ? (
               <a
                 href={`/department/dashboard/view-document?url=${encodeURIComponent(
-                  detail.attachments[0].fileUrl && detail.attachments[0].fileUrl !== "#"
-                    ? detail.attachments[0].fileUrl
+                  (detail.currentAttachment || detail.attachments[0]).fileUrl &&
+                    (detail.currentAttachment || detail.attachments[0]).fileUrl !== "#"
+                    ? (detail.currentAttachment || detail.attachments[0]).fileUrl
                     : "/template.pdf"
                 )}&name=${encodeURIComponent(
-                  detail.attachments[0].displayName || detail.attachments[0].originalName || "baocaoTNLĐ.pdf"
+                  (detail.currentAttachment || detail.attachments[0]).displayName ||
+                    (detail.currentAttachment || detail.attachments[0]).originalName ||
+                    "baocaoTNLĐ.pdf"
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 dark:text-blue-400 hover:underline font-bold"
               >
-                {detail.attachments[0].displayName || detail.attachments[0].originalName || "baocaoTNLĐ.pdf"}
+                {(detail.currentAttachment || detail.attachments[0]).displayName ||
+                  (detail.currentAttachment || detail.attachments[0]).originalName ||
+                  "baocaoTNLĐ.pdf"}
               </a>
             ) : (
               <span className="text-zinc-400 italic">Không có tệp đính kèm</span>

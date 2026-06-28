@@ -234,11 +234,4 @@ export class SaveLaborAccidentReportDraftDto {
   attachmentNames?: string;
 }
 
-export class SubmitLaborAccidentReportDto {
-  @ApiPropertyOptional({
-    example: '["Báo cáo TNLĐ có dấu mộc"]',
-  })
-  @IsOptional()
-  @IsString()
-  attachmentNames?: string;
-}
+export class SubmitLaborAccidentReportDto extends SaveLaborAccidentReportDraftDto {}

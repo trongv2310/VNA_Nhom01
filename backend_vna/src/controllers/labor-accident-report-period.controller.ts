@@ -19,6 +19,7 @@ import {
 } from '@nestjs/swagger';
 
 import { Roles } from '../decorators/roles.decorator';
+import { Permissions } from '../decorators/permissions.decorator';
 import {
   CreateLaborAccidentReportPeriodDto,
   ListLaborAccidentReportPeriodsQueryDto,
@@ -32,11 +33,12 @@ import {
   LaborAccidentReportPeriodResponseDto,
 } from '../dtos/swagger-response.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { PermissionsGuard } from '../guards/permissions.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { LaborAccidentReportPeriodService } from '../services/labor-accident-report-period.service';
 
 @Controller('labor-accident-report-periods')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Roles('ADMIN')
 @ApiTags('Kỳ báo cáo TNLĐ')
 @ApiBearerAuth('access-token')
@@ -53,6 +55,7 @@ export class LaborAccidentReportPeriodController {
 
   @Get()
   @Roles('ADMIN', 'USER')
+  @Permissions('SYSTEM_C_REPORT_PERIOD_VIEW')
   @ApiOperation({
     summary: 'Danh sách cấu hình kỳ báo cáo TNLĐ',
     description:
@@ -78,6 +81,7 @@ export class LaborAccidentReportPeriodController {
   }
 
   @Get('options')
+  @Permissions('SYSTEM_C_REPORT_PERIOD_VIEW', 'SYSTEM_C_REPORT_PERIOD_CREATE', 'SYSTEM_C_REPORT_PERIOD_UPDATE')
   @ApiOperation({
     summary: 'Tùy chọn form cấu hình kỳ báo cáo TNLĐ',
   })
@@ -89,7 +93,21 @@ export class LaborAccidentReportPeriodController {
     return this.reportPeriodService.getOptions();
   }
 
+  @Get('years')
+  @Permissions('SYSTEM_C_REPORT_PERIOD_VIEW', 'LABOR_C_REPORT_VIEW')
+  @ApiOperation({
+    summary: 'Danh sách năm có cấu hình kỳ báo cáo',
+  })
+  @ApiOkResponse({
+    description: 'Danh sách năm dùng cho bộ lọc báo cáo cấp Sở',
+    type: ApiSuccessResponseDto,
+  })
+  getReportPeriodYears() {
+    return this.reportPeriodService.getReportPeriodYears();
+  }
+
   @Get(':id')
+  @Permissions('SYSTEM_C_REPORT_PERIOD_VIEW')
   @ApiOperation({
     summary: 'Chi tiết cấu hình kỳ báo cáo TNLĐ',
   })
@@ -113,6 +131,7 @@ export class LaborAccidentReportPeriodController {
   }
 
   @Post()
+  @Permissions('SYSTEM_C_REPORT_PERIOD_CREATE')
   @ApiOperation({
     summary: 'Thêm cấu hình kỳ báo cáo TNLĐ',
   })
@@ -136,6 +155,7 @@ export class LaborAccidentReportPeriodController {
   }
 
   @Patch(':id')
+  @Permissions('SYSTEM_C_REPORT_PERIOD_UPDATE')
   @ApiOperation({
     summary: 'Cập nhật cấu hình kỳ báo cáo TNLĐ',
   })
@@ -162,6 +182,7 @@ export class LaborAccidentReportPeriodController {
   }
 
   @Patch(':id/status')
+  @Permissions('SYSTEM_C_REPORT_PERIOD_STATUS')
   @ApiOperation({
     summary: 'Cập nhật trạng thái cấu hình kỳ báo cáo TNLĐ',
   })

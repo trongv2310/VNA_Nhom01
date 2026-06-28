@@ -46,6 +46,7 @@ import {
 } from '../dtos/swagger-response.dto';
 import { CurrentUser } from '../decorators/current-user.decorator';
 import type { CurrentUserData } from '../decorators/current-user.decorator';
+import { Permissions } from '../decorators/permissions.decorator';
 import { Roles } from '../decorators/roles.decorator';
 import { Business } from '../entities/business.entity';
 import {
@@ -70,6 +71,7 @@ import {
 } from '../entities/labor-accident-report-period.entity';
 import { User } from '../entities/user.entity';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { PermissionsGuard } from '../guards/permissions.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { CloudinaryService } from './cloudinary.service';
 
@@ -147,6 +149,30 @@ type OfficeExportFile = {
   buffer: Buffer;
   filename: string;
   contentType: string;
+};
+
+type ReportPeriodWindowStatus =
+  | 'INACTIVE'
+  | 'UPCOMING'
+  | 'OPEN'
+  | 'CLOSED';
+
+type ReportPeriodAccess = {
+  isEligible: boolean;
+  windowStatus: ReportPeriodWindowStatus;
+  canEdit: boolean;
+  canSubmit: boolean;
+  unavailableReason: string | null;
+};
+
+type PreparedReportAttachment = {
+  displayName: string;
+  originalName: string;
+  fileUrl: string;
+  publicId: string;
+  mimetype: string;
+  size: number;
+  resourceType: 'image' | 'raw' | 'video';
 };
 
 function sendOfficeExport(response: any, file: OfficeExportFile) {
@@ -255,6 +281,43 @@ export class LaborAccidentReportService {
     };
   }
 
+  async getMyAvailableReportPeriods(userId: number) {
+    const business = await this.findBusinessByAccountUserId(userId);
+    const reportPeriods = await this.reportPeriodRepository.find({
+      where: {
+        isActive: true,
+      },
+      order: {
+        year: 'DESC',
+        startDate: 'DESC',
+        id: 'DESC',
+      },
+    });
+
+    const items = reportPeriods
+      .filter((reportPeriod) =>
+        this.isBusinessEligibleForReportPeriod(business, reportPeriod),
+      )
+      .map((reportPeriod) => ({
+        id: reportPeriod.id,
+        reportName: reportPeriod.reportName,
+        year: reportPeriod.year,
+        periodType: reportPeriod.periodType,
+        periodTypeLabel: PERIOD_TYPE_LABELS[reportPeriod.periodType],
+        startDate: this.formatDateInput(reportPeriod.startDate),
+        endDate: this.formatDateInput(reportPeriod.endDate),
+        isActive: reportPeriod.isActive,
+        ...this.getReportPeriodAccess(business, reportPeriod),
+      }));
+
+    return {
+      message: 'Lấy danh sách kỳ báo cáo dành cho doanh nghiệp thành công',
+      data: {
+        items,
+      },
+    };
+  }
+
   async saveDraft(
     userId: number,
     body: SaveLaborAccidentReportDraftDto,
@@ -262,7 +325,8 @@ export class LaborAccidentReportService {
   ) {
     const business = await this.findBusinessByAccountUserId(userId);
     const user = await this.findUser(userId);
-    const reportPeriod = await this.findActiveReportPeriod(body.reportPeriodId);
+    const reportPeriod = await this.findReportPeriod(body.reportPeriodId);
+    this.assertBusinessCanWriteReport(business, reportPeriod);
     const existingReport = await this.findReportByBusinessAndPeriod(
       business.id,
       reportPeriod.id,
@@ -279,44 +343,80 @@ export class LaborAccidentReportService {
     }
 
     const normalizedDetails = await this.normalizeDetails(body.details);
+    const preparedAttachments = await this.prepareAttachments(
+      files,
+      body.attachmentNames,
+    );
 
-    const savedReport = await this.dataSource.transaction(async (manager) => {
-      const report = existingReport ?? manager.create(LaborAccidentReport, {});
+    let savedReport: LaborAccidentReport;
+    try {
+      savedReport = await this.dataSource.transaction(async (manager) => {
+        const lockedExistingReport = existingReport
+          ? await manager
+              .getRepository(LaborAccidentReport)
+              .createQueryBuilder('draft_report')
+              .setLock('pessimistic_write')
+              .where('draft_report.id = :reportId', {
+                reportId: existingReport.id,
+              })
+              .andWhere('draft_report.business_id = :businessId', {
+                businessId: business.id,
+              })
+              .getOne()
+          : null;
 
-      this.assignReportPayload(report, body, business, reportPeriod, user);
-      this.validateReportAgainstDetails(
-        report,
-        normalizedDetails ?? existingReport?.details ?? [],
-      );
-
-      const persistedReport = await manager.save(LaborAccidentReport, report);
-
-      if (normalizedDetails) {
-        await manager.delete(LaborAccidentReportDetail, {
-          report: { id: persistedReport.id },
-        });
-
-        for (const detail of normalizedDetails) {
-          await manager.save(
-            LaborAccidentReportDetail,
-            manager.create(LaborAccidentReportDetail, {
-              ...detail,
-              report: persistedReport,
-            }),
+        if (
+          lockedExistingReport &&
+          lockedExistingReport.status !== LaborAccidentReportStatus.DRAFT &&
+          lockedExistingReport.status !== LaborAccidentReportStatus.REJECTED
+        ) {
+          throw new BadRequestException(
+            'Chá»‰ Ä‘Æ°á»£c cáº­p nháº­t bÃ¡o cÃ¡o Ä‘ang trong tráº¡ng thÃ¡i nhÃ¡p hoáº·c bá»‹ tá»« chá»‘i phÃª duyá»‡t',
           );
         }
-      }
 
-      await this.saveAttachments(
-        persistedReport,
-        user,
-        files,
-        body.attachmentNames,
-        manager,
-      );
+        const report = this.createPersistableReport(
+          lockedExistingReport ?? existingReport,
+          manager,
+        );
 
-      return persistedReport;
-    });
+        this.assignReportPayload(report, body, business, reportPeriod, user);
+        this.validateReportAgainstDetails(
+          report,
+          normalizedDetails ?? existingReport?.details ?? [],
+        );
+
+        const persistedReport = await manager.save(LaborAccidentReport, report);
+
+        if (normalizedDetails) {
+          await manager.delete(LaborAccidentReportDetail, {
+            report: { id: persistedReport.id },
+          });
+
+          for (const detail of normalizedDetails) {
+            await manager.save(
+              LaborAccidentReportDetail,
+              manager.create(LaborAccidentReportDetail, {
+                ...detail,
+                report: persistedReport,
+              }),
+            );
+          }
+        }
+
+        await this.persistPreparedAttachments(
+          persistedReport,
+          user,
+          preparedAttachments,
+          manager,
+        );
+
+        return persistedReport;
+      });
+    } catch (error) {
+      await this.cleanupPreparedAttachments(preparedAttachments);
+      throw error;
+    }
 
     const reportWithRelations = await this.findReportByIdForBusiness(
       savedReport.id,
@@ -347,30 +447,137 @@ export class LaborAccidentReportService {
       throw new BadRequestException('Báo cáo đã được gửi');
     }
 
+    const submittedPeriodId = this.normalizePositiveInteger(
+      body.reportPeriodId,
+      'Kỳ báo cáo',
+    );
+    if (submittedPeriodId !== report.reportPeriod.id) {
+      throw new BadRequestException(
+        'Không được thay đổi kỳ báo cáo khi gửi lại',
+      );
+    }
+
+    this.assertBusinessCanWriteReport(business, report.reportPeriod);
+    const normalizedDetails = await this.normalizeDetails(body.details);
+    if (
+      !normalizedDetails?.some(
+        (detail) =>
+          detail.section ===
+          LaborAccidentReportDetailSection.ARTICLE_39_ALLOWANCE,
+      )
+    ) {
+      throw new BadRequestException(
+        'Dữ liệu chi tiết báo cáo không đầy đủ, vui lòng tải lại trang và gửi lại',
+      );
+    }
+    const detailsToPersist = normalizedDetails;
+
+    this.assignReportPayload(report, body, business, report.reportPeriod, user);
+    this.validateReportAgainstDetails(report, detailsToPersist);
+    report.details = detailsToPersist as LaborAccidentReportDetail[];
     this.validateReportReadyToLock(report);
+    const preparedAttachments = await this.prepareAttachments(
+      files,
+      body.attachmentNames,
+    );
 
-    const savedReport = await this.dataSource.transaction(async (manager) => {
-      await this.saveAttachments(report, user, files, body.attachmentNames, manager);
+    let savedReport: LaborAccidentReport;
+    try {
+      savedReport = await this.dataSource.transaction(async (manager) => {
+        const lockedReport = await manager
+          .getRepository(LaborAccidentReport)
+          .createQueryBuilder('locked_report')
+          .setLock('pessimistic_write')
+          .where('locked_report.id = :reportId', { reportId })
+          .andWhere('locked_report.business_id = :businessId', {
+            businessId: business.id,
+          })
+          .getOne();
 
-      const attachmentCount = await manager.count(LaborAccidentReportAttachment, {
-        where: {
-          report: { id: report.id },
-        },
-      });
+        if (!lockedReport) {
+          throw new NotFoundException(
+            'Không tìm thấy báo cáo tai nạn lao động',
+          );
+        }
 
-      if (attachmentCount < 1) {
-        throw new BadRequestException(
-          'Vui lòng đính kèm báo cáo TNLĐ có dấu mộc công ty trước khi gửi',
+        if (
+          lockedReport.status !== LaborAccidentReportStatus.DRAFT &&
+          lockedReport.status !== LaborAccidentReportStatus.REJECTED
+        ) {
+          throw new BadRequestException(
+            lockedReport.status === LaborAccidentReportStatus.RECEIVED
+              ? 'Báo cáo đã được Sở tiếp nhận'
+              : 'Báo cáo đã được gửi',
+          );
+        }
+
+        const reportToSave = this.createPersistableReport(
+          lockedReport,
+          manager,
         );
-      }
 
-      report.status = LaborAccidentReportStatus.SUBMITTED;
-      report.submittedAt = new Date();
-      report.submittedByUser = user;
-      report.rejectReason = null;
+        this.assignReportPayload(
+          reportToSave,
+          body,
+          business,
+          report.reportPeriod,
+          user,
+        );
 
-      return manager.save(LaborAccidentReport, report);
-    });
+        const persistedReport = await manager.save(
+          LaborAccidentReport,
+          reportToSave,
+        );
+
+        await manager.delete(LaborAccidentReportDetail, {
+          report: { id: persistedReport.id },
+        });
+
+        for (const detail of detailsToPersist) {
+          await manager.save(
+            LaborAccidentReportDetail,
+            manager.create(LaborAccidentReportDetail, {
+              ...detail,
+              report: persistedReport,
+            }),
+          );
+        }
+
+        await this.persistPreparedAttachments(
+          persistedReport,
+          user,
+          preparedAttachments,
+          manager,
+        );
+
+        const attachmentCount = await manager
+          .createQueryBuilder(LaborAccidentReportAttachment, 'attachment')
+          .where('attachment.report_id = :reportId', {
+            reportId: persistedReport.id,
+          })
+          .andWhere('attachment.type = :type', {
+            type: LaborAccidentReportAttachmentType.STAMPED_REPORT,
+          })
+          .andWhere('attachment.is_current = true')
+          .getCount();
+
+        if (attachmentCount !== 1) {
+          throw new BadRequestException(
+            'Báo cáo phải có đúng một file dấu mộc hiện hành trước khi gửi',
+          );
+        }
+
+        persistedReport.status = LaborAccidentReportStatus.SUBMITTED;
+        persistedReport.submittedAt = new Date();
+        persistedReport.submittedByUser = user;
+        persistedReport.rejectReason = null;
+
+        return manager.save(LaborAccidentReport, persistedReport);
+      });
+    } catch (error) {
+      await this.cleanupPreparedAttachments(preparedAttachments);
+      throw error;
+    }
 
     const reportWithRelations = await this.findReportByIdForBusiness(
       savedReport.id,
@@ -610,22 +817,167 @@ export class LaborAccidentReportService {
     return user;
   }
 
-  private async findActiveReportPeriod(value: string | number) {
+  private async findReportPeriod(value: string | number) {
     const reportPeriodId = this.normalizePositiveInteger(value, 'Kỳ báo cáo');
     const reportPeriod = await this.reportPeriodRepository.findOne({
       where: {
         id: reportPeriodId,
-        isActive: true,
       },
     });
 
     if (!reportPeriod) {
-      throw new BadRequestException(
-        'Kỳ báo cáo không tồn tại hoặc không còn hoạt động',
-      );
+      throw new BadRequestException('Kỳ báo cáo không tồn tại');
     }
 
     return reportPeriod;
+  }
+
+  private assertBusinessCanWriteReport(
+    business: Business,
+    reportPeriod: LaborAccidentReportPeriod,
+  ) {
+    const access = this.getReportPeriodAccess(business, reportPeriod);
+
+    if (!access.canEdit) {
+      throw new BadRequestException(
+        access.unavailableReason ||
+          'Kỳ báo cáo hiện không cho phép chỉnh sửa hoặc gửi báo cáo',
+      );
+    }
+  }
+
+  private getReportPeriodAccess(
+    business: Business,
+    reportPeriod: LaborAccidentReportPeriod,
+    reportStatus?: LaborAccidentReportStatus,
+  ): ReportPeriodAccess {
+    const isEligible = this.isBusinessEligibleForReportPeriod(
+      business,
+      reportPeriod,
+    );
+    const windowStatus = this.getReportPeriodWindowStatus(reportPeriod);
+    const statusAllowsWrite =
+      !reportStatus ||
+      reportStatus === LaborAccidentReportStatus.DRAFT ||
+      reportStatus === LaborAccidentReportStatus.REJECTED;
+
+    let unavailableReason: string | null = null;
+
+    if (!isEligible) {
+      unavailableReason =
+        'Doanh nghiệp chưa hoạt động trong thời gian được tính cho kỳ báo cáo này';
+    } else if (windowStatus === 'INACTIVE') {
+      unavailableReason = 'Kỳ báo cáo hiện không hoạt động';
+    } else if (windowStatus === 'UPCOMING') {
+      unavailableReason = 'Chưa đến thời gian chỉnh sửa và gửi báo cáo';
+    } else if (windowStatus === 'CLOSED') {
+      unavailableReason = 'Đã hết thời gian chỉnh sửa và gửi báo cáo';
+    } else if (!statusAllowsWrite) {
+      unavailableReason =
+        reportStatus === LaborAccidentReportStatus.SUBMITTED
+          ? 'Báo cáo đã được gửi'
+          : 'Báo cáo đã được Sở tiếp nhận';
+    }
+
+    const canWrite =
+      isEligible && windowStatus === 'OPEN' && statusAllowsWrite;
+
+    return {
+      isEligible,
+      windowStatus,
+      canEdit: canWrite,
+      canSubmit: canWrite,
+      unavailableReason,
+    };
+  }
+
+  private isBusinessEligibleForReportPeriod(
+    business: Business,
+    reportPeriod: LaborAccidentReportPeriod,
+  ) {
+    const businessStartDate = this.getBusinessStartDateKey(business);
+    const coverageEndDate =
+      reportPeriod.periodType === LaborAccidentReportPeriodType.SIX_MONTHS
+        ? `${reportPeriod.year}-06-30`
+        : `${reportPeriod.year}-12-31`;
+
+    return businessStartDate <= coverageEndDate;
+  }
+
+  private getBusinessStartDateKey(business: Business) {
+    if (business.licenseIssueDate) {
+      return this.toDateKey(business.licenseIssueDate);
+    }
+
+    return this.toVietnamDateKey(business.createdAt);
+  }
+
+  private getReportPeriodWindowStatus(
+    reportPeriod: LaborAccidentReportPeriod,
+  ): ReportPeriodWindowStatus {
+    if (!reportPeriod.isActive) {
+      return 'INACTIVE';
+    }
+
+    const today = this.getVietnamTodayKey();
+    const startDate = this.toDateKey(reportPeriod.startDate);
+    const endDate = this.toDateKey(reportPeriod.endDate);
+
+    if (today < startDate) {
+      return 'UPCOMING';
+    }
+
+    if (today > endDate) {
+      return 'CLOSED';
+    }
+
+    return 'OPEN';
+  }
+
+  private getVietnamTodayKey() {
+    return this.toVietnamDateKey(new Date());
+  }
+
+  private toVietnamDateKey(value: Date) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(value);
+    const partMap = new Map(parts.map((part) => [part.type, part.value]));
+
+    return `${partMap.get('year')}-${partMap.get('month')}-${partMap.get('day')}`;
+  }
+
+  private toDateKey(value: Date | string) {
+    if (typeof value === 'string') {
+      return value.slice(0, 10);
+    }
+
+    return [
+      value.getUTCFullYear(),
+      String(value.getUTCMonth() + 1).padStart(2, '0'),
+      String(value.getUTCDate()).padStart(2, '0'),
+    ].join('-');
+  }
+
+  private createPersistableReport(
+    source: LaborAccidentReport | null | undefined,
+    manager?: EntityManager,
+  ) {
+    const repository =
+      manager?.getRepository(LaborAccidentReport) ?? this.reportRepository;
+
+    if (!source) {
+      return repository.create();
+    }
+
+    const reportData: Partial<LaborAccidentReport> = { ...source };
+    delete reportData.details;
+    delete reportData.attachments;
+
+    return repository.create(reportData);
   }
 
   private findReportByBusinessAndPeriod(businessId: number, periodId: number) {
@@ -648,6 +1000,11 @@ export class LaborAccidentReportService {
         details: {
           section: 'ASC',
           orderNo: 'ASC',
+        },
+        attachments: {
+          isCurrent: 'DESC',
+          version: 'DESC',
+          id: 'DESC',
         },
       },
     });
@@ -680,7 +1037,9 @@ export class LaborAccidentReportService {
           orderNo: 'ASC',
         },
         attachments: {
-          id: 'ASC',
+          isCurrent: 'DESC',
+          version: 'DESC',
+          id: 'DESC',
         },
       },
     });
@@ -718,7 +1077,9 @@ export class LaborAccidentReportService {
           orderNo: 'ASC',
         },
         attachments: {
-          id: 'ASC',
+          isCurrent: 'DESC',
+          version: 'DESC',
+          id: 'DESC',
         },
       },
     });
@@ -1095,40 +1456,136 @@ export class LaborAccidentReportService {
     return catalog;
   }
 
-  private async saveAttachments(
-    report: LaborAccidentReport,
-    user: User,
+  private async prepareAttachments(
     files: Express.Multer.File[],
     attachmentNames: string | undefined,
-    manager: EntityManager,
-  ) {
+  ): Promise<PreparedReportAttachment[]> {
     if (!files.length) {
-      return;
+      return [];
     }
 
     const names = this.parseAttachmentNames(attachmentNames);
     const folder =
       this.configService.get<string>('CLOUDINARY_FOLDER_LABOR_ACCIDENT_REPORTS') ||
       'labor-accident-reports';
+    const preparedAttachments: PreparedReportAttachment[] = [];
 
-    for (const [index, file] of files.entries()) {
-      const uploadResult = await this.cloudinaryService.uploadFile(file, folder);
+    try {
+      for (const [index, file] of files.entries()) {
+        const uploadResult = await this.cloudinaryService.uploadFile(
+          file,
+          folder,
+        );
+        const resourceType = ['image', 'raw', 'video'].includes(
+          uploadResult.resource_type,
+        )
+          ? (uploadResult.resource_type as 'image' | 'raw' | 'video')
+          : 'image';
 
-      await manager.save(
-        LaborAccidentReportAttachment,
-        manager.create(LaborAccidentReportAttachment, {
-          report,
-          type: LaborAccidentReportAttachmentType.STAMPED_REPORT,
+        preparedAttachments.push({
           displayName: names[index] || file.originalname,
           originalName: file.originalname,
           fileUrl: uploadResult.secure_url,
           publicId: uploadResult.public_id,
           mimetype: file.mimetype,
           size: file.size,
-          uploadedByUser: user,
+          resourceType,
+        });
+      }
+    } catch (error) {
+      await this.cleanupPreparedAttachments(preparedAttachments);
+      throw error;
+    }
+
+    return preparedAttachments;
+  }
+
+  private async persistPreparedAttachments(
+    report: LaborAccidentReport,
+    user: User,
+    preparedAttachments: PreparedReportAttachment[],
+    manager: EntityManager,
+  ) {
+    const attachmentType =
+      LaborAccidentReportAttachmentType.STAMPED_REPORT;
+    const reportRef = manager.create(LaborAccidentReport, { id: report.id });
+    const userRef = manager.create(User, { id: user.id });
+
+    for (const preparedAttachment of preparedAttachments) {
+      const latestAttachment = await manager.findOne(
+        LaborAccidentReportAttachment,
+        {
+          where: {
+            report: { id: report.id },
+            type: attachmentType,
+          },
+          order: {
+            version: 'DESC',
+            id: 'DESC',
+          },
+        },
+      );
+
+      const newAttachment = await manager.save(
+        LaborAccidentReportAttachment,
+        manager.create(LaborAccidentReportAttachment, {
+          report: reportRef,
+          type: attachmentType,
+          displayName: preparedAttachment.displayName,
+          originalName: preparedAttachment.originalName,
+          fileUrl: preparedAttachment.fileUrl,
+          publicId: preparedAttachment.publicId,
+          mimetype: preparedAttachment.mimetype,
+          size: preparedAttachment.size,
+          version: (latestAttachment?.version ?? 0) + 1,
+          isCurrent: false,
+          supersededAt: null,
+          uploadedByUser: userRef,
         }),
       );
+
+      await manager
+        .createQueryBuilder()
+        .update(LaborAccidentReportAttachment)
+        .set({
+          isCurrent: false,
+          supersededAt: new Date(),
+        })
+        .where('report_id = :reportId', { reportId: report.id })
+        .andWhere('type = :type', { type: attachmentType })
+        .andWhere('is_current = true')
+        .andWhere('id <> :newAttachmentId', {
+          newAttachmentId: newAttachment.id,
+        })
+        .execute();
+
+      await manager
+        .createQueryBuilder()
+        .update(LaborAccidentReportAttachment)
+        .set({
+          isCurrent: true,
+          supersededAt: null,
+        })
+        .where('id = :newAttachmentId', {
+          newAttachmentId: newAttachment.id,
+        })
+        .execute();
     }
+  }
+
+  private async cleanupPreparedAttachments(
+    preparedAttachments: PreparedReportAttachment[],
+  ) {
+    await Promise.all(
+      preparedAttachments.map((preparedAttachment) =>
+        this.cloudinaryService
+          .deleteFile(
+            preparedAttachment.publicId,
+            preparedAttachment.resourceType,
+          )
+          .catch(() => undefined),
+      ),
+    );
   }
 
   private parseAttachmentNames(value: string | undefined) {
@@ -2258,6 +2715,23 @@ export class LaborAccidentReportService {
   }
 
   private mapReport(report: LaborAccidentReport, includeDetails: boolean) {
+    const access = this.getReportPeriodAccess(
+      report.business,
+      report.reportPeriod,
+      report.status,
+    );
+    const attachments =
+      report.attachments?.map((attachment) =>
+        this.mapReportAttachment(attachment),
+      ) ?? [];
+    const currentAttachment =
+      attachments.find(
+        (attachment) =>
+          attachment.type ===
+            LaborAccidentReportAttachmentType.STAMPED_REPORT &&
+          attachment.isCurrent,
+      ) ?? null;
+
     return {
       id: report.id,
       reportPeriod: {
@@ -2311,27 +2785,36 @@ export class LaborAccidentReportService {
       propertyDamage: Number(report.propertyDamage) || 0,
       status: report.status,
       statusLabel: REPORT_STATUS_LABELS[report.status],
+      ...access,
       submittedAt: report.submittedAt,
       receivedAt: report.receivedAt,
       rejectReason: report.rejectReason || null,
       details: includeDetails
         ? report.details?.map((detail) => this.mapDetail(detail)) ?? []
         : undefined,
-      attachments: report.attachments?.map((attachment) => ({
-        id: attachment.id,
-        type: attachment.type,
-        displayName: attachment.displayName,
-        originalName: attachment.originalName,
-        fileUrl: attachment.fileUrl,
-        mimetype: attachment.mimetype,
-        size: attachment.size,
-        uploadedByUserId: attachment.uploadedByUser?.id ?? null,
-        uploadedByUsername: attachment.uploadedByUser?.username ?? null,
-        createdAt: attachment.createdAt,
-      })) ?? [],
-      attachmentCount: report.attachments?.length ?? 0,
+      currentAttachment,
+      attachments,
+      attachmentCount: attachments.length,
       createdAt: report.createdAt,
       updatedAt: report.updatedAt,
+    };
+  }
+
+  private mapReportAttachment(attachment: LaborAccidentReportAttachment) {
+    return {
+      id: attachment.id,
+      type: attachment.type,
+      displayName: attachment.displayName,
+      originalName: attachment.originalName,
+      fileUrl: attachment.fileUrl,
+      mimetype: attachment.mimetype,
+      size: attachment.size,
+      version: attachment.version,
+      isCurrent: attachment.isCurrent,
+      supersededAt: attachment.supersededAt,
+      uploadedByUserId: attachment.uploadedByUser?.id ?? null,
+      uploadedByUsername: attachment.uploadedByUser?.username ?? null,
+      createdAt: attachment.createdAt,
     };
   }
 
@@ -2441,7 +2924,7 @@ export class LaborAccidentReportService {
 }
 
 @Controller('labor-accident-reports/admin')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Roles('ADMIN')
 @ApiTags('Báo cáo TNLĐ Sở')
 @ApiBearerAuth('access-token')
@@ -2455,6 +2938,7 @@ export class LaborAccidentReportAdminController {
   constructor(private readonly reportService: LaborAccidentReportService) {}
 
   @Get()
+  @Permissions('LABOR_C_REPORT_VIEW')
   @ApiOperation({
     summary: 'Danh sách báo cáo TNLĐ cho role Sở',
     description:
@@ -2478,6 +2962,7 @@ export class LaborAccidentReportAdminController {
   }
 
   @Get('summary')
+  @Permissions('LABOR_C_REPORT_VIEW')
   @ApiOperation({
     summary: 'Báo cáo tổng hợp TNLĐ cho role Sở',
     description:
@@ -2492,6 +2977,7 @@ export class LaborAccidentReportAdminController {
   }
 
   @Get('summary/export/excel')
+  @Permissions('LABOR_C_REPORT_EXPORT')
   @ApiOperation({
     summary: 'Xuất Excel báo cáo tổng hợp TNLĐ cho role Sở',
   })
@@ -2511,6 +2997,7 @@ export class LaborAccidentReportAdminController {
   }
 
   @Get('summary/export/word')
+  @Permissions('LABOR_C_REPORT_EXPORT')
   @ApiOperation({
     summary: 'Xuất Word báo cáo tổng hợp TNLĐ cho role Sở',
   })
@@ -2530,6 +3017,7 @@ export class LaborAccidentReportAdminController {
   }
 
   @Get(':id/export/excel')
+  @Permissions('LABOR_C_REPORT_EXPORT')
   @ApiOperation({
     summary: 'Xuất Excel chi tiết báo cáo TNLĐ cho role Sở',
   })
@@ -2546,6 +3034,7 @@ export class LaborAccidentReportAdminController {
   }
 
   @Get(':id/export/word')
+  @Permissions('LABOR_C_REPORT_EXPORT')
   @ApiOperation({
     summary: 'Xuất Word chi tiết báo cáo TNLĐ cho role Sở',
   })
@@ -2562,6 +3051,7 @@ export class LaborAccidentReportAdminController {
   }
 
   @Post(':id/receive')
+  @Permissions('LABOR_C_REPORT_RECEIVE')
   @ApiOperation({
     summary: 'Sở tiếp nhận báo cáo TNLĐ',
     description:
@@ -2588,6 +3078,7 @@ export class LaborAccidentReportAdminController {
   }
 
   @Get(':id')
+  @Permissions('LABOR_C_REPORT_VIEW')
   @ApiOperation({
     summary: 'Chi tiết báo cáo TNLĐ cho role Sở',
   })
@@ -2609,6 +3100,7 @@ export class LaborAccidentReportAdminController {
   }
 
   @Post('bulk-receive')
+  @Permissions('LABOR_C_REPORT_RECEIVE')
   @ApiOperation({
     summary: 'Duyệt hàng loạt báo cáo TNLĐ',
   })
@@ -2620,6 +3112,7 @@ export class LaborAccidentReportAdminController {
   }
 
   @Post('bulk-reject')
+  @Permissions('LABOR_C_REPORT_RECEIVE')
   @ApiOperation({
     summary: 'Từ chối hàng loạt báo cáo TNLĐ',
   })

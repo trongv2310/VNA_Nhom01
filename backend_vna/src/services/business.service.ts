@@ -23,11 +23,12 @@ import { CreateBusinessDto } from '../dtos/create-business.dto';
 import { BUSINESS_TYPES } from '../dtos/create-business.dto';
 import { ListBusinessesQueryDto } from '../dtos/list-businesses-query.dto';
 import { UpdateBusinessDto } from '../dtos/update-business.dto';
+import { ValidateBusinessUniquenessDto } from '../dtos/validate-business-uniqueness.dto';
 import { BusinessAttachment } from '../entities/business-attachment.entity';
 import { Business } from '../entities/business.entity';
 import { EmailOtp } from '../entities/email-otp.entity';
 import { Role } from '../entities/role.entity';
-import { User } from '../entities/user.entity';
+import { User, UserAccountType } from '../entities/user.entity';
 import { UserRole } from '../entities/user-role.entity';
 import { CloudinaryService } from './cloudinary.service';
 import { MailService } from './mail.service';
@@ -179,6 +180,29 @@ export class BusinessService {
     };
   }
 
+  async validateBusinessUniqueness(
+    body: ValidateBusinessUniquenessDto,
+  ) {
+    const taxCode = this.normalizeTaxCode(body.taxCode);
+    const email = this.normalizeRequiredEmail(body.email);
+    const currentBusiness = body.businessId
+      ? await this.findBusiness(body.businessId)
+      : null;
+    const ignoredBusinessId = currentBusiness?.id;
+    const ignoredUserId = currentBusiness?.accountUser?.id;
+
+    await this.validateUniqueTaxCode(taxCode, ignoredBusinessId);
+    await this.validateUniqueBusinessUsername(taxCode, ignoredUserId);
+    await this.validateUniqueBusinessEmail(email, ignoredUserId);
+
+    return {
+      message: 'Mã số thuế và email có thể sử dụng',
+      data: {
+        available: true,
+      },
+    };
+  }
+
   async getMyBusiness(userId: number) {
     const business = await this.findBusinessByAccountUserId(userId);
 
@@ -188,12 +212,8 @@ export class BusinessService {
     };
   }
 
-  async sendBusinessProfileEmailOtp(userId: number, newEmail?: string) {
+  async sendBusinessProfileEmailOtp(userId: number) {
     const business = await this.findBusinessByAccountUserId(userId);
-    if (newEmail) {
-      const normalizedNewEmail = this.normalizeRequiredEmail(newEmail);
-      await this.assertBusinessProfileEmailCanBeUsed(userId, normalizedNewEmail);
-    }
     const currentEmail = this.getCurrentBusinessAccountEmail(business);
     const otp = this.generateOtp();
     const expireMinutes = this.getOtpExpireMinutes();
@@ -646,7 +666,8 @@ export class BusinessService {
         provinceCity: this.toOptionalValue(createBusinessDto.provinceCity),
         wardCommune: this.toOptionalValue(createBusinessDto.wardCommune),
         address: this.toOptionalValue(createBusinessDto.address),
-        isActive: true,
+        accountType: UserAccountType.BUSINESS,
+        isActive: this.toBoolean(createBusinessDto.isActive, true),
       }),
     );
 
@@ -717,13 +738,22 @@ export class BusinessService {
   ) {
     const business = await this.findBusiness(id);
     this.validateBusinessPayload(updateBusinessDto, false);
+    const accountUserId = business.accountUser?.id;
 
     const nextTaxCode = updateBusinessDto.taxCode
       ? this.normalizeTaxCode(updateBusinessDto.taxCode)
       : undefined;
+    const nextEmail = updateBusinessDto.email
+      ? this.normalizeRequiredEmail(updateBusinessDto.email)
+      : undefined;
 
     if (nextTaxCode && nextTaxCode !== business.taxCode) {
       await this.validateUniqueTaxCode(nextTaxCode, id);
+      await this.validateUniqueBusinessUsername(nextTaxCode, accountUserId);
+    }
+
+    if (nextEmail) {
+      await this.validateUniqueBusinessEmail(nextEmail, accountUserId);
     }
 
     await this.validateUniqueRepresentativePhone(
@@ -767,10 +797,9 @@ export class BusinessService {
           updateBusinessDto.address,
           business.address,
         );
-        business.email = this.toOptionalValue(
-          updateBusinessDto.email,
-          business.email,
-        );
+        if (nextEmail) {
+          business.email = nextEmail;
+        }
         business.agencyPhone = this.toOptionalValue(
           updateBusinessDto.agencyPhone,
           business.agencyPhone,
@@ -800,6 +829,23 @@ export class BusinessService {
           business.isActive = this.toBoolean(updateBusinessDto.isActive);
         }
 
+        const accountUser = business.accountUser;
+
+        if (accountUser) {
+          accountUser.fullName = business.businessName;
+          accountUser.email = business.email || accountUser.email;
+          accountUser.provinceCity = business.provinceCity;
+          accountUser.wardCommune = business.wardCommune;
+          accountUser.address = business.address;
+          accountUser.isActive = business.isActive;
+
+          if (nextTaxCode && nextTaxCode !== accountUser.username) {
+            accountUser.username = nextTaxCode;
+          }
+
+          await tem.save(User, accountUser);
+        }
+
         const saved = await tem.save(Business, business);
         await this.saveAttachmentsTx(
           tem,
@@ -824,7 +870,16 @@ export class BusinessService {
     const business = await this.findBusiness(id);
     business.isActive = this.toBoolean(isActive);
 
-    const savedBusiness = await this.businessRepository.save(business);
+    await this.businessRepository.manager.transaction(async (tem) => {
+      await tem.save(Business, business);
+
+      if (business.accountUser) {
+        business.accountUser.isActive = business.isActive;
+        await tem.save(User, business.accountUser);
+      }
+    });
+
+    const savedBusiness = await this.findBusiness(id);
 
     return {
       message: 'Cập nhật trạng thái doanh nghiệp thành công',
@@ -1001,32 +1056,59 @@ export class BusinessService {
     }
   }
 
-  private async validateUniqueBusinessAccount(taxCode: string, email?: string) {
-    const existedUsername = await this.userRepository.findOne({
-      where: {
-        username: taxCode,
-      },
-    });
+  private async validateUniqueBusinessUsername(
+    taxCode: string,
+    ignoredUserId?: number,
+  ) {
+    const queryBuilder = this.userRepository
+      .createQueryBuilder('user')
+      .where('LOWER(user.username) = :username', {
+        username: taxCode.toLowerCase(),
+      });
+
+    if (ignoredUserId) {
+      queryBuilder.andWhere('user.id != :ignoredUserId', { ignoredUserId });
+    }
+
+    const existedUsername = await queryBuilder.getOne();
 
     if (existedUsername) {
       throw new BadRequestException(
         'Mã số thuế đã được sử dụng làm tài khoản đăng nhập',
       );
     }
+  }
 
+  private async validateUniqueBusinessEmail(
+    email: string,
+    ignoredUserId?: number,
+  ) {
     const normalizedEmail = this.toTrimmedValue(email)?.toLowerCase();
 
     if (!normalizedEmail) {
       return;
     }
 
-    const existedEmail = await this.userRepository
+    const queryBuilder = this.userRepository
       .createQueryBuilder('user')
-      .where('LOWER(user.email) = :email', { email: normalizedEmail })
-      .getOne();
+      .where('LOWER(user.email) = :email', { email: normalizedEmail });
+
+    if (ignoredUserId) {
+      queryBuilder.andWhere('user.id != :ignoredUserId', { ignoredUserId });
+    }
+
+    const existedEmail = await queryBuilder.getOne();
 
     if (existedEmail) {
       throw new BadRequestException('Email đã được sử dụng bởi tài khoản khác');
+    }
+  }
+
+  private async validateUniqueBusinessAccount(taxCode: string, email?: string) {
+    await this.validateUniqueBusinessUsername(taxCode);
+
+    if (email) {
+      await this.validateUniqueBusinessEmail(email);
     }
   }
 
@@ -1185,6 +1267,7 @@ export class BusinessService {
         provinceCity: this.toOptionalValue(createBusinessDto.provinceCity),
         wardCommune: this.toOptionalValue(createBusinessDto.wardCommune),
         address: this.toOptionalValue(createBusinessDto.address),
+        accountType: UserAccountType.BUSINESS,
         isActive: true,
       }),
     );

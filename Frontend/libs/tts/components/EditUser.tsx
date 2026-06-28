@@ -1,10 +1,17 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Camera, Save, Calendar, ChevronDown, Loader2 } from "lucide-react";
-import { getUserDetail, updateUserAdmin, type UserListItem } from "../services/api";
+import { Camera, Save, ChevronDown, Loader2 } from "lucide-react";
+import {
+  getAssignableRoles,
+  getUserDetail,
+  updateUserAdmin,
+  type AssignableRole,
+  type UserListItem,
+} from "../services/api";
 import { SearchSelect } from "./SearchSelect";
 import { useAddress } from "../hooks/useAddress";
+import { LocalizedDateInput } from "./LocalizedDateInput";
 
 interface EditUserProps {
   user: UserListItem;
@@ -49,9 +56,44 @@ export const EditUser: React.FC<EditUserProps> = ({ user, onSave, onCancel, show
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [initialAvatarUrl, setInitialAvatarUrl] = useState("");
+  const [roleOptions, setRoleOptions] = useState<AssignableRole[]>([
+    {
+      id: 0,
+      code: "USER",
+      name: "Người dùng",
+      isSystem: true,
+      scope: "LEGACY",
+    },
+  ]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const dobInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadRoles = async () => {
+      try {
+        const response = await getAssignableRoles();
+        if (active && response.success && response.data?.items?.length) {
+          setRoleOptions(response.data.items);
+        }
+      } catch (error) {
+        if (active) {
+          showToast(
+            error instanceof Error
+              ? error.message
+              : "Không thể tải danh sách vai trò",
+            "error",
+          );
+        }
+      }
+    };
+
+    loadRoles();
+    return () => {
+      active = false;
+    };
+  }, [showToast]);
 
   useEffect(() => {
     let active = true;
@@ -63,9 +105,10 @@ export const EditUser: React.FC<EditUserProps> = ({ user, onSave, onCancel, show
           const rawDob = detail.dateOfBirth || "";
           const formattedDob = rawDob.includes("T") ? rawDob.split("T")[0] : rawDob;
 
-          const roleCode = (detail.roles || [])
-            .map((r) => (typeof r === "string" ? r : r.code || ""))
-            .find((code) => code === "ADMIN" || code === "USER") || "USER";
+          const roleCode =
+            (detail.roles || [])
+              .map((r) => (typeof r === "string" ? r : r.code || ""))
+              .find((code) => code && code !== "ADMIN") || "USER";
 
           setFormData({
             avatarUrl: detail.avatar || "",
@@ -97,14 +140,6 @@ export const EditUser: React.FC<EditUserProps> = ({ user, onSave, onCancel, show
     fetchDetail();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id]);
-
-  const handleCalendarClick = () => {
-    try {
-      dobInputRef.current?.showPicker();
-    } catch {
-      dobInputRef.current?.focus();
-    }
-  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -413,23 +448,17 @@ export const EditUser: React.FC<EditUserProps> = ({ user, onSave, onCancel, show
 
               {/* DoB Datepicker */}
               <div
-                onClick={handleCalendarClick}
                 className="relative border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 cursor-pointer"
               >
                 <label className="absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] text-zinc-400 dark:text-zinc-500 font-bold pointer-events-none">
                   Ngày tháng năm sinh
                 </label>
-                <div className="relative flex items-center justify-between w-full pt-2 pb-0.5">
-                  <input
-                    ref={dobInputRef}
-                    type="date"
-                    name="dob"
-                    value={formData.dob}
-                    onChange={handleInputChange}
-                    className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-semibold focus:ring-0 cursor-pointer"
-                  />
-                  <Calendar className="absolute right-0 w-4 h-4 text-zinc-400 pointer-events-none" />
-                </div>
+                <LocalizedDateInput
+                  name="dob"
+                  value={formData.dob}
+                  onChange={handleInputChange}
+                  ariaLabel="Ngày tháng năm sinh"
+                />
               </div>
 
               {/* Gender Dropdown Select */}
@@ -464,10 +493,10 @@ export const EditUser: React.FC<EditUserProps> = ({ user, onSave, onCancel, show
               <SearchSelect
                 label="Vai trò"
                 value={formData.role}
-                options={[
-                  { value: "ADMIN", label: "Quản trị viên" },
-                  { value: "USER", label: "Người dùng" },
-                ]}
+                options={roleOptions.map((role) => ({
+                  value: role.code,
+                  label: role.name,
+                }))}
                 placeholder="Chọn vai trò"
                 onChange={(val) => handleSelectChange("role", val)}
                 error={!!errors.role}

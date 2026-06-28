@@ -1,14 +1,17 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Camera, Save, Calendar, ChevronDown } from "lucide-react";
+import { Camera, Save, ChevronDown, Trash2 } from "lucide-react";
 import { ChangeEmailDialog } from "@/components/profile/ChangeEmailDialog";
 import { sendChangeGmailOtp } from "@/libs/tts/services/api";
 import { SearchSelect } from "./SearchSelect";
 import { useAddress } from "../hooks/useAddress";
+import { DeleteConfirmModal } from "./DeleteConfirmModal";
+import { LocalizedDateInput } from "./LocalizedDateInput";
 
 export interface UserData {
   avatarUrl: string;
+  accountType: "DEPARTMENT" | "BUSINESS";
   username: string;
   fullName: string;
   dob: string;
@@ -20,11 +23,13 @@ export interface UserData {
   ward: string;
   address: string;
   isActive: boolean;
+  permissions: string[];
 }
 
 interface UserProfileProps {
   initialData: UserData;
   onSave: (data: UserData, successMessage?: string) => void;
+  onDeleteAvatar: () => Promise<boolean>;
   onCancel: () => void;
   showToast: (message: string, type: "success" | "error") => void;
 }
@@ -32,6 +37,7 @@ interface UserProfileProps {
 export const UserProfile: React.FC<UserProfileProps> = ({
   initialData,
   onSave,
+  onDeleteAvatar,
   onCancel,
   showToast,
 }) => {
@@ -55,17 +61,9 @@ export const UserProfile: React.FC<UserProfileProps> = ({
   const [isChangeEmailOpen, setIsChangeEmailOpen] = useState(false);
   const [changeEmailExpiresInSeconds, setChangeEmailExpiresInSeconds] = useState(60);
   const [isSendingChangeEmailOtp, setIsSendingChangeEmailOtp] = useState(false);
+  const [isDeleteAvatarConfirmOpen, setIsDeleteAvatarConfirmOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const dobInputRef = useRef<HTMLInputElement>(null);
-
-  const handleCalendarClick = () => {
-    try {
-      dobInputRef.current?.showPicker();
-    } catch {
-      dobInputRef.current?.focus();
-    }
-  };
 
   // Handle Input Changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -105,6 +103,13 @@ export const UserProfile: React.FC<UserProfileProps> = ({
     fileInputRef.current?.click();
   };
 
+  const handleDeleteAvatar = async () => {
+    const deleted = await onDeleteAvatar();
+    if (deleted) {
+      setFormData((prev) => ({ ...prev, avatarUrl: "" }));
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -128,7 +133,6 @@ export const UserProfile: React.FC<UserProfileProps> = ({
     reader.onload = (event) => {
       if (event.target?.result) {
         setFormData((prev) => ({ ...prev, avatarUrl: event.target?.result as string }));
-        showToast("Đã tải ảnh đại diện lên thành công!", "success");
       }
     };
     reader.readAsDataURL(file);
@@ -187,8 +191,26 @@ export const UserProfile: React.FC<UserProfileProps> = ({
     setIsChangeEmailOpen(false);
   };
 
-  const handleOpenChangeEmail = () => {
-    setIsChangeEmailOpen(true);
+  const handleOpenChangeEmail = async () => {
+    if (isSendingChangeEmailOtp) return;
+
+    setIsSendingChangeEmailOtp(true);
+    try {
+      const response = await sendChangeGmailOtp();
+      setChangeEmailExpiresInSeconds(response.data?.expiresInSeconds || 60);
+      setIsChangeEmailOpen(true);
+      showToast(
+        String(response.message || "Mã OTP đã được gửi về email hiện tại"),
+        "success",
+      );
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Không thể gửi OTP đổi email",
+        "error",
+      );
+    } finally {
+      setIsSendingChangeEmailOtp(false);
+    }
   };
 
   return (
@@ -253,6 +275,17 @@ export const UserProfile: React.FC<UserProfileProps> = ({
               </div>
             )}
           </div>
+
+          {formData.avatarUrl && (
+            <button
+              type="button"
+              onClick={() => setIsDeleteAvatarConfirmOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-red-500/10 transition-all hover:bg-red-700 active:scale-95 cursor-pointer"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Xóa ảnh</span>
+            </button>
+          )}
 
           {/* Guidelines */}
           <div className="text-center">
@@ -328,23 +361,17 @@ export const UserProfile: React.FC<UserProfileProps> = ({
 
               {/* DoB Datepicker */}
               <div
-                onClick={handleCalendarClick}
                 className="relative border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 cursor-pointer"
               >
                 <label className="absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] text-zinc-400 dark:text-zinc-500 font-bold pointer-events-none">
                   Ngày tháng năm sinh
                 </label>
-                <div className="relative flex items-center justify-between w-full pt-2 pb-0.5">
-                  <input
-                    ref={dobInputRef}
-                    type="date"
-                    name="dob"
-                    value={formData.dob}
-                    onChange={handleInputChange}
-                    className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-semibold focus:ring-0 cursor-pointer"
-                  />
-                  <Calendar className="absolute right-0 w-4 h-4 text-zinc-400 pointer-events-none" />
-                </div>
+                <LocalizedDateInput
+                  name="dob"
+                  value={formData.dob}
+                  onChange={handleInputChange}
+                  ariaLabel="Ngày tháng năm sinh"
+                />
               </div>
 
               {/* Gender Dropdown Select */}
@@ -503,6 +530,19 @@ export const UserProfile: React.FC<UserProfileProps> = ({
           showToast={showToast}
         />
       )}
+
+      <DeleteConfirmModal
+        isOpen={isDeleteAvatarConfirmOpen}
+        onClose={() => setIsDeleteAvatarConfirmOpen(false)}
+        onConfirm={handleDeleteAvatar}
+        title="Xác nhận xóa ảnh đại diện"
+        description={
+          <>
+            Bạn có chắc chắn muốn xóa ảnh đại diện hiện tại không? Sau khi xóa,
+            tài khoản sẽ trở về ảnh đại diện mặc định.
+          </>
+        }
+      />
     </div>
   );
 };

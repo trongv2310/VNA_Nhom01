@@ -29,11 +29,13 @@ import { memoryStorage } from 'multer';
 import type {} from 'multer';
 
 import { Roles } from '../decorators/roles.decorator';
+import { Permissions } from '../decorators/permissions.decorator';
 import { CreateUserDto } from '../dtos/create-user.dto';
 import { ListUsersQueryDto } from '../dtos/list-users-query.dto';
 import { UpdateUserDto } from '../dtos/update-user.dto';
 import { UserService } from '../services/user.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { PermissionsGuard } from '../guards/permissions.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import * as currentUserDecorator from '../decorators/current-user.decorator';
 import {
@@ -55,8 +57,9 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('ADMIN')
+  @Permissions('SYSTEM_C_USER_VIEW')
   @ApiBearerAuth('access-token')
   @ApiOperation({
     summary: 'Danh sach nguoi dung',
@@ -107,9 +110,100 @@ export class UserController {
     return this.userService.getMe(currentUser.id);
   }
 
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Cập nhật hồ sơ của tài khoản đang đăng nhập',
+    description:
+      'Dùng multipart/form-data khi cần upload avatar. Field file phải tên là avatar.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        fullName: { type: 'string', example: 'Nguyen Van A' },
+        gender: { type: 'string', example: 'Nam' },
+        dateOfBirth: { type: 'string', example: '1995-06-01' },
+        position: { type: 'string', example: 'Chuyen vien' },
+        provinceCity: { type: 'string', example: 'Thanh pho Ho Chi Minh' },
+        wardCommune: { type: 'string', example: 'Phuong Go Vap' },
+        address: { type: 'string', example: '123 Le Loi' },
+        avatar: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiOkResponse({
+    description: 'Thông tin tài khoản sau khi cập nhật',
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(ApiSuccessResponseDto) },
+        {
+          properties: {
+            data: { $ref: getSchemaPath(UserDetailResponseDto) },
+          },
+        },
+      ],
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('avatar', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 5 * 1024 * 1024,
+      },
+      fileFilter: (_req, file, callback) => {
+        if (!file.mimetype.startsWith('image/')) {
+          callback(new Error('File upload phai la anh'), false);
+          return;
+        }
+
+        callback(null, true);
+      },
+    }),
+  )
+  updateMe(
+    @Body() updateUserDto: UpdateUserDto,
+    @currentUserDecorator.CurrentUser()
+    currentUser: currentUserDecorator.CurrentUserData,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.userService.updateMe(
+      currentUser.id,
+      updateUserDto,
+      file,
+    );
+  }
+
+  @Delete('me/avatar')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Xóa ảnh đại diện của tài khoản đang đăng nhập' })
+  @ApiOkResponse({
+    description: 'Thông tin tài khoản sau khi xóa ảnh đại diện',
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(ApiSuccessResponseDto) },
+        {
+          properties: {
+            data: { $ref: getSchemaPath(UserDetailResponseDto) },
+          },
+        },
+      ],
+    },
+  })
+  removeMyAvatar(
+    @currentUserDecorator.CurrentUser()
+    currentUser: currentUserDecorator.CurrentUserData,
+  ) {
+    return this.userService.removeMyAvatar(currentUser.id);
+  }
+
   @Get(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('ADMIN')
+  @Permissions('SYSTEM_C_USER_VIEW')
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Chi tiet nguoi dung cho man hinh quan ly' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy người dùng hoặc người dùng là ADMIN' })
@@ -135,8 +229,9 @@ export class UserController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('ADMIN')
+  @Permissions('SYSTEM_C_USER_CREATE')
   @ApiBearerAuth('access-token')
   @ApiOperation({
     summary: 'Thêm mới người dùng',
@@ -204,8 +299,9 @@ export class UserController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('ADMIN')
+  @Permissions('SYSTEM_C_USER_UPDATE', 'SYSTEM_C_USER_RESET_PASSWORD')
   @ApiBearerAuth('access-token')
   @ApiOperation({
     summary: 'Cập nhật người dùng',
@@ -274,8 +370,9 @@ export class UserController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles('ADMIN')
+  @Permissions('SYSTEM_C_USER_DELETE')
   @ApiBearerAuth('access-token')
   @ApiOperation({
     summary: 'Xóa người dùng',

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UploadApiResponse, v2 as cloudinary } from 'cloudinary';
@@ -10,6 +11,8 @@ import { Readable } from 'stream';
 
 @Injectable()
 export class CloudinaryService {
+  private readonly logger = new Logger(CloudinaryService.name);
+
   constructor(private readonly configService: ConfigService) {
     cloudinary.config({
       cloud_name: this.configService.get<string>('CLOUDINARY_CLOUD_NAME'),
@@ -85,6 +88,10 @@ export class CloudinaryService {
         },
         (error, result) => {
           if (error) {
+            this.logger.error(
+              `Cloudinary upload file failed: ${error.message || 'Unknown error'}${error.http_code ? ` (HTTP ${error.http_code})` : ''}`,
+              error.stack,
+            );
             reject(new InternalServerErrorException('Upload file thất bại'));
             return;
           }
@@ -103,6 +110,20 @@ export class CloudinaryService {
       );
 
       Readable.from(file.buffer).pipe(uploadStream);
+    });
+  }
+
+  async deleteFile(
+    publicId: string,
+    resourceType: 'image' | 'raw' | 'video' = 'image',
+  ) {
+    if (!publicId) {
+      return;
+    }
+
+    await cloudinary.uploader.destroy(publicId, {
+      resource_type: resourceType,
+      invalidate: true,
     });
   }
 }

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -14,7 +15,7 @@ import { CreateUserDto } from '../dtos/create-user.dto';
 import { ListUsersQueryDto } from '../dtos/list-users-query.dto';
 import { UpdateUserDto } from '../dtos/update-user.dto';
 import { Role } from '../entities/role.entity';
-import { User } from '../entities/user.entity';
+import { User, UserAccountType } from '../entities/user.entity';
 import { UserRole } from '../entities/user-role.entity';
 import { CloudinaryService } from './cloudinary.service';
 
@@ -36,6 +37,8 @@ export class UserService {
   ) {}
 
   async getUsers(query: ListUsersQueryDto, currentUser: CurrentUserData) {
+    this.assertAdminOrHasAnyPermission(currentUser, ['SYSTEM_C_USER_VIEW']);
+
     const page = this.toPositiveNumber(query.page, 1);
     const limit = Math.min(this.toPositiveNumber(query.limit, 10), 100);
     const skip = (page - 1) * limit;
@@ -44,11 +47,12 @@ export class UserService {
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.userRoles', 'userRole')
       .leftJoinAndSelect('userRole.role', 'role')
+      .andWhere('user.accountType = :accountType', {
+        accountType: UserAccountType.DEPARTMENT,
+      })
       .distinct(true);
 
-    if (currentUser.roles.includes('ADMIN')) {
-      this.excludeAdminUsers(queryBuilder);
-    }
+    this.excludeAdminUsers(queryBuilder);
 
     if (query.keyword?.trim()) {
       const keyword = this.toLikeValue(query.keyword);
@@ -130,7 +134,11 @@ export class UserService {
       },
       relations: {
         userRoles: {
-          role: true,
+          role: {
+            rolePermissions: {
+              permission: true,
+            },
+          },
         },
       },
     });
@@ -140,6 +148,7 @@ export class UserService {
     }
 
     const roles = user.userRoles.map((userRole) => userRole.role.code);
+    const permissions = this.mapPermissionCodes(user);
 
     return {
       message: 'Lấy thông tin người dùng thành công',
@@ -156,15 +165,111 @@ export class UserService {
         wardCommune: user.wardCommune,
         address: user.address,
         isActive: user.isActive,
+        accountType: user.accountType,
         roles,
+        permissions,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       },
     };
   }
 
+  async updateMe(
+    userId: number,
+    updateUserDto: UpdateUserDto,
+    file?: Express.Multer.File,
+  ) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: {
+        userRoles: {
+          role: {
+            rolePermissions: {
+              permission: true,
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy người dùng');
+    }
+
+    let avatarUrl = user.avatar;
+
+    if (file) {
+      const uploadResult = await this.cloudinaryService.uploadImage(
+        file,
+        this.configService.get<string>('CLOUDINARY_FOLDER_USERS') || 'users',
+      );
+
+      avatarUrl = uploadResult.secure_url;
+    }
+
+    user.fullName =
+      this.toTrimmedValue(updateUserDto.fullName) ?? user.fullName;
+    user.gender = this.toOptionalString(updateUserDto.gender, user.gender);
+    user.position = this.toOptionalString(
+      updateUserDto.position,
+      user.position,
+    );
+    user.provinceCity = this.toOptionalString(
+      updateUserDto.provinceCity,
+      user.provinceCity,
+    );
+    user.wardCommune = this.toOptionalString(
+      updateUserDto.wardCommune,
+      user.wardCommune,
+    );
+    user.address = this.toOptionalString(updateUserDto.address, user.address);
+    user.avatar = avatarUrl;
+
+    if (updateUserDto.dateOfBirth !== undefined) {
+      const dateOfBirth = this.toTrimmedValue(updateUserDto.dateOfBirth);
+      user.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : user.dateOfBirth;
+    }
+
+    await this.userRepository.save(user);
+    const savedUser = await this.findSelfUserWithPermissions(userId);
+
+    return {
+      message: 'Cập nhật thông tin thành công',
+      data: this.mapUserDetail(savedUser),
+    };
+  }
+
+  async removeMyAvatar(userId: number) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: {
+        userRoles: {
+          role: {
+            rolePermissions: {
+              permission: true,
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy người dùng');
+    }
+
+    user.avatar = null;
+    await this.userRepository.save(user);
+    const savedUser = await this.findSelfUserWithPermissions(userId);
+
+    return {
+      message: 'Xóa ảnh đại diện thành công',
+      data: this.mapUserDetail(savedUser),
+    };
+  }
+
   async getUserDetail(id: number, currentUser: CurrentUserData) {
-    const user = await this.findManageableUser(id, currentUser);
+    this.assertAdminOrHasAnyPermission(currentUser, ['SYSTEM_C_USER_VIEW']);
+    const user = await this.findManageableUser(id);
 
     return {
       message: 'Lấy chi tiết người dùng thành công',
@@ -177,9 +282,7 @@ export class UserService {
     currentUser: CurrentUserData,
     file?: Express.Multer.File,
   ) {
-    if (!currentUser.roles.includes('ADMIN')) {
-      throw new BadRequestException('Bạn không có quyền tạo người dùng');
-    }
+    this.assertAdminOrHasAnyPermission(currentUser, ['SYSTEM_C_USER_CREATE']);
 
     const username = this.toRequiredString(createUserDto.username);
     const email = this.toRequiredString(createUserDto.email);
@@ -216,6 +319,7 @@ export class UserService {
       provinceCity: this.toOptionalString(createUserDto.provinceCity, null),
       wardCommune: this.toOptionalString(createUserDto.wardCommune, null),
       address: this.toOptionalString(createUserDto.address, null),
+      accountType: UserAccountType.DEPARTMENT,
       isActive:
         createUserDto.isActive === undefined
           ? true
@@ -231,7 +335,7 @@ export class UserService {
       }),
     );
 
-    const createdUser = await this.findManageableUser(savedUser.id, currentUser);
+    const createdUser = await this.findManageableUser(savedUser.id);
 
     return {
       message: 'Tạo người dùng thành công',
@@ -245,7 +349,9 @@ export class UserService {
     currentUser: CurrentUserData,
     file?: Express.Multer.File,
   ) {
-    const user = await this.findManageableUser(id, currentUser);
+    this.assertCanUpdateManagedUser(updateUserDto, currentUser);
+
+    const user = await this.findManageableUser(id);
 
     await this.validateUniqueUsername(id, updateUserDto.username, user.username);
     await this.validateUniqueEmail(id, updateUserDto.email, user.email);
@@ -314,7 +420,7 @@ export class UserService {
       );
     }
 
-    const updatedUser = await this.findManageableUser(id, currentUser);
+    const updatedUser = await this.findManageableUser(id);
 
     return {
       message: 'Cập nhật người dùng thành công',
@@ -323,7 +429,9 @@ export class UserService {
   }
 
   async deleteUser(id: number, currentUser: CurrentUserData) {
-    const user = await this.findManageableUser(id, currentUser);
+    this.assertAdminOrHasAnyPermission(currentUser, ['SYSTEM_C_USER_DELETE']);
+
+    const user = await this.findManageableUser(id);
 
     await this.userRepository.remove(user);
 
@@ -379,11 +487,7 @@ export class UserService {
     }
   }
 
-  private async findManageableUser(id: number, currentUser: CurrentUserData) {
-    if (!currentUser.roles.includes('ADMIN')) {
-      throw new BadRequestException('Bạn không có quyền quản lý người dùng');
-    }
-
+  private async findManageableUser(id: number) {
     const user = await this.userRepository.findOne({
       where: { id },
       relations: {
@@ -393,11 +497,96 @@ export class UserService {
       },
     });
 
-    if (!user || this.isAdminUser(user)) {
+    if (
+      !user ||
+      user.accountType !== UserAccountType.DEPARTMENT ||
+      this.isAdminUser(user)
+    ) {
       throw new NotFoundException('Không tìm thấy người dùng');
     }
 
     return user;
+  }
+
+  private async findSelfUserWithPermissions(id: number) {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      relations: {
+        userRoles: {
+          role: {
+            rolePermissions: {
+              permission: true,
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy người dùng');
+    }
+
+    return user;
+  }
+
+  private assertCanUpdateManagedUser(
+    updateUserDto: UpdateUserDto,
+    currentUser: CurrentUserData,
+  ) {
+    if (currentUser.roles.includes('ADMIN')) {
+      return;
+    }
+
+    const isPasswordUpdate = Boolean(updateUserDto.password?.trim());
+    const isRoleUpdate = Boolean(
+      this.toTrimmedValue(updateUserDto.roleId) ||
+        this.toTrimmedValue(updateUserDto.roleCode) ||
+        this.toTrimmedValue(updateUserDto.role),
+    );
+    const profileFields = [
+      updateUserDto.username,
+      updateUserDto.fullName,
+      updateUserDto.email,
+      updateUserDto.gender,
+      updateUserDto.dateOfBirth,
+      updateUserDto.position,
+      updateUserDto.provinceCity,
+      updateUserDto.wardCommune,
+      updateUserDto.address,
+      updateUserDto.avatar,
+      updateUserDto.removeAvatar,
+      updateUserDto.isActive,
+    ];
+    const hasProfileUpdate =
+      isRoleUpdate || profileFields.some((value) => value !== undefined);
+
+    if (isPasswordUpdate) {
+      this.assertAdminOrHasAnyPermission(currentUser, ['SYSTEM_C_USER_RESET_PASSWORD']);
+    }
+
+    if (hasProfileUpdate) {
+      this.assertAdminOrHasAnyPermission(currentUser, ['SYSTEM_C_USER_UPDATE']);
+    }
+  }
+
+  private assertAdminOrHasAnyPermission(
+    currentUser: CurrentUserData,
+    permissions: string[],
+  ) {
+    if (currentUser.roles.includes('ADMIN')) {
+      return;
+    }
+
+    const userPermissions = currentUser.permissions ?? [];
+    const hasPermission = permissions.some((permission) =>
+      userPermissions.includes(permission),
+    );
+
+    if (!hasPermission) {
+      throw new ForbiddenException(
+        'Bạn không có quyền thực hiện chức năng này',
+      );
+    }
   }
 
   private async getRequestedRole(updateUserDto: UpdateUserDto) {
@@ -538,6 +727,7 @@ export class UserService {
       email: user.email,
       avatar: user.avatar,
       position: user.position,
+      accountType: user.accountType,
       isActive: user.isActive,
       statusLabel: user.isActive ? 'Đang hoạt động' : 'Đã khóa',
       roles,
@@ -565,6 +755,7 @@ export class UserService {
       provinceCity: user.provinceCity,
       wardCommune: user.wardCommune,
       address: user.address,
+      accountType: user.accountType,
       isActive: user.isActive,
       statusLabel: user.isActive ? 'Đang hoạt động' : 'Đã khóa',
       hasPassword: Boolean(user.password),
@@ -573,6 +764,7 @@ export class UserService {
       roleName: primaryRole?.name ?? null,
       roleDisplay: roles.map((role) => role.name).join(', '),
       roles,
+      permissions: this.mapPermissionCodes(user),
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
@@ -586,5 +778,20 @@ export class UserService {
         name: userRole.role.name,
       })) ?? []
     );
+  }
+
+  private mapPermissionCodes(user: User) {
+    const permissionCodes = new Set<string>();
+
+    for (const userRole of user.userRoles ?? []) {
+      for (const rolePermission of userRole.role?.rolePermissions ?? []) {
+        const code = rolePermission.permission?.code;
+        if (code) {
+          permissionCodes.add(code);
+        }
+      }
+    }
+
+    return [...permissionCodes].sort();
   }
 }

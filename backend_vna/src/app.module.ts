@@ -6,6 +6,8 @@ import { PassportModule } from '@nestjs/passport';
 import { User } from './entities/user.entity';
 import { Role } from './entities/role.entity';
 import { UserRole } from './entities/user-role.entity';
+import { Permission } from './entities/permission.entity';
+import { RolePermission } from './entities/role-permission.entity';
 import { BusinessAttachment } from './entities/business-attachment.entity';
 import { Business } from './entities/business.entity';
 import { RoleSeedService } from './services/role-seed.service';
@@ -19,11 +21,18 @@ import { BusinessController } from './controllers/business.controller';
 import { BusinessService } from './services/business.service';
 import { UserController } from './controllers/user.controller';
 import { UserService } from './services/user.service';
+import { RoleManagementService } from './services/role-management.service';
+import {
+  PermissionController,
+  RoleManagementController,
+} from './controllers/role-management.controller';
 import { CloudinaryService } from './services/cloudinary.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { EmailOtp } from './entities/email-otp.entity';
 import { MailService } from './services/mail.service';
+import { PermissionAccessService } from './services/permission-access.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { PermissionsGuard } from './guards/permissions.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
@@ -69,6 +78,8 @@ import { LaborAccidentCatalogSeedService } from './services/labor-accident-catal
           User,
           Role,
           UserRole,
+          Permission,
+          RolePermission,
           RefreshToken,
           EmailOtp,
           Business,
@@ -80,7 +91,7 @@ import { LaborAccidentCatalogSeedService } from './services/labor-accident-catal
           LaborAccidentReportPeriod,
         ],
 
-        synchronize: true,
+        synchronize: false,
       }),
     }),
     PassportModule.register({ defaultStrategy: 'jwt' }),
@@ -88,6 +99,8 @@ import { LaborAccidentCatalogSeedService } from './services/labor-accident-catal
       User,
       Role,
       UserRole,
+      Permission,
+      RolePermission,
       RefreshToken,
       EmailOtp,
       Business,
@@ -121,6 +134,8 @@ import { LaborAccidentCatalogSeedService } from './services/labor-accident-catal
   controllers: [
     AuthController,
     UserController,
+    PermissionController,
+    RoleManagementController,
     BusinessProfileController,
     BusinessRegistrationController,
     BusinessController,
@@ -133,11 +148,14 @@ import { LaborAccidentCatalogSeedService } from './services/labor-accident-catal
   providers: [
     AuthService,
     UserService,
+    RoleManagementService,
     BusinessService,
     CloudinaryService,
     MailService,
+    PermissionAccessService,
     JwtAuthGuard,
     RolesGuard,
+    PermissionsGuard,
     JwtStrategy,
     RoleSeedService,
     UserSeedService,

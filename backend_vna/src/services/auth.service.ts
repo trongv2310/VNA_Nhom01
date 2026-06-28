@@ -25,6 +25,7 @@ import { RefreshToken } from '../entities/refresh-token.entity';
 import { User } from '../entities/user.entity';
 import { JwtSignOptions } from '@nestjs/jwt';
 import { MailService } from './mail.service';
+import { PermissionAccessService } from './permission-access.service';
 
 const RESET_PASSWORD_PURPOSE = 'RESET_PASSWORD';
 const CHANGE_GMAIL_PURPOSE = 'CHANGE_GMAIL';
@@ -46,6 +47,8 @@ export class AuthService {
     private readonly configService: ConfigService,
 
     private readonly mailService: MailService,
+
+    private readonly permissionAccessService: PermissionAccessService,
   ) {}
 
   async login(loginDto: LoginDto, userAgent?: string, ipAddress?: string) {
@@ -77,11 +80,15 @@ export class AuthService {
     }
 
     const roles = user.userRoles.map((userRole) => userRole.role.code);
+    const permissions =
+      await this.permissionAccessService.getPermissionCodesForUser(user.id);
 
     const payload = {
       sub: user.id,
       username: user.username,
       roles,
+      permissions,
+      accountType: user.accountType,
     };
 
     const accessSecret =
@@ -147,6 +154,8 @@ export class AuthService {
           email: user.email,
           avatar: user.avatar,
           roles,
+          permissions,
+          accountType: user.accountType,
         },
       },
     };
@@ -312,12 +321,8 @@ export class AuthService {
     };
   }
 
-  async sendChangeGmailOtp(userId: number, newEmail?: string) {
+  async sendChangeGmailOtp(userId: number) {
     const user = await this.findActiveUserById(userId);
-    if (newEmail) {
-      const normalizedNewEmail = this.normalizeEmail(newEmail);
-      await this.assertNewEmailCanBeUsed(user, normalizedNewEmail);
-    }
     const otp = this.generateOtp();
     const expireMinutes = this.getOtpExpireMinutes();
     const currentEmail = this.normalizeEmail(user.email);

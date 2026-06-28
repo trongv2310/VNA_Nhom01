@@ -21,6 +21,8 @@ import {
 
 interface ReportPeriodManagementProps {
   showToast: (message: string, type: "success" | "error") => void;
+  permissions?: string[];
+  isAdmin?: boolean;
 }
 
 interface ReportPeriodItem {
@@ -32,6 +34,19 @@ interface ReportPeriodItem {
   endDate: string;
   isActive: boolean;
 }
+
+const MIN_REPORT_PERIOD_YEAR = 2000;
+const MAX_REPORT_PERIOD_YEAR = new Date().getFullYear() + 3;
+const REPORT_PERIOD_YEAR_OPTIONS = Array.from(
+  { length: MAX_REPORT_PERIOD_YEAR - MIN_REPORT_PERIOD_YEAR + 1 },
+  (_, index) => {
+    const year = MAX_REPORT_PERIOD_YEAR - index;
+    return {
+      value: String(year),
+      label: String(year),
+    };
+  },
+);
 
 // ==========================================
 // FLOATING LABEL UI HELPER COMPONENTS
@@ -174,37 +189,48 @@ const FloatingDateInput: React.FC<FloatingDateInputProps> = ({
   );
 };
 
-interface FloatingYearInputProps {
+interface FloatingYearSelectProps {
   label: string;
   value: string;
   onChange: (val: string) => void;
+  options: { value: string; label: string }[];
   error?: string;
 }
 
-const FloatingYearInput: React.FC<FloatingYearInputProps> = ({
+const FloatingYearSelect: React.FC<FloatingYearSelectProps> = ({
   label,
   value,
   onChange,
+  options,
   error,
 }) => {
-  const [isFocused, setIsFocused] = useState(false);
-  const isFloating = isFocused || !!value;
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const selectedOption = options.find((opt) => opt.value === value);
+  const displayValue = selectedOption?.label ?? "";
+  const isFloating = isOpen || value !== "";
+  const filteredOptions = options.filter(
+    (opt) =>
+      opt.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      opt.value.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
 
-  const handleContainerClick = () => {
-    if (inputRef.current) {
-      inputRef.current.focus();
+  useEffect(() => {
+    if (isOpen) {
+      setSearchTerm("");
     }
-  };
+  }, [isOpen]);
 
   return (
-    <div className="flex flex-col gap-1 w-full select-none">
+    <div className="relative flex flex-col gap-1 w-full select-none">
       <div
-        onClick={handleContainerClick}
-        className={`relative border rounded-lg px-3.5 py-2.5 bg-white dark:bg-zinc-950 transition-all flex items-center justify-between cursor-text
+        onClick={() => setIsOpen(true)}
+        className={`relative border rounded-lg px-3.5 py-2.5 bg-white dark:bg-zinc-950 transition-all flex items-center justify-between cursor-pointer
           ${error 
             ? "border-red-500 focus-within:ring-1 focus-within:ring-red-500 focus-within:border-red-500" 
-            : "border-zinc-200 dark:border-zinc-800 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
+            : isOpen
+              ? "border-blue-500 ring-1 ring-blue-500"
+              : "border-zinc-200 dark:border-zinc-800"
           }`}
       >
         <span className={`absolute left-3 px-1 transition-all duration-150 pointer-events-none select-none bg-white dark:bg-zinc-950 text-zinc-455 dark:text-zinc-500
@@ -217,30 +243,90 @@ const FloatingYearInput: React.FC<FloatingYearInputProps> = ({
         </span>
 
         <input
-          ref={inputRef}
           type="text"
-          value={value}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}
-          placeholder={isFocused ? "" : label}
-          className="w-full text-sm font-bold outline-none border-none bg-transparent text-zinc-850 dark:text-zinc-150"
+          readOnly
+          value={displayValue}
+          placeholder={isOpen ? "" : label}
+          className={`w-full text-sm font-semibold outline-none border-none bg-transparent cursor-pointer pr-8 ${
+            displayValue ? "text-zinc-800 dark:text-zinc-200" : "text-zinc-400 dark:text-zinc-500"
+          }`}
+          onFocus={() => setIsOpen(true)}
+          onClick={() => setIsOpen(true)}
+          aria-label={label}
         />
 
-        <Calendar className="w-5 h-5 text-zinc-400 dark:text-zinc-650 pointer-events-none ml-2" />
+        <ChevronDown
+          className={`absolute right-3.5 w-5 h-5 text-zinc-400 dark:text-zinc-650 pointer-events-none transition-transform duration-200 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
       </div>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-[10010]" onClick={() => setIsOpen(false)} />
+          <div
+            className="absolute left-0 right-0 top-full mt-1.5 overflow-hidden rounded-xl border border-zinc-200/80 bg-white dark:border-zinc-800 dark:bg-zinc-900 shadow-xl z-[10020] py-1 select-none animate-in fade-in slide-in-from-top-2 duration-200"
+          >
+            <div className="px-3 py-1.5 border-b border-zinc-150 dark:border-zinc-850">
+              <input
+                type="text"
+                autoFocus
+                inputMode="numeric"
+                className="w-full text-xs px-2.5 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
+                placeholder="Tìm kiếm..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              />
+            </div>
+            <div className="max-h-[168px] overflow-y-auto">
+              {filteredOptions.length === 0 ? (
+                <div className="p-3 text-center text-xs text-zinc-400">
+                  Không tìm thấy năm phù hợp
+                </div>
+              ) : (
+                filteredOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      onChange(opt.value);
+                      setIsOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50 flex items-center justify-between font-medium transition-colors ${
+                      value === opt.value
+                        ? "bg-blue-50/50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 font-bold"
+                        : ""
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
       {error && <span className="text-[11px] font-semibold text-red-500 pl-1">{error}</span>}
     </div>
   );
 };
-
 // ==========================================
 // MAIN COMPONENT
 // ==========================================
 
 export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
   showToast,
+  permissions = [],
+  isAdmin = false,
 }) => {
+  const hasPermission = (permission: string) =>
+    isAdmin || permissions.includes(permission);
+  const canCreate = hasPermission("SYSTEM_C_REPORT_PERIOD_CREATE");
+  const canUpdate = hasPermission("SYSTEM_C_REPORT_PERIOD_UPDATE");
+  const canChangeStatus = hasPermission("SYSTEM_C_REPORT_PERIOD_STATUS");
+
   // Lists & Pagination
   const [periods, setPeriods] = useState<ReportPeriodItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -317,6 +403,8 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
 
   // Toggle Active Status
   const handleToggleStatus = async (item: ReportPeriodItem) => {
+    if (!canChangeStatus) return;
+
     try {
       const newStatus = !item.isActive;
       const res = await updateReportPeriodStatus(item.id, newStatus);
@@ -337,6 +425,8 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
 
   // Open Modal for Add
   const handleOpenAdd = () => {
+    if (!canCreate) return;
+
     setEditingPeriod(null);
     setFormReportName("");
     setFormYear("");
@@ -350,6 +440,8 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
 
   // Open Modal for Edit
   const handleOpenEdit = (item: ReportPeriodItem) => {
+    if (!canUpdate) return;
+
     setEditingPeriod(item);
     setFormReportName(item.reportName);
     setFormYear(item.year.toString());
@@ -364,7 +456,13 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
   // Auto-fill dates based on year and period selection
   useEffect(() => {
     const yearNum = Number(formYear);
-    if (isModalOpen && /^\d{4}$/.test(formYear.trim()) && yearNum >= 2000 && yearNum <= 2100 && formPeriodType) {
+    if (
+      isModalOpen &&
+      /^\d{4}$/.test(formYear.trim()) &&
+      yearNum >= MIN_REPORT_PERIOD_YEAR &&
+      yearNum <= MAX_REPORT_PERIOD_YEAR &&
+      formPeriodType
+    ) {
       if (formPeriodType === "SIX_MONTHS") {
         const targetStart = `${yearNum}-07-01`;
         const targetEnd = `${yearNum}-07-05`;
@@ -393,8 +491,14 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
     
     // Year validation
     const yearNum = Number(formYear);
-    if (!formYear.trim() || isNaN(yearNum) || !/^\d{4}$/.test(formYear.trim()) || yearNum < 2000 || yearNum > 2100) {
-      errors.year = "Năm phải là số có 4 chữ số (ví dụ: 2027)";
+    if (
+      !formYear.trim() ||
+      isNaN(yearNum) ||
+      !/^\d{4}$/.test(formYear.trim()) ||
+      yearNum < MIN_REPORT_PERIOD_YEAR ||
+      yearNum > MAX_REPORT_PERIOD_YEAR
+    ) {
+      errors.year = `Năm phải nằm trong khoảng ${MIN_REPORT_PERIOD_YEAR} - ${MAX_REPORT_PERIOD_YEAR}`;
     }
 
     if (!formPeriodType) {
@@ -424,6 +528,14 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
   // Submit Form: Save or Update
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (
+      (editingPeriod && !canUpdate) ||
+      (!editingPeriod && !canCreate)
+    ) {
+      showToast("Bạn không có quyền thực hiện thao tác này", "error");
+      return;
+    }
+
     if (!validateForm()) return;
 
     setIsLoading(true);
@@ -498,13 +610,15 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
         <h2 className="text-md font-bold text-zinc-800 dark:text-zinc-100">
           Danh sách cấu hình báo cáo
         </h2>
-        <button
-          onClick={handleOpenAdd}
-          className="flex items-center gap-1.5 px-4.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-md shadow-blue-500/10 active:scale-98 transition-all cursor-pointer"
-        >
-          <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>Thêm mới</span>
-        </button>
+        {canCreate && (
+          <button
+            onClick={handleOpenAdd}
+            className="flex items-center gap-1.5 px-4.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-md shadow-blue-500/10 active:scale-98 transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>Thêm mới</span>
+          </button>
+        )}
       </div>
 
       {/* Main Table Card */}
@@ -641,13 +755,15 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                   >
                     {/* Actions */}
                     <td className="p-4 text-center">
-                      <button
-                        onClick={() => handleOpenEdit(item)}
-                        className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-blue-600 transition-all cursor-pointer"
-                        title="Chỉnh sửa cấu hình"
-                      >
-                        <Pencil className="w-[17px] h-[17px] text-zinc-400 hover:text-blue-600" />
-                      </button>
+                      {canUpdate && (
+                        <button
+                          onClick={() => handleOpenEdit(item)}
+                          className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-blue-600 transition-all cursor-pointer"
+                          title="Chỉnh sửa cấu hình"
+                        >
+                          <Pencil className="w-[17px] h-[17px] text-zinc-400 hover:text-blue-600" />
+                        </button>
+                      )}
                     </td>
                     {/* Year */}
                     <td className="p-4 text-zinc-850 dark:text-zinc-150">
@@ -675,9 +791,10 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                         <button
                           type="button"
                           onClick={() => handleToggleStatus(item)}
+                          disabled={!canChangeStatus}
                           className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                             item.isActive ? "bg-blue-600" : "bg-zinc-200 dark:bg-zinc-800"
-                          }`}
+                          } ${canChangeStatus ? "" : "cursor-not-allowed opacity-50"}`}
                         >
                           <span
                             className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
@@ -735,7 +852,8 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
       {/* ========================================== */}
       {/* ADD / EDIT MODAL CONFIGURATION */}
       {/* ========================================== */}
-      {isModalOpen && (
+      {isModalOpen &&
+        ((editingPeriod && canUpdate) || (!editingPeriod && canCreate)) && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
           <div
             onClick={() => setIsModalOpen(false)}
@@ -773,10 +891,11 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
               {/* Row Grid: Năm * & Kỳ báo cáo * */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5.5">
                 {/* Năm * */}
-                <FloatingYearInput
+                <FloatingYearSelect
                   label="Năm *"
                   value={formYear}
                   onChange={setFormYear}
+                  options={REPORT_PERIOD_YEAR_OPTIONS}
                   error={formErrors.year}
                 />
 

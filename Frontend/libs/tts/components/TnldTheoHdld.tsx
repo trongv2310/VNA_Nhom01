@@ -21,7 +21,7 @@ import {
   saveLaborAccidentReportDraft,
   submitLaborAccidentReport,
   getCatalogOptions,
-  getReportPeriods,
+  getMyLaborAccidentReportPeriods,
   getMyBusinessProfile
 } from "../services/api";
 import { exportReportDocx } from "../utils/reportExporter";
@@ -65,6 +65,10 @@ interface ReportData {
   period: string; // "6 tháng" | "Cả năm"
   status: "Đang báo cáo" | "Đang chờ duyệt" | "Đã tiếp nhận" | "Từ chối phê duyệt";
   rejectReason?: string;
+  windowStatus?: "INACTIVE" | "UPCOMING" | "OPEN" | "CLOSED";
+  canEdit?: boolean;
+  canSubmit?: boolean;
+  unavailableReason?: string | null;
   enterpriseName: string;
   taxCode: string;
   businessType: string;
@@ -284,7 +288,9 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
   const [isGeneratingWord, setIsGeneratingWord] = useState(false);
   
   // Year Filter in List
-  const [selectedYearFilter, setSelectedYearFilter] = useState<number>(2026);
+  const [selectedYearFilter, setSelectedYearFilter] = useState<number>(
+    new Date().getFullYear()
+  );
   const [showYearDropdown, setShowYearDropdown] = useState(false);
 
   // Sections navigation state
@@ -314,6 +320,7 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
+  const submitInFlightRef = useRef(false);
 
   // Catalog cache states
   const [causeCatalog, setCauseCatalog] = useState<any[]>([]);
@@ -324,11 +331,6 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
 
   const availableYears = React.useMemo(() => {
     const years = new Set<number>();
-    years.add(2022);
-    years.add(2023);
-    years.add(2024);
-    years.add(2025);
-    years.add(2026);
     
     activePeriods.forEach((p) => {
       if (p.year) years.add(Number(p.year));
@@ -340,6 +342,15 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
 
     return Array.from(years).sort((a, b) => b - a);
   }, [activePeriods, reports]);
+
+  useEffect(() => {
+    if (
+      availableYears.length > 0 &&
+      !availableYears.includes(selectedYearFilter)
+    ) {
+      setSelectedYearFilter(availableYears[0]);
+    }
+  }, [availableYears, selectedYearFilter]);
 
   // Format Helper with dots
   const formatNumberWithDots = (val: string | number) => {
@@ -416,6 +427,10 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
       period: r.reportPeriod?.periodTypeLabel || (r.reportPeriod?.periodType === "SIX_MONTHS" ? "6 tháng" : "Cả năm"),
       status: r.status === "RECEIVED" ? "Đã tiếp nhận" : r.status === "SUBMITTED" ? "Đang chờ duyệt" : r.status === "REJECTED" ? "Từ chối phê duyệt" : "Đang báo cáo",
       rejectReason: r.rejectReason || "",
+      windowStatus: r.windowStatus,
+      canEdit: Boolean(r.canEdit),
+      canSubmit: Boolean(r.canSubmit),
+      unavailableReason: r.unavailableReason || null,
       enterpriseName: r.businessName || profile?.businessName || "",
       taxCode: r.taxCode || profile?.taxCode || "",
       businessType: r.businessType || profile?.businessType || "",
@@ -517,7 +532,7 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
     try {
       const [reportsRes, periodsRes] = await Promise.all([
         getMyLaborAccidentReports({ limit: 100 }),
-        getReportPeriods({ isActive: true, limit: 100 })
+        getMyLaborAccidentReportPeriods()
       ]);
 
       let backendReports: any[] = [];
@@ -544,6 +559,10 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
           period: r.reportPeriod?.periodTypeLabel || (r.reportPeriod?.periodType === "SIX_MONTHS" ? "6 tháng" : "Cả năm"),
           status: r.status === "RECEIVED" ? "Đã tiếp nhận" : r.status === "SUBMITTED" ? "Đang chờ duyệt" : r.status === "REJECTED" ? "Từ chối phê duyệt" : "Đang báo cáo",
           rejectReason: r.rejectReason || "",
+          windowStatus: r.windowStatus,
+          canEdit: Boolean(r.canEdit),
+          canSubmit: Boolean(r.canSubmit),
+          unavailableReason: r.unavailableReason || null,
           enterpriseName: r.businessName || profile?.businessName || "",
           taxCode: r.taxCode || profile?.taxCode || "",
           businessType: r.businessType || profile?.businessType || "",
@@ -624,6 +643,10 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
             year: p.year,
             period: p.periodTypeLabel || (p.periodType === "SIX_MONTHS" ? "6 tháng" : "Cả năm"),
             status: "Đang báo cáo",
+            windowStatus: p.windowStatus,
+            canEdit: Boolean(p.canEdit),
+            canSubmit: Boolean(p.canSubmit),
+            unavailableReason: p.unavailableReason || null,
             enterpriseName: profile?.businessName || "",
             taxCode: profile?.taxCode || "",
             businessType: profile?.businessType || "",
@@ -687,6 +710,15 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
 
   // Load details if editing/viewing from API
   const handleEditClick = async (report: ReportData, readOnly: boolean = false) => {
+    if (!readOnly && !report.canEdit) {
+      showToast(
+        report.unavailableReason ||
+          "Kỳ báo cáo hiện không cho phép chỉnh sửa",
+        "error"
+      );
+      return;
+    }
+
     setSelectedReport(report);
     setIsReadOnly(readOnly);
     setCurrentSection(readOnly ? "general-view" : "enterprise-info");
@@ -709,10 +741,16 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
       if (res.success && res.data) {
         const r = res.data;
 
-        if (r.attachments && r.attachments.length > 0) {
-          setUploadedFileName(r.attachments[0].displayName || r.attachments[0].originalName || "");
-          setUploadedFileUrl(r.attachments[0].fileUrl || "");
+        const currentAttachment =
+          r.currentAttachment ||
+          r.attachments?.find((attachment: any) => attachment.isCurrent) ||
+          r.attachments?.[0];
+
+        if (currentAttachment) {
+          setUploadedFileName(currentAttachment.displayName || currentAttachment.originalName || "");
+          setUploadedFileUrl(currentAttachment.fileUrl || "");
         } else {
+          setUploadedFileName("");
           setUploadedFileUrl("");
         }
 
@@ -756,7 +794,7 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
       } catch {
         setUploadedFileUrl("");
       }
-      showToast(`Tải lên tệp ${file.name} thành công!`, "success");
+      showToast(`Đã chọn tệp ${file.name}`, "success");
     }
   };
 
@@ -1595,6 +1633,15 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
   const handleSave = async () => {
     if (!formData || isReadOnly) return;
 
+    if (!formData.canEdit) {
+      showToast(
+        formData.unavailableReason ||
+          "Kỳ báo cáo hiện không cho phép chỉnh sửa",
+        "error"
+      );
+      return;
+    }
+
     if (!validateSection("enterprise-info")) {
       setCurrentSection("enterprise-info");
       return;
@@ -1715,8 +1762,18 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
   };
 
   const handleSubmitReport = async () => {
-    if (!formData || isReadOnly) return;
+    if (!formData || isReadOnly || submitInFlightRef.current) return;
 
+    if (!formData.canSubmit) {
+      showToast(
+        formData.unavailableReason ||
+          "Kỳ báo cáo hiện không cho phép gửi báo cáo",
+        "error"
+      );
+      return;
+    }
+
+    submitInFlightRef.current = true;
     setIsLoading(true);
     try {
       const data = buildFormData();
@@ -1727,6 +1784,7 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
         const draftRes = await saveLaborAccidentReportDraft(data);
         if (draftRes.success && draftRes.data) {
           reportId = draftRes.data.id;
+          data.delete("attachments");
         } else {
           showToast("Không thể khởi tạo báo cáo trước khi gửi", "error");
           setIsLoading(false);
@@ -1734,15 +1792,7 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
         }
       }
 
-      const submitData = new FormData();
-      if (uploadedFile) {
-        submitData.append("attachments", uploadedFile);
-      }
-      if (uploadedFileName) {
-        submitData.append("attachmentNames", JSON.stringify([uploadedFileName]));
-      }
-
-      const res = await submitLaborAccidentReport(reportId, submitData);
+      const res = await submitLaborAccidentReport(reportId, data);
       if (res.success) {
         sessionStorage.removeItem(`vna_report_form_${formData.id}`);
         showToast("Báo cáo tình hình tai nạn lao động đã được gửi thành công!", "success");
@@ -1752,9 +1802,9 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
         showToast(res.message || "Gửi báo cáo thất bại", "error");
       }
     } catch (err: any) {
-      console.error(err);
       showToast(err.message || "Lỗi khi gửi báo cáo", "error");
     } finally {
+      submitInFlightRef.current = false;
       setIsLoading(false);
     }
   };
@@ -1984,7 +2034,7 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                           >
                             <Eye className="h-[18px] w-[18px] text-zinc-400 group-hover:text-green-600 transition-colors" />
                           </button>
-                          {(rep.status === "Đang báo cáo" || rep.status === "Từ chối phê duyệt") && (
+                          {rep.canEdit && (
                             <button
                               onClick={() => handleEditClick(rep, false)}
                               title={rep.status === "Từ chối phê duyệt" ? "Cập nhật / Nộp lại" : "Chỉnh sửa khai báo"}
@@ -2005,7 +2055,10 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                         {rep.period}
                       </td>
                       <td className="p-4 text-center">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-zinc-50 dark:bg-zinc-900 select-none">
+                        <span
+                          title={rep.unavailableReason || undefined}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-zinc-50 dark:bg-zinc-900 select-none"
+                        >
                           <span className={`w-2 h-2 rounded-full ${
                             rep.status === "Đang báo cáo" ? "bg-zinc-400" :
                             rep.status === "Đang chờ duyệt" ? "bg-amber-500 animate-pulse" :
@@ -2018,7 +2071,16 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                             rep.status === "Đã tiếp nhận" ? "text-blue-600 dark:text-blue-400" :
                             rep.status === "Từ chối phê duyệt" ? "text-red-500 dark:text-red-400" : "text-zinc-550"
                           }>
-                            {rep.status}
+                            {rep.status === "Đang báo cáo" &&
+                            rep.windowStatus === "UPCOMING"
+                              ? "Chưa mở"
+                              : rep.status === "Đang báo cáo" &&
+                                  rep.windowStatus === "CLOSED"
+                                ? "Đã đóng"
+                                : rep.status === "Đang báo cáo" &&
+                                    rep.windowStatus === "INACTIVE"
+                                  ? "Tạm ngừng"
+                                : rep.status}
                           </span>
                         </span>
                       </td>
@@ -2118,16 +2180,29 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                     <span>{isGeneratingWord ? "Đang tạo Word..." : "In báo cáo"}</span>
                   </button>
                   <button
-                    disabled={!uploadedFileName}
+                    disabled={
+                      isLoading ||
+                      !uploadedFileName ||
+                      !formData?.canSubmit
+                    }
                     onClick={handleSubmitReport}
+                    title={
+                      !formData?.canSubmit
+                        ? formData?.unavailableReason || undefined
+                        : undefined
+                    }
                     className={`flex items-center gap-1.5 px-6 py-2 rounded-xl font-bold text-sm transition-all ${
-                      uploadedFileName
+                      !isLoading && uploadedFileName && formData?.canSubmit
                         ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md active:scale-98 cursor-pointer"
                         : "bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 cursor-not-allowed opacity-60"
                     }`}
                   >
-                    <Send className="w-4 h-4" />
-                    <span>Gửi báo cáo</span>
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    <span>{isLoading ? "Đang gửi..." : "Gửi báo cáo"}</span>
                   </button>
                 </>
               ) : (

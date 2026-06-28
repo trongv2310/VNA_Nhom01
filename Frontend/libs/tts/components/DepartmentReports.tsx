@@ -12,7 +12,7 @@ import {
 import {
   getDepartmentReports,
   receiveDepartmentReport,
-  getReportPeriods,
+  getReportPeriodYears,
   getStoredBackendUser,
   bulkReceiveDepartmentReports,
   bulkRejectDepartmentReports
@@ -22,6 +22,8 @@ import { useAddress } from "../hooks/useAddress";
 
 interface DepartmentReportsProps {
   showToast: (message: string, type: "success" | "error") => void;
+  permissions?: string[];
+  isAdmin?: boolean;
 }
 
 interface ReportItem {
@@ -35,7 +37,16 @@ interface ReportItem {
   submittedAt?: string | null;
 }
 
-export const DepartmentReports: React.FC<DepartmentReportsProps> = ({ showToast }) => {
+export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
+  showToast,
+  permissions = [],
+  isAdmin = false,
+}) => {
+  const hasPermission = (permission: string) =>
+    isAdmin || permissions.includes(permission);
+  const canReceive = hasPermission("LABOR_C_REPORT_RECEIVE");
+  const canExport = hasPermission("LABOR_C_REPORT_EXPORT");
+
   // Filters & State
   const [year, setYear] = useState("2026");
   const [availableYears, setAvailableYears] = useState<string[]>(["2022", "2023", "2024", "2025", "2026"]);
@@ -43,11 +54,11 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({ showToast 
   useEffect(() => {
     const fetchPeriods = async () => {
       try {
-        const res = await getReportPeriods({ limit: 100 });
-        if (res.success && res.data && res.data.items) {
+        const res = await getReportPeriodYears();
+        if (res.success && res.data?.years) {
           const years = new Set<string>(["2022", "2023", "2024", "2025", "2026"]);
-          res.data.items.forEach((item: any) => {
-            if (item.year) years.add(String(item.year));
+          res.data.years.forEach((item) => {
+            years.add(String(item));
           });
           setAvailableYears(Array.from(years).sort((a, b) => Number(b) - Number(a)));
         }
@@ -157,9 +168,21 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({ showToast 
     };
   }, [page, limit, year, provinceCity, wardCommune, businessNameQuery, taxCodeQuery, periodFilter, statusFilter, reloadTrigger]);
 
+  const isReportSelectable = (report: ReportItem) => report.status === "SUBMITTED";
+
+  useEffect(() => {
+    setSelectedIds((prev) =>
+      prev.filter((id) =>
+        reports.some((report) => report.id === id && isReportSelectable(report)),
+      ),
+    );
+  }, [reports]);
+
   // Selections
   const handleSelectAll = () => {
-    const selectableReports = reports.filter((r) => r.status !== "RECEIVED");
+    if (!canReceive) return;
+
+    const selectableReports = reports.filter(isReportSelectable);
     const selectableIds = selectableReports.map((r) => r.id);
     
     const allSelected = selectableIds.length > 0 && selectableIds.every(id => selectedIds.includes(id));
@@ -178,8 +201,10 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({ showToast 
   };
 
   const handleSelectRow = (id: number) => {
+    if (!canReceive) return;
+
     const report = reports.find(r => r.id === id);
-    if (report && report.status === "RECEIVED") return;
+    if (!report || !isReportSelectable(report)) return;
 
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -236,9 +261,11 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({ showToast 
   };
 
   const handleBulkApproveClick = () => {
+    if (!canReceive) return;
+
     if (selectedIds.length === 0) return;
 
-    const hasAlreadyReceived = reports.some(r => selectedIds.includes(r.id) && r.status === "RECEIVED");
+    const hasAlreadyReceived = reports.some(r => selectedIds.includes(r.id) && !isReportSelectable(r));
     if (hasAlreadyReceived) {
       showToast("Một hoặc nhiều báo cáo đã được duyệt. Không thể duyệt lại!", "error");
       return;
@@ -249,7 +276,9 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({ showToast 
   };
 
   const handleConfirmApprove = async () => {
-    const hasAlreadyReceived = reports.some(r => selectedIds.includes(r.id) && r.status === "RECEIVED");
+    if (!canReceive) return;
+
+    const hasAlreadyReceived = reports.some(r => selectedIds.includes(r.id) && !isReportSelectable(r));
     if (hasAlreadyReceived) {
       showToast("Một hoặc nhiều báo cáo đã được duyệt. Không thể duyệt lại!", "error");
       setShowApproveModal(false);
@@ -275,9 +304,11 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({ showToast 
   };
 
   const handleBulkRejectClick = () => {
+    if (!canReceive) return;
+
     if (selectedIds.length === 0) return;
 
-    const hasAlreadyReceived = reports.some(r => selectedIds.includes(r.id) && r.status === "RECEIVED");
+    const hasAlreadyReceived = reports.some(r => selectedIds.includes(r.id) && !isReportSelectable(r));
     if (hasAlreadyReceived) {
       showToast("Một hoặc nhiều báo cáo đã được duyệt. Không thể từ chối!", "error");
       return;
@@ -290,6 +321,8 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({ showToast 
 
   const handleRejectReasonSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canReceive) return;
+
     if (!rejectReason.trim()) {
       showToast("Vui lòng nhập lý do từ chối", "error");
       return;
@@ -299,7 +332,9 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({ showToast 
   };
 
   const handleConfirmReject = async () => {
-    const hasAlreadyReceived = reports.some(r => selectedIds.includes(r.id) && r.status === "RECEIVED");
+    if (!canReceive) return;
+
+    const hasAlreadyReceived = reports.some(r => selectedIds.includes(r.id) && !isReportSelectable(r));
     if (hasAlreadyReceived) {
       showToast("Một hoặc nhiều báo cáo đã được duyệt. Không thể từ chối!", "error");
       setShowRejectConfirmModal(false);
@@ -340,6 +375,7 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({ showToast 
         year={year}
         onBack={() => setSelectedReport(null)}
         showToast={showToast}
+        canExport={canExport}
       />
     );
   }
@@ -352,7 +388,7 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({ showToast 
           Báo cáo định kỳ Tai nạn lao động
         </h2>
         <div className="flex items-center gap-3">
-          {selectedIds.length > 0 && (
+          {canReceive && selectedIds.length > 0 && (
             <div className="flex items-center gap-2 select-none animate-in fade-in slide-in-from-top-1.5 duration-200">
               <button
                 onClick={handleBulkApproveClick}
@@ -473,12 +509,13 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({ showToast 
                     type="checkbox"
                     checked={
                       (() => {
-                        const selectable = reports.filter(r => r.status !== "RECEIVED");
+                        const selectable = reports.filter(isReportSelectable);
                         return selectable.length > 0 && selectable.every(r => selectedIds.includes(r.id));
                       })()
                     }
                     onChange={handleSelectAll}
-                    className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    disabled={!canReceive || !reports.some(isReportSelectable)}
+                    className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
                   />
                 </th>
                 <th className="p-4 w-24 text-center">Thao tác</th>
@@ -565,15 +602,17 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({ showToast 
                     className="border-b border-zinc-100 dark:border-zinc-800/80 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 text-sm font-medium text-zinc-700 dark:text-zinc-300 transition-colors"
                   >
                     <td className="p-4 text-center">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(report.id)}
-                        onChange={() => handleSelectRow(report.id)}
-                        disabled={report.status === "RECEIVED"}
-                        className={`w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 ${
-                          report.status === "RECEIVED" ? "cursor-not-allowed opacity-50" : "cursor-pointer"
-                        }`}
-                      />
+                      {isReportSelectable(report) ? (
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(report.id)}
+                          onChange={() => handleSelectRow(report.id)}
+                          disabled={!canReceive}
+                          className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                        />
+                      ) : (
+                        <span className="inline-block w-4 h-4" />
+                      )}
                     </td>
                     <td className="p-4 text-center">
                       <div className="flex items-center justify-center">
@@ -659,7 +698,7 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({ showToast 
         </div>
       </div>
       {/* 1. Modal Xác nhận duyệt */}
-      {showApproveModal && (
+      {canReceive && showApproveModal && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowApproveModal(false)} />
           <div className="relative bg-white dark:bg-zinc-950 border border-zinc-200/80 shadow-2xl rounded-[20px] w-full max-w-[420px] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col dark:border-zinc-800">
@@ -695,7 +734,7 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({ showToast 
       )}
 
       {/* 2. Modal Lý do từ chối */}
-      {showRejectReasonModal && (
+      {canReceive && showRejectReasonModal && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowRejectReasonModal(false)} />
           <div className="relative bg-white dark:bg-zinc-950 border border-zinc-200/80 shadow-2xl rounded-[20px] w-full max-w-[480px] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col dark:border-zinc-800">
@@ -737,7 +776,7 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({ showToast 
       )}
 
       {/* 3. Modal Xác nhận từ chối */}
-      {showRejectConfirmModal && (
+      {canReceive && showRejectConfirmModal && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowRejectConfirmModal(false)} />
           <div className="relative bg-white dark:bg-zinc-950 border border-zinc-200/80 shadow-2xl rounded-[20px] w-full max-w-[420px] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col dark:border-zinc-800">
