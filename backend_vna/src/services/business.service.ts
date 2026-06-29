@@ -1264,7 +1264,7 @@ export class BusinessService {
         throw new BadRequestException('OTP đã vượt quá số lần thử');
       }
 
-      throw new BadRequestException('OTP không đúng');
+      throw new BadRequestException('Mã OTP không chính xác, vui lòng kiểm tra lại');
     }
 
     return emailOtp;

@@ -264,7 +264,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
   return (
     <div className="flex flex-col gap-6 h-full">
       {/* Top Banner Header */}
-      <div className="flex items-center justify-between border-t-4 border-emerald-600 bg-white dark:bg-zinc-950 rounded-2xl p-4 shadow-sm border border-zinc-200/60 dark:border-zinc-800/80">
+      <div className="flex items-center justify-between bg-white dark:bg-zinc-950 rounded-2xl p-4 shadow-sm border border-zinc-200 dark:border-zinc-800">
         <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 select-none">
           Danh sách người dùng
         </h2>
@@ -286,7 +286,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
       </div>
 
       {/* Main Table Container */}
-      <div className="relative flex-1 bg-white dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/80 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[300px]">
+      <div className="relative flex-1 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[300px]">
         {/* Loading Overlay */}
         {isLoading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-zinc-950/60 backdrop-blur-[1px] transition-all">
@@ -297,7 +297,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
           </div>
         )}
         <div className="flex-1 overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-full border-collapse text-left text-xs">
             <thead>
               {/* Row 1: Header Titles */}
               <tr className="border-b border-zinc-200 dark:border-zinc-800 text-left text-zinc-500 dark:text-zinc-400 text-xs font-bold select-none bg-zinc-50/50 dark:bg-zinc-900/10">
@@ -325,7 +325,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
                 <td className="p-2">
                   <input
                     type="text"
-                    className="w-full text-xs px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
+                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
                     placeholder="Tìm họ tên"
                     value={filters.fullName}
                     onChange={(e) => handleFilterChange("fullName", e.target.value)}
@@ -334,7 +334,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
                 <td className="p-2">
                   <input
                     type="text"
-                    className="w-full text-xs px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
+                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
                     placeholder="Tìm tài khoản"
                     value={filters.username}
                     onChange={(e) => handleFilterChange("username", e.target.value)}
@@ -343,7 +343,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
                 <td className="p-2">
                   <input
                     type="text"
-                    className="w-full text-xs px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
+                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
                     placeholder="Tìm email"
                     value={filters.email}
                     onChange={(e) => handleFilterChange("email", e.target.value)}
@@ -351,7 +351,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
                 </td>
                 <td className="p-2 relative min-w-[130px]">
                   <select
-                    className="w-full text-xs pl-3 pr-8 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
+                    className="w-full pl-3 pr-8 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
                     value={filters.role}
                     onChange={(e) => handleFilterChange("role", e.target.value)}
                   >
@@ -364,7 +364,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
                 <td className="p-2">
                   <input
                     type="text"
-                    className="w-full text-xs px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
+                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
                     placeholder="Tìm chức danh"
                     value={filters.position}
                     onChange={(e) => handleFilterChange("position", e.target.value)}
@@ -372,7 +372,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
                 </td>
                 <td className="p-2 relative min-w-[130px]">
                   <select
-                    className="w-full text-xs pl-3 pr-8 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
+                    className="w-full pl-3 pr-8 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
                     value={filters.isActive}
                     onChange={(e) => handleFilterChange("isActive", e.target.value)}
                   >
@@ -387,7 +387,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
             <tbody>
               {users.length === 0 && !isLoading ? (
                 <tr>
-                  <td colSpan={8} className="p-12 text-center text-zinc-400 dark:text-zinc-500 font-semibold select-none text-sm">
+                  <td colSpan={8} className="p-12 text-center text-zinc-400 dark:text-zinc-500 font-semibold select-none text-xs">
                     Không tìm thấy người dùng nào phù hợp.
                   </td>
                 </tr>
@@ -395,7 +395,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
                 users.map((user) => (
                   <tr
                     key={user.id}
-                    className="border-b border-zinc-100 dark:border-zinc-800/80 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 text-sm font-medium text-zinc-700 dark:text-zinc-300 transition-colors"
+                    className="border-b border-zinc-100 dark:border-zinc-800/80 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 text-xs font-medium text-zinc-700 dark:text-zinc-300 transition-colors"
                   >
                     <td className="p-4 text-center">
                       <input

@@ -129,17 +129,14 @@ export const PermissionManagement: React.FC<PermissionManagementProps> = ({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-6 p-6 md:p-8">
-      <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white px-5 py-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="flex h-full min-h-0 flex-col gap-6">
+      <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         <h2 className="text-lg font-bold text-zinc-900 dark:text-white">
           Danh sách quyền
         </h2>
-        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-600">
-          Quyền hệ thống
-        </span>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         <div className="overflow-auto">
           <table className="w-full min-w-[860px] border-collapse text-left text-xs">
             <thead className="sticky top-0 z-10 bg-zinc-50 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">

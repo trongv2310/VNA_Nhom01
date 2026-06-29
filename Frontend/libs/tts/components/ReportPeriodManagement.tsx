@@ -606,8 +606,8 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
   return (
     <div className="flex flex-col gap-6 h-full text-zinc-700 dark:text-zinc-350 relative select-none">
       {/* Top Card Panel - Clean white border, no blue header accent */}
-      <div className="flex items-center justify-between bg-white dark:bg-zinc-950 rounded-2xl p-4.5 shadow-sm border border-zinc-200/60 dark:border-zinc-800/80">
-        <h2 className="text-md font-bold text-zinc-800 dark:text-zinc-100">
+      <div className="flex items-center justify-between bg-white dark:bg-zinc-950 rounded-2xl p-4 shadow-sm border border-zinc-200 dark:border-zinc-800">
+        <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100">
           Danh sách cấu hình báo cáo
         </h2>
         {canCreate && (
@@ -622,7 +622,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
       </div>
 
       {/* Main Table Card */}
-      <div className="relative flex-1 bg-white dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/80 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[400px]">
+      <div className="relative flex-1 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[400px]">
         {/* Table Spinner */}
         {isLoading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-zinc-950/60 backdrop-blur-[1px]">
@@ -631,7 +631,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
         )}
 
         <div className="flex-1 overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-full border-collapse text-left text-xs">
             <thead>
               {/* Columns Header */}
               <tr className="border-b border-zinc-200 dark:border-zinc-800 text-left text-zinc-500 dark:text-zinc-400 text-xs font-bold bg-[#f8fafc] dark:bg-zinc-900/10 select-none">
@@ -657,7 +657,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                       setFilterYear(e.target.value.replace(/\D/g, ""));
                       setPage(1);
                     }}
-                    className="w-full text-xs px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors font-semibold"
+                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
                   />
                 </td>
                 {/* Filter Report Name */}
@@ -668,7 +668,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                       setFilterReportName(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full text-xs pl-3 pr-8 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors font-semibold"
+                    className="w-full pl-3 pr-8 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
                   >
                     <option value=""></option>
                     <option value="Báo cáo TNLĐ">Báo cáo tai nạn lao động</option>
@@ -683,7 +683,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                       setFilterPeriodType(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full text-xs pl-3 pr-8 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors font-semibold"
+                    className="w-full pl-3 pr-8 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
                   >
                     <option value=""></option>
                     <option value="SIX_MONTHS">6 tháng</option>
@@ -703,7 +703,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                       setPage(1);
                     }}
                     placeholder="dd/mm/yyyy"
-                    className="w-full text-xs px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-400 dark:text-zinc-555 focus:border-blue-500 transition-colors font-semibold"
+                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-400 dark:text-zinc-555 focus:border-blue-500 transition-colors"
                   />
                 </td>
                 {/* Filter End Date */}
@@ -718,7 +718,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                       setPage(1);
                     }}
                     placeholder="dd/mm/yyyy"
-                    className="w-full text-xs px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-400 dark:text-zinc-555 focus:border-blue-500 transition-colors font-semibold"
+                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-400 dark:text-zinc-555 focus:border-blue-500 transition-colors"
                   />
                 </td>
                 {/* Filter Active Status */}
@@ -729,7 +729,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                       setFilterIsActive(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full text-xs pl-3 pr-8 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors font-semibold"
+                    className="w-full pl-3 pr-8 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
                   >
                     <option value=""></option>
                     <option value="true">Hoạt động</option>
@@ -743,7 +743,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
             <tbody>
               {periods.length === 0 && !isLoading ? (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-zinc-400 dark:text-zinc-555 font-semibold text-sm">
+                  <td colSpan={7} className="p-12 text-center text-zinc-400 dark:text-zinc-555 font-semibold text-xs">
                     Không tìm thấy cấu hình kỳ báo cáo nào.
                   </td>
                 </tr>
@@ -751,7 +751,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                 periods.map((item) => (
                   <tr
                     key={item.id}
-                    className="border-b border-zinc-100 dark:border-zinc-850 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 text-sm font-medium text-zinc-700 dark:text-zinc-300 transition-colors"
+                    className="border-b border-zinc-100 dark:border-zinc-850 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 text-xs font-medium text-zinc-700 dark:text-zinc-300 transition-colors"
                   >
                     {/* Actions */}
                     <td className="p-4 text-center">

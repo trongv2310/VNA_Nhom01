@@ -473,7 +473,7 @@ export const RoleManagement: React.FC<RoleManagementProps> = ({
 
   return (
     <div className="flex h-full flex-col gap-6">
-      <div className="flex items-center justify-between rounded-2xl border border-zinc-200/60 border-t-4 border-t-emerald-600 bg-white p-4 shadow-sm dark:border-zinc-800/80 dark:bg-zinc-950">
+      <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         <h2 className="select-none text-lg font-bold text-zinc-800 dark:text-zinc-100">
           Danh sách vai trò
         </h2>
@@ -489,7 +489,7 @@ export const RoleManagement: React.FC<RoleManagementProps> = ({
         )}
       </div>
 
-      <div className="relative flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200/60 bg-white shadow-sm dark:border-zinc-800/80 dark:bg-zinc-950">
+      <div className="relative flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         {isLoading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 backdrop-blur-[1px] transition-all dark:bg-zinc-950/60">
             <div className="flex animate-in flex-col items-center gap-2.5 fade-in zoom-in-95 duration-150">
@@ -502,7 +502,7 @@ export const RoleManagement: React.FC<RoleManagementProps> = ({
         )}
 
         <div className="flex-1 overflow-x-auto">
-          <table className="w-full min-w-[860px] border-collapse">
+          <table className="w-full min-w-[860px] border-collapse text-left text-xs">
             <thead>
               <tr className="select-none border-b border-zinc-200 bg-zinc-50/50 text-left text-xs font-bold text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/10 dark:text-zinc-400">
                 <th className="w-12 p-4 text-center">
@@ -533,7 +533,7 @@ export const RoleManagement: React.FC<RoleManagementProps> = ({
                       updateFilter("code", event.target.value)
                     }
                     placeholder="Tìm mã vai trò"
-                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-700 outline-none transition-colors focus:border-blue-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 outline-none transition-colors focus:border-blue-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
                   />
                 </td>
                 <td className="p-2">
@@ -544,7 +544,7 @@ export const RoleManagement: React.FC<RoleManagementProps> = ({
                       updateFilter("name", event.target.value)
                     }
                     placeholder="Tìm tên vai trò"
-                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-700 outline-none transition-colors focus:border-blue-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 outline-none transition-colors focus:border-blue-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
                   />
                 </td>
                 <td className="p-2" />
@@ -558,7 +558,7 @@ export const RoleManagement: React.FC<RoleManagementProps> = ({
                 <tr>
                   <td
                     colSpan={8}
-                    className="p-12 text-center text-sm font-semibold text-zinc-400 dark:text-zinc-500"
+                    className="p-12 text-center text-xs font-semibold text-zinc-400 dark:text-zinc-500"
                   >
                     Không tìm thấy vai trò nào phù hợp.
                   </td>
@@ -567,7 +567,7 @@ export const RoleManagement: React.FC<RoleManagementProps> = ({
                 roles.map((role) => (
                   <tr
                     key={role.id}
-                    className="border-b border-zinc-100 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50/50 dark:border-zinc-800/80 dark:text-zinc-300 dark:hover:bg-zinc-900/30"
+                    className="border-b border-zinc-100 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50/50 dark:border-zinc-800/80 dark:text-zinc-300 dark:hover:bg-zinc-900/30"
                   >
                     <td className="p-4 text-center">
                       <input
