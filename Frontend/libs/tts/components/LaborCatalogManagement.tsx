@@ -46,6 +46,46 @@ const MAX_LEVEL_BY_TYPE: Record<LaborCatalogType, number> = {
   OCCUPATION: 4,
 };
 
+const MODAL_COPY_BY_TYPE: Record<
+  LaborCatalogType,
+  {
+    titleName: string;
+    codeLabel: string;
+    nameLabel: string;
+    parentLabel: string;
+    noParentLabel: string;
+  }
+> = {
+  ACCIDENT_CAUSE: {
+    titleName: "nguyên nhân TNLĐ",
+    codeLabel: "Mã nguyên nhân",
+    nameLabel: "Tên nguyên nhân",
+    parentLabel: "Nhóm nguyên nhân cha",
+    noParentLabel: "Không có - nguyên nhân cấp 1",
+  },
+  INJURY_FACTOR: {
+    titleName: "yếu tố chấn thương",
+    codeLabel: "Mã yếu tố chấn thương",
+    nameLabel: "Tên yếu tố chấn thương",
+    parentLabel: "",
+    noParentLabel: "",
+  },
+  INJURY_TYPE: {
+    titleName: "loại chấn thương",
+    codeLabel: "Mã loại chấn thương",
+    nameLabel: "Tên loại chấn thương",
+    parentLabel: "Tên loại chấn thương cha",
+    noParentLabel: "Không có - loại chấn thương cấp 1",
+  },
+  OCCUPATION: {
+    titleName: "nghề nghiệp",
+    codeLabel: "Mã ngành",
+    nameLabel: "Tên ngành",
+    parentLabel: "Nhóm ngành cha",
+    noParentLabel: "Không có - ngành cấp 1",
+  },
+};
+
 export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
   showToast,
   permissions = [],
@@ -211,8 +251,7 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingItem?.id, isModalOpen, selectedType]);
 
-  const currentTypeLabel =
-    types.find((item) => item.value === selectedType)?.label ?? "Danh mục";
+  const modalCopy = MODAL_COPY_BY_TYPE[selectedType];
   const sortedParents = useMemo(
     () =>
       [...parentOptions].sort(
@@ -244,8 +283,10 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
 
   const save = async () => {
     const nextErrors: Record<string, string> = {};
-    if (!form.code.trim()) nextErrors.code = "Mã danh mục không được để trống";
-    if (!form.name.trim()) nextErrors.name = "Tên danh mục không được để trống";
+    if (!form.code.trim())
+      nextErrors.code = `${modalCopy.codeLabel} không được để trống`;
+    if (!form.name.trim())
+      nextErrors.name = `${modalCopy.nameLabel} không được để trống`;
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
@@ -258,6 +299,9 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
           name: form.name.trim(),
           parentId: form.parentId ? Number(form.parentId) : null,
         });
+        if (editingItem.isActive !== form.isActive) {
+          await updateLaborCatalogStatus(editingItem.id, form.isActive);
+        }
       } else {
         await createLaborCatalog({
           type: selectedType,
@@ -380,7 +424,9 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
                 <th className="w-12 p-4 text-center select-none">
                   <input
                     type="checkbox"
-                    checked={items.length > 0 && selectedIds.length === items.length}
+                    checked={
+                      items.length > 0 && selectedIds.length === items.length
+                    }
                     onChange={handleToggleSelectAll}
                     className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                   />
@@ -572,8 +618,7 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
           <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between bg-blue-600 px-6 py-5 text-white">
               <h3 className="text-xl font-bold">
-                {editingItem ? "Cập nhật" : "Thêm mới"}{" "}
-                {currentTypeLabel.toLowerCase()}
+                {editingItem ? "Cập nhật" : "Thêm mới"} {modalCopy.titleName}
               </h3>
               <button type="button" onClick={() => setIsModalOpen(false)}>
                 <X className="h-5 w-5" />
@@ -581,7 +626,7 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
             </div>
             <div className="space-y-5 p-6">
               <label className="block text-sm font-semibold text-zinc-700">
-                Mã số <span className="text-red-500">*</span>
+                {modalCopy.codeLabel} <span className="text-red-500">*</span>
                 <input
                   value={form.code}
                   onChange={(event) =>
@@ -600,7 +645,7 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
                 )}
               </label>
               <label className="block text-sm font-semibold text-zinc-700">
-                Tên danh mục <span className="text-red-500">*</span>
+                {modalCopy.nameLabel} <span className="text-red-500">*</span>
                 <input
                   value={form.name}
                   onChange={(event) =>
@@ -620,7 +665,7 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
               </label>
               {selectedType !== "INJURY_FACTOR" && (
                 <label className="block text-sm font-semibold text-zinc-700">
-                  Danh mục cha
+                  {modalCopy.parentLabel}
                   <select
                     value={form.parentId}
                     onChange={(event) =>
@@ -631,7 +676,7 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
                     }
                     className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 outline-none focus:border-blue-500"
                   >
-                    <option value="">Không có</option>
+                    <option value="">{modalCopy.noParentLabel}</option>
                     {sortedParents.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.code} - {item.name} (Cấp {item.level})
@@ -640,6 +685,22 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
                   </select>
                 </label>
               )}
+              <label className="block text-sm font-semibold text-zinc-700">
+                Trạng thái <span className="text-red-500">*</span>
+                <select
+                  value={form.isActive ? "true" : "false"}
+                  onChange={(event) =>
+                    setForm((value) => ({
+                      ...value,
+                      isActive: event.target.value === "true",
+                    }))
+                  }
+                  className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 outline-none focus:border-blue-500"
+                >
+                  <option value="true">Sử dụng</option>
+                  <option value="false">Không sử dụng</option>
+                </select>
+              </label>
             </div>
             <div className="flex justify-end gap-3 px-6 pb-6">
               <button
@@ -713,8 +774,8 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
         title="Xác nhận xóa danh mục"
         description={
           <p className="text-sm font-semibold select-none leading-relaxed text-zinc-700 dark:text-zinc-300">
-            Bạn có chắc chắn muốn xóa {selectedIds.length} danh mục đã chọn không?
-            Hành động này không thể hoàn tác.
+            Bạn có chắc chắn muốn xóa {selectedIds.length} danh mục đã chọn
+            không? Hành động này không thể hoàn tác.
           </p>
         }
       />
