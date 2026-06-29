@@ -148,7 +148,10 @@ export const UserProfile: React.FC<UserProfileProps> = ({
     const newErrors: Record<string, string> = {};
 
     if (!formData.fullName.trim()) {
-      newErrors.fullName = "Họ và tên không được để trống.";
+      newErrors.fullName =
+        formData.accountType === "BUSINESS"
+          ? "Tên công ty không được để trống."
+          : "Họ và tên không được để trống.";
     }
 
     if (formData.dob) {
@@ -322,7 +325,9 @@ export const UserProfile: React.FC<UserProfileProps> = ({
           {/* Card: Personal Details */}
           <div className="bg-white dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/80 rounded-2xl p-6 shadow-sm flex flex-col gap-5">
             <h3 className="text-sm font-bold text-[#1e3a8a] dark:text-[#93c5fd] uppercase tracking-wider select-none border-b border-zinc-50 dark:border-zinc-900 pb-2">
-              Thông tin cá nhân
+              {formData.accountType === "BUSINESS"
+                ? "Thông tin doanh nghiệp"
+                : "Thông tin cá nhân"}
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -347,7 +352,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                 <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold transition-colors
                   ${errors.fullName ? "text-red-500" : "text-zinc-400 dark:text-zinc-500 focus-within:text-blue-500"}
                 `}>
-                  Họ và tên <span className="text-red-500">*</span>
+                  {formData.accountType === "BUSINESS" ? "Tên công ty" : "Họ và tên"} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -355,7 +360,11 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                   value={formData.fullName}
                   onChange={handleInputChange}
                   className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-bold pt-2 pb-0.5"
-                  placeholder="Nhập họ và tên"
+                  placeholder={
+                    formData.accountType === "BUSINESS"
+                      ? "Nhập tên công ty"
+                      : "Nhập họ và tên"
+                  }
                 />
               </div>
 

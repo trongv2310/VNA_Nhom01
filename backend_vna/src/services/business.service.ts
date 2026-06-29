@@ -111,6 +111,9 @@ export class BusinessService {
     const queryBuilder = this.businessRepository
       .createQueryBuilder('business')
       .leftJoinAndSelect('business.attachments', 'attachment')
+      .leftJoinAndSelect('business.accountUser', 'accountUser')
+      .leftJoinAndSelect('business.businessTypeCatalog', 'businessTypeCatalog')
+      .leftJoinAndSelect('business.industryCatalog', 'industryCatalog')
       .distinct(true);
 
     if (query.keyword?.trim()) {
@@ -880,7 +883,16 @@ export class BusinessService {
             accountUser.username = nextTaxCode;
           }
 
-          await tem.save(User, accountUser);
+          await tem.update(User, accountUser.id, {
+            fullName: accountUser.fullName,
+            email: accountUser.email,
+            provinceCity: accountUser.provinceCity,
+            wardCommune: accountUser.wardCommune,
+            address: accountUser.address,
+            isActive: accountUser.isActive,
+            username: accountUser.username,
+            updatedAt: new Date(),
+          });
         }
 
         const saved = await tem.save(Business, business);
@@ -912,7 +924,10 @@ export class BusinessService {
 
       if (business.accountUser) {
         business.accountUser.isActive = business.isActive;
-        await tem.save(User, business.accountUser);
+        await tem.update(User, business.accountUser.id, {
+          isActive: business.accountUser.isActive,
+          updatedAt: new Date(),
+        });
       }
     });
 

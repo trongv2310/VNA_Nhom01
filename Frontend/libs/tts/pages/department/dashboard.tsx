@@ -28,6 +28,7 @@ import {
   getProfile,
   getStoredBackendUser,
   getStoredUserData,
+  setStoredBackendUser,
   mapBackendUserToUserData,
   updateMe,
 } from "../../services/api";
@@ -330,9 +331,12 @@ export const DepartmentDashboardScreen: React.FC = () => {
 
   const handleSaveBusinessProfile = async () => {
     const response = await getProfile();
-    const nextUserData = mapBackendUserToUserData(response.data);
-    setUserData(nextUserData);
-    setInitialUserData(nextUserData);
+    if (response.success && response.data) {
+      setStoredBackendUser(response.data);
+      const nextUserData = mapBackendUserToUserData(response.data);
+      setUserData(nextUserData);
+      setInitialUserData(nextUserData);
+    }
     setProfileResetKey((current) => current + 1);
   };
 
