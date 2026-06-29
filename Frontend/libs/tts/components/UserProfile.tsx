@@ -418,13 +418,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
                 options={[
                   {
                     value: formData.role,
-                    label: formData.role === "ADMIN" || formData.role === "Quản trị viên"
-                      ? "Quản trị viên"
-                      : formData.role === "MANAGER" || formData.role === "Quản lý"
-                      ? "Quản lý"
-                      : formData.role === "USER" || formData.role === "Nhân viên" || formData.role === "Người dùng"
-                      ? "Người dùng"
-                      : formData.role || "Chọn vai trò"
+                    label: formData.role || "Chọn vai trò"
                   }
                 ]}
                 placeholder="Chọn vai trò"

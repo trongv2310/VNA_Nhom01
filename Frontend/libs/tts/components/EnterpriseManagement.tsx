@@ -158,7 +158,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
   const canUpdate = hasPermission("SYSTEM_C_BUSINESS_UPDATE");
   const canDelete = hasPermission("SYSTEM_C_BUSINESS_DELETE");
   const canChangeStatus = hasPermission("SYSTEM_C_BUSINESS_STATUS");
-  const canResetPassword = isAdmin;
+  const canResetPassword = isAdmin || hasPermission("SYSTEM_C_BUSINESS_UPDATE") || hasPermission("SYSTEM_C_USER_UPDATE");
 
   // Lists & Options state
   const [businesses, setBusinesses] = useState<BusinessListItem[]>([]);
@@ -1112,7 +1112,7 @@ const EditEnterpriseModal: React.FC<EditEnterpriseModalProps> = ({
             </label>
             <input
               type="text"
-              maxLength={15}
+              maxLength={14}
               className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-semibold pt-2 pb-0.5 font-mono"
               value={taxCode}
               onChange={(e) => setTaxCode(e.target.value.replace(/[^0-9-]/g, ""))}

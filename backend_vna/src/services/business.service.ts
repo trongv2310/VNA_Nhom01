@@ -1766,8 +1766,8 @@ export class BusinessService {
       businessLocation: business.businessLocation,
       representativeName: business.representativeName,
       representativePhone: business.representativePhone,
-      isActive: business.isActive,
-      statusLabel: business.isActive ? 'Đang hoạt động' : 'Ngừng hoạt động',
+      isActive: business.accountUser ? Boolean(business.accountUser.isActive) : Boolean(business.isActive),
+      statusLabel: (business.accountUser ? Boolean(business.accountUser.isActive) : Boolean(business.isActive)) ? 'Đang hoạt động' : 'Đã khóa',
       attachments:
         business.attachments?.map((attachment) => ({
           id: attachment.id,

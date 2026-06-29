@@ -287,6 +287,19 @@ export const DepartmentDashboardScreen: React.FC = () => {
       }
       const response = await updateMe(updatedData);
       const nextUserData = mapBackendUserToUserData(response.data);
+
+      if (nextUserData.isActive === false) {
+        showToastMsg(
+          "Tài khoản của bạn đã bị hủy kích hoạt. Vui lòng đăng nhập lại.",
+          "error",
+        );
+        setTimeout(() => {
+          clearAuthTokens();
+          router.push("/department/login");
+        }, 1000);
+        return;
+      }
+
       setUserData(nextUserData);
       setInitialUserData(nextUserData);
       setProfileResetKey((current) => current + 1);

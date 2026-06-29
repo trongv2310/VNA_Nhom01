@@ -79,14 +79,19 @@ export class AuthService {
       throw new UnauthorizedException('Tên đăng nhập hoặc mật khẩu không đúng');
     }
 
-    const roles = user.userRoles.map((userRole) => userRole.role.code);
+    const roleCodes = user.userRoles.map((userRole) => userRole.role.code);
+    const roleObjects = user.userRoles.map((userRole) => ({
+      id: userRole.role.id,
+      code: userRole.role.code,
+      name: userRole.role.name,
+    }));
     const permissions =
       await this.permissionAccessService.getPermissionCodesForUser(user.id);
 
     const payload = {
       sub: user.id,
       username: user.username,
-      roles,
+      roles: roleCodes,
       permissions,
       accountType: user.accountType,
     };
@@ -153,7 +158,8 @@ export class AuthService {
           fullName: user.fullName,
           email: user.email,
           avatar: user.avatar,
-          roles,
+          roles: roleObjects,
+          roleDisplay: roleObjects.map((r) => r.name).join(', '),
           permissions,
           accountType: user.accountType,
         },

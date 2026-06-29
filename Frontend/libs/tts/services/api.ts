@@ -161,12 +161,16 @@ export function clearAuthTokens() {
 }
 
 export function mapBackendUserToUserData(user: BackendUser): UserData {
-  const roleCodes = (user.roles || [])
-    .map((item) =>
-      typeof item === "string" ? item : item.code || item.name || "",
-    )
-    .filter(Boolean);
-  const role = roleCodes.join(", ");
+  const roleObjects = (user.roles || []).map((item) =>
+    typeof item === "string"
+      ? { code: item, name: item === "ADMIN" ? "Quản trị viên" : item === "USER" ? "Người dùng" : item === "MANAGER" ? "Quản lý" : item }
+      : { code: item.code || "", name: item.name || item.code || "" }
+  );
+
+  const roleCodes = roleObjects.map((r) => r.code).filter(Boolean);
+  const roleNames = roleObjects.map((r) => r.name || r.code).filter(Boolean);
+  const roleDisplay = (user as any).roleDisplay || roleNames.join(", ") || (user as any).roleName || roleNames.join(", ");
+
   const normalizedPosition = user.position?.trim().toLowerCase();
   const accountType =
     user.accountType === "BUSINESS" || user.accountType === "DEPARTMENT"
@@ -186,7 +190,7 @@ export function mapBackendUserToUserData(user: BackendUser): UserData {
     dob: user.dateOfBirth || "",
     gender: user.gender || "",
     title: user.position || "",
-    role: role || "USER",
+    role: roleDisplay || "Người dùng",
     email: user.email || "",
     province: user.provinceCity || "",
     ward: user.wardCommune || "",
