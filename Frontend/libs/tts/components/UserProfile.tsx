@@ -530,9 +530,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
           currentEmail={formData.email}
           initialExpiresInSeconds={changeEmailExpiresInSeconds}
           onSave={(newEmail) => {
-            const updatedData = { ...formData, email: newEmail };
-            setFormData(updatedData);
-            onSave(updatedData, "Thay đổi email thành công");
+            setFormData((prev) => ({ ...prev, email: newEmail }));
             setIsChangeEmailOpen(false);
           }}
           onCancel={() => setIsChangeEmailOpen(false)}

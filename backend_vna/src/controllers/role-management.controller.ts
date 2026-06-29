@@ -69,7 +69,11 @@ export class RoleManagementController {
   }
 
   @Get('assignable')
-  @Permissions('SYSTEM_C_USER_CREATE', 'SYSTEM_C_USER_UPDATE')
+  @Permissions(
+    'SYSTEM_C_USER_CREATE',
+    'SYSTEM_C_USER_UPDATE',
+    'SYSTEM_C_USER_VIEW',
+  )
   @ApiOperation({ summary: 'Danh sách vai trò có thể gán cho người dùng sở' })
   getAssignableRoles() {
     return this.roleManagementService.getAssignableRoles();

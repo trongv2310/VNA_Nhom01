@@ -31,6 +31,7 @@ import {
   setStoredBackendUser,
   mapBackendUserToUserData,
   updateMe,
+  updateChangeGmail,
 } from "../../services/api";
 
 const EMPTY_USER_DATA: UserData = {
@@ -280,6 +281,10 @@ export const DepartmentDashboardScreen: React.FC = () => {
   ) => {
     isSelfUpdatingRef.current = true;
     try {
+      const emailChanged = updatedData.email.trim().toLowerCase() !== initialUserData.email.trim().toLowerCase();
+      if (emailChanged) {
+        await updateChangeGmail(updatedData.email.trim());
+      }
       const response = await updateMe(updatedData);
       const nextUserData = mapBackendUserToUserData(response.data);
       setUserData(nextUserData);

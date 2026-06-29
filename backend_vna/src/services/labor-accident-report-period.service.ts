@@ -130,8 +130,16 @@ export class LaborAccidentReportPeriodService {
     return {
       message: 'Lấy danh sách cấu hình kỳ báo cáo thành công',
       data: {
-        items: reportPeriods.map((reportPeriod) =>
-          this.mapReportPeriod(reportPeriod),
+        items: await Promise.all(
+          reportPeriods.map(async (reportPeriod) => {
+            const hasSubmissions = await this.reportRepository.count({
+              where: { reportPeriod: { id: reportPeriod.id } },
+            }) > 0;
+            return {
+              ...this.mapReportPeriod(reportPeriod),
+              hasSubmissions,
+            };
+          }),
         ),
         meta: {
           page,
@@ -147,10 +155,16 @@ export class LaborAccidentReportPeriodService {
 
   async getReportPeriodDetail(id: number) {
     const reportPeriod = await this.findReportPeriod(id);
+    const hasSubmissions = await this.reportRepository.count({
+      where: { reportPeriod: { id } },
+    }) > 0;
 
     return {
       message: 'Lấy chi tiết cấu hình kỳ báo cáo thành công',
-      data: this.mapReportPeriod(reportPeriod),
+      data: {
+        ...this.mapReportPeriod(reportPeriod),
+        hasSubmissions,
+      },
     };
   }
 
@@ -175,6 +189,60 @@ export class LaborAccidentReportPeriodService {
     updateReportPeriodDto: UpdateLaborAccidentReportPeriodDto,
   ) {
     const reportPeriod = await this.findReportPeriod(id);
+    const todayStr = this.getVietnamTodayString();
+    const currentStartDateStr = this.formatDateInput(reportPeriod.startDate) || '';
+
+    const hasSubmissions = await this.reportRepository.count({
+      where: { reportPeriod: { id } },
+    }) > 0;
+
+    const isSystemRunning = todayStr >= currentStartDateStr || hasSubmissions;
+
+    if (isSystemRunning) {
+      if (updateReportPeriodDto.startDate !== undefined) {
+        const nextStartDateStr = this.formatDateInput(
+          this.parseDate(updateReportPeriodDto.startDate),
+        ) || '';
+        if (nextStartDateStr !== currentStartDateStr) {
+          throw new BadRequestException(
+            'Kỳ báo cáo đang diễn ra hoặc đã có doanh nghiệp nộp bài, không thể thay đổi ngày bắt đầu',
+          );
+        }
+      }
+    }
+
+    if (updateReportPeriodDto.endDate !== undefined) {
+      const nextEndDate = this.parseDate(updateReportPeriodDto.endDate);
+      const nextEndDateStr = this.formatDateInput(nextEndDate) || '';
+
+      if (nextEndDateStr < todayStr) {
+        throw new BadRequestException(
+          'Ngày kết thúc mới không được nhỏ hơn ngày hiện tại',
+        );
+      }
+
+      const latestReport = await this.reportRepository
+        .createQueryBuilder('report')
+        .where('report.report_period_id = :id', { id })
+        .andWhere('report.submitted_at IS NOT NULL')
+        .orderBy('report.submitted_at', 'DESC')
+        .getOne();
+
+      if (latestReport && latestReport.submittedAt) {
+        const latestSubDateStr = new Date(
+          latestReport.submittedAt.getTime() + 7 * 60 * 60 * 1000,
+        )
+          .toISOString()
+          .slice(0, 10);
+
+        if (nextEndDateStr < latestSubDateStr) {
+          throw new BadRequestException(
+            `Ngày kết thúc không được nhỏ hơn ngày nộp bài muộn nhất trong kỳ (${latestSubDateStr})`,
+          );
+        }
+      }
+    }
+
     const normalizedPayload = this.normalizePayload(
       updateReportPeriodDto,
       reportPeriod,
@@ -192,7 +260,10 @@ export class LaborAccidentReportPeriodService {
 
     return {
       message: 'Cập nhật cấu hình kỳ báo cáo thành công',
-      data: this.mapReportPeriod(savedReportPeriod),
+      data: {
+        ...this.mapReportPeriod(savedReportPeriod),
+        hasSubmissions,
+      },
     };
   }
 
@@ -469,6 +540,12 @@ export class LaborAccidentReportPeriodService {
     }
 
     return value.toISOString().slice(0, 10);
+  }
+
+  private getVietnamTodayString() {
+    const date = new Date();
+    const vnDate = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+    return vnDate.toISOString().slice(0, 10);
   }
 
   private mapReportPeriod(reportPeriod: LaborAccidentReportPeriod) {

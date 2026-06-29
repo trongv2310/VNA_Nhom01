@@ -385,8 +385,21 @@ export const DepartmentForgotPasswordScreen: React.FC = () => {
                       type="text"
                       value={email}
                       onChange={(e) => {
-                        setEmail(e.target.value);
-                        if (emailError) setEmailError("");
+                        const val = e.target.value;
+                        setEmail(val);
+                        if (!val.trim()) {
+                          setEmailError("");
+                        } else if (!val.includes("@")) {
+                          if (/\s/.test(val)) {
+                            setEmailError("Tên đăng nhập không được chứa khoảng trắng.");
+                          } else if (!/^[a-zA-Z0-9._-]+$/.test(val)) {
+                            setEmailError("Tên đăng nhập không được chứa dấu tiếng Việt hoặc ký tự đặc biệt.");
+                          } else {
+                            setEmailError("");
+                          }
+                        } else {
+                          setEmailError("");
+                        }
                       }}
                       className="w-full px-3.5 py-3 text-base text-zinc-900 bg-transparent outline-none font-medium"
                       placeholder="Nhập tên đăng nhập hoặc email"

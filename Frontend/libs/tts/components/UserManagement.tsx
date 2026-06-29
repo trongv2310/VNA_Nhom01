@@ -13,7 +13,16 @@ import {
   Save,
   Trash2,
 } from "lucide-react";
-import { getUsers, updateUserAdmin, createUser, deleteUser, type UserListItem, type UserListMeta } from "../services/api";
+import {
+  getUsers,
+  updateUserAdmin,
+  createUser,
+  deleteUser,
+  getAssignableRoles,
+  type UserListItem,
+  type UserListMeta,
+  type AssignableRole,
+} from "../services/api";
 import { CreateUser } from "./CreateUser";
 import { EditUser } from "./EditUser";
 import { ResetPasswordModal } from "./ResetPasswordModal";
@@ -69,6 +78,30 @@ export const UserManagement: React.FC<UserManagementProps> = ({
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+
+  // Dynamic role options for filter
+  const [roleOptions, setRoleOptions] = useState<AssignableRole[]>([
+    { id: 1, code: "ADMIN", name: "Quản trị viên", isSystem: true, scope: "DEPARTMENT" },
+    { id: 2, code: "USER", name: "Người dùng", isSystem: true, scope: "DEPARTMENT" },
+  ]);
+
+  useEffect(() => {
+    let active = true;
+    const loadRoles = async () => {
+      try {
+        const response = await getAssignableRoles();
+        if (active && response.success && response.data) {
+          setRoleOptions(response.data.items);
+        }
+      } catch (error) {
+        console.error("Failed to load assignable roles", error);
+      }
+    };
+    loadRoles();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Load user data on filter/pagination changes
   useEffect(() => {
@@ -159,7 +192,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
 
   const handleSaveEdit = () => {
     setEditingUser(null);
-    setPage(1); // Refresh list
+    setRefreshTrigger((prev) => prev + 1);
   };
 
   const handleSavePasswordReset = () => {
@@ -356,8 +389,11 @@ export const UserManagement: React.FC<UserManagementProps> = ({
                     onChange={(e) => handleFilterChange("role", e.target.value)}
                   >
                     <option value="">Tất cả</option>
-                    <option value="ADMIN">Quản trị viên</option>
-                    <option value="USER">Người dùng</option>
+                    {roleOptions.map((role) => (
+                      <option key={role.code} value={role.code}>
+                        {role.name}
+                      </option>
+                    ))}
                   </select>
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
                 </td>

@@ -549,29 +549,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
       return;
     }
     setNewEmailError("");
-    setIsSavingNewEmail(true);
-    onProfileSavingChange?.(true);
-    try {
-      const fd = new FormData();
-      fd.append("email", email);
-      const res = await updateMyBusinessProfile(fd);
-      if (res.success && res.data) {
-        showToast("Thay đổi email thành công", "success");
-        setFormData((prev) => ({ ...prev, email: res.data.email || email }));
-        setShowNewEmailModal(false);
-        setNewEmailValue("");
-        await onSave();
-      } else {
-        throw new Error(res.message || "Thay đổi email thất bại");
-      }
-    } catch (err) {
-      setNewEmailError(
-        err instanceof Error ? err.message : "Thay đổi email thất bại",
-      );
-    } finally {
-      setIsSavingNewEmail(false);
-      onProfileSavingChange?.(false);
-    }
+    setFormData((prev) => ({ ...prev, email }));
+    setShowNewEmailModal(false);
+    setNewEmailValue("");
+    showToast("Thay đổi email tạm thời. Vui lòng hoàn tất chỉnh sửa và ấn Xác nhận chỉnh sửa ở bước 2 để lưu thay đổi.", "success");
   };
 
   // Verify the current email before allowing a new email to be entered

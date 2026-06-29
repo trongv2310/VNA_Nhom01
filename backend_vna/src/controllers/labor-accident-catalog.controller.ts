@@ -199,4 +199,17 @@ export class LaborAccidentCatalogController {
   ) {
     return this.catalogService.updateCatalogStatus(id, body);
   }
+
+  @Post('delete-bulk')
+  @Permissions('LABOR_C_CATALOG_MANAGE')
+  @ApiOperation({
+    summary: 'Xóa nhiều danh mục tai nạn lao động',
+  })
+  @ApiOkResponse({
+    description: 'Kết quả xóa nhiều danh mục',
+    type: ApiSuccessResponseDto,
+  })
+  deleteCatalogsBulk(@Body() body: { ids: number[] }) {
+    return this.catalogService.deleteCatalogsBulk(body.ids);
+  }
 }

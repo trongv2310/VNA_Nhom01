@@ -1486,3 +1486,11 @@ export async function updateReportPeriodStatus(
     body: JSON.stringify({ isActive }),
   });
 }
+
+export async function deleteLaborCatalogsBulk(ids: number[]) {
+  return request<any>("/labor-accident-catalogs/delete-bulk", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ ids }),
+  });
+}
