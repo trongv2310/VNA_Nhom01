@@ -312,6 +312,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           fullName={fullName}
           avatarUrl={avatarUrl}
           role={role}
+          accountType={accountType}
           onSelectView={onSelectView}
           onLogout={onLogout}
         />

@@ -354,20 +354,21 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
 
     // Realtime validation for specific fields
     if (name === "taxCode") {
-      const val = value.replace(/\s/g, "");
-      if (!val) {
+      const cleanVal = value.replace(/[^0-9-]/g, "");
+      setFormData((prev) => ({ ...prev, taxCode: cleanVal }));
+
+      if (!cleanVal) {
         setErrors((prev) => ({
           ...prev,
-          taxCode: "Ma so thue khong duoc de trong",
+          taxCode: "Mã số thuế không được để trống",
         }));
-      } else if (!/^\d{10}(-\d{3})?$/.test(val)) {
+      } else if (!/^\d{10}(-\d{3})?$/.test(cleanVal)) {
         setErrors((prev) => ({
           ...prev,
-          taxCode: "Ma so thue phai gom 10 so hoac dang 10 so-3 so",
+          taxCode: "Mã số thuế phải gồm 10 số hoặc dạng 10 số-3 số",
         }));
       } else {
         setErrors((prev) => {
@@ -376,14 +377,17 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
           return next;
         });
       }
-    } else {
-      if (errors[name]) {
-        setErrors((prev) => {
-          const next = { ...prev };
-          delete next[name];
-          return next;
-        });
-      }
+      return;
+    }
+
+    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    if (errors[name]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
     }
   };
 
@@ -1003,6 +1007,8 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                   </label>
                   <input
                     type="text"
+                    inputMode="numeric"
+                    maxLength={13}
                     name="taxCode"
                     value={formData.taxCode}
                     onChange={handleInputChange}
@@ -1992,25 +1998,24 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
             onClick={() => setShowProfileOtpModal(false)}
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
-          <div className="relative bg-white dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/80 rounded-[24px] w-full max-w-[440px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col p-8 gap-6">
+          <div className="relative bg-white dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/80 rounded-[32px] w-full max-w-[440px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col p-8 gap-6">
             {/* Title */}
             <div className="flex flex-col gap-2 items-center text-center">
-              <h3 className="text-[#2563eb] text-xl font-extrabold tracking-wide uppercase">
-                Thay đổi email
+              <h3 className="text-[#2563eb] text-xl md:text-2xl font-black uppercase tracking-tight">
+                THAY ĐỔI EMAIL
               </h3>
-              <p className="text-zinc-500 dark:text-zinc-400 text-xs leading-relaxed max-w-[320px]">
+              <p className="text-zinc-500 dark:text-zinc-400 text-sm font-normal leading-relaxed">
                 Chúng tôi đã gửi mã xác minh qua số email cũ <br />
-                <strong className="text-zinc-900 dark:text-zinc-200 font-extrabold break-all">
+                <strong className="text-zinc-900 dark:text-zinc-100 font-extrabold text-base my-0.5 block break-all">
                   {formData.email}
-                </strong>{" "}
-                <br />
-                Bạn vui lòng kiểm tra và điền mã xác thực
+                </strong>
+                <span>Bạn vui lòng kiểm tra và điền mã xác thực</span>
               </p>
             </div>
 
             {/* OTP Input Field */}
-            <div className="relative border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all">
-              <label className="absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold text-zinc-400 dark:text-zinc-500">
+            <div className="relative border border-zinc-200 dark:border-zinc-800 rounded-2xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 bg-white dark:bg-zinc-950 transition-all">
+              <label className="absolute -top-2.5 left-4 bg-white dark:bg-zinc-950 px-1 text-[11px] font-bold text-zinc-400 dark:text-zinc-500">
                 OTP <span className="text-red-500">*</span>
               </label>
               <input
@@ -2019,20 +2024,20 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                 maxLength={6}
                 value={otpValue}
                 onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ""))}
-                className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-base font-bold text-center tracking-[0.5em] pt-2 pb-0.5"
-                placeholder="------"
+                className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-lg font-bold text-center tracking-[0.5em] py-2 placeholder:font-normal placeholder:tracking-[0.4em] placeholder:text-zinc-400"
+                placeholder="- - - - - -"
               />
             </div>
 
             {/* Timer and Resend Prompt */}
-            <div className="flex flex-col gap-1.5 items-center select-none text-xs font-bold">
-              <span className="text-[#2563eb] text-sm">
+            <div className="flex flex-col gap-1 items-center select-none text-sm font-medium">
+              <span className="text-[#2563eb] text-xl font-extrabold tracking-tight">
                 {Math.floor(otpTimer / 60)
                   .toString()
                   .padStart(2, "0")}
                 :{(otpTimer % 60).toString().padStart(2, "0")}
               </span>
-              <span className="text-zinc-400 dark:text-zinc-500 font-medium">
+              <span className="text-zinc-400 dark:text-zinc-500">
                 Chưa nhận được mã?{" "}
                 <button
                   type="button"
@@ -2062,10 +2067,10 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                       setIsResendingOtp(false);
                     }
                   }}
-                  className={`underline cursor-pointer ${
+                  className={`font-semibold text-zinc-400 underline hover:text-[#2563eb] cursor-pointer ${
                     otpTimer > 0
-                      ? "text-zinc-300 dark:text-zinc-700 cursor-not-allowed no-underline"
-                      : "text-[#2563eb] hover:text-[#1d4ed8]"
+                      ? "cursor-not-allowed no-underline text-zinc-300 dark:text-zinc-700"
+                      : "hover:text-blue-600"
                   }`}
                 >
                   Gửi lại
@@ -2079,7 +2084,7 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                 type="button"
                 disabled={isVerifyingOtp || otpValue.length < 6}
                 onClick={handleVerifyProfileOtp}
-                className="w-full py-3 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-sm shadow-md shadow-blue-500/10 active:scale-99 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3.5 rounded-2xl bg-[#8eaefc] hover:bg-[#7c9ff7] text-white font-extrabold text-base shadow-sm active:scale-99 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isVerifyingOtp ? (
                   <>
@@ -2095,7 +2100,7 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                 type="button"
                 disabled={isVerifyingOtp}
                 onClick={() => setShowProfileOtpModal(false)}
-                className="w-full py-3 text-center text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300 font-bold text-sm cursor-pointer transition-colors active:scale-99 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-1 text-center text-zinc-600 hover:text-zinc-900 font-extrabold text-base cursor-pointer transition-colors active:scale-99 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Hủy bỏ
               </button>

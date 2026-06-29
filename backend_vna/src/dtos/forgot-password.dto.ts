@@ -1,12 +1,12 @@
-import { IsEmail, IsNotEmpty } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ForgotPasswordDto {
   @ApiProperty({
     example: 'user@gmail.com',
-    description: 'Email nhan ma OTP khoi phuc mat khau',
+    description: 'Email hoac Ten dang nhap nhan ma OTP khoi phuc mat khau',
   })
-  @IsEmail({}, { message: 'Email không hợp lệ' })
-  @IsNotEmpty({ message: 'Email không được để trống' })
+  @IsString({ message: 'Thông tin nhập vào phải là chuỗi' })
+  @IsNotEmpty({ message: 'Tên đăng nhập hoặc email không được để trống' })
   email!: string;
 }

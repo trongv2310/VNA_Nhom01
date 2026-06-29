@@ -402,6 +402,7 @@ export class UserService {
       user.isActive = updateUserDto.isActive === 'true';
     }
 
+    user.updatedAt = new Date();
     const savedUser = await this.userRepository.save(user);
 
     if (requestedRole) {
@@ -499,7 +500,6 @@ export class UserService {
 
     if (
       !user ||
-      user.accountType !== UserAccountType.DEPARTMENT ||
       this.isAdminUser(user)
     ) {
       throw new NotFoundException('Không tìm thấy người dùng');

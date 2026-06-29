@@ -58,6 +58,89 @@ const WARD_OPTIONS = [
   "Phường Cầu Ông Lãnh",
 ];
 
+interface TableFilterIndustrySelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  industries: IndustryLevel4[];
+}
+
+const TableFilterIndustrySelect: React.FC<TableFilterIndustrySelectProps> = ({
+  value,
+  onChange,
+  industries,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedItem = industries.find((ind) => ind.code === value);
+  const displayLabel = selectedItem
+    ? `${selectedItem.code} - ${selectedItem.name}`
+    : "Tất cả";
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full text-xs pl-3 pr-8 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 text-left cursor-pointer focus:border-blue-500 transition-colors truncate flex items-center justify-between"
+        title={displayLabel}
+      >
+        <span className="truncate">{displayLabel}</span>
+        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 top-full mt-1 w-64 max-h-60 overflow-y-auto bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl z-30 py-1 text-xs">
+          <button
+            type="button"
+            onClick={() => {
+              onChange("");
+              setIsOpen(false);
+            }}
+            className={`w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-900 truncate transition-colors ${!value
+                ? "font-bold text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20"
+                : "text-zinc-700 dark:text-zinc-300"
+              }`}
+          >
+            Tất cả
+          </button>
+          {industries.map((ind) => (
+            <button
+              key={ind.code}
+              type="button"
+              onClick={() => {
+                onChange(ind.code);
+                setIsOpen(false);
+              }}
+              title={`${ind.code} - ${ind.name}`}
+              className={`w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-900 truncate transition-colors ${value === ind.code
+                  ? "font-bold text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20"
+                  : "text-zinc-700 dark:text-zinc-300"
+                }`}
+            >
+              {ind.code} - {ind.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
 interface EnterpriseManagementProps {
   showToast: (message: string, type: "success" | "error") => void;
   permissions?: string[];
@@ -441,21 +524,12 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
                 </td>
                 <td className="p-2 relative min-w-[150px]">
-                  <select
-                    className="w-full pl-3 pr-8 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
+
+                  <TableFilterIndustrySelect
                     value={filters.industryCode}
-                    onChange={(e) =>
-                      handleFilterChange("industryCode", e.target.value)
-                    }
-                  >
-                    <option value="">Tất cả</option>
-                    {industries.map((ind) => (
-                      <option key={ind.code} value={ind.code}>
-                        {ind.code} - {ind.name}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
+                    onChange={(val) => handleFilterChange("industryCode", val)}
+                    industries={industries}
+                  />
                 </td>
                 <td className="p-2 relative min-w-[140px]">
                   <select
@@ -1038,9 +1112,11 @@ const EditEnterpriseModal: React.FC<EditEnterpriseModalProps> = ({
             </label>
             <input
               type="text"
+              maxLength={15}
               className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-semibold pt-2 pb-0.5 font-mono"
               value={taxCode}
-              onChange={(e) => setTaxCode(e.target.value)}
+              onChange={(e) => setTaxCode(e.target.value.replace(/[^0-9-]/g, ""))}
+              placeholder="Nhập mã số thuế"
             />
           </div>
 

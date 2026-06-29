@@ -210,6 +210,10 @@ export const EditUser: React.FC<EditUserProps> = ({ user, onSave, onCancel, show
 
     if (!formData.username.trim()) {
       newErrors.username = "Tên đăng nhập không được để trống.";
+    } else if (/\s/.test(formData.username)) {
+      newErrors.username = "Tên đăng nhập không được chứa khoảng trắng.";
+    } else if (!/^[a-zA-Z0-9._-]+$/.test(formData.username)) {
+      newErrors.username = "Tên đăng nhập không được chứa dấu tiếng Việt hoặc ký tự đặc biệt.";
     }
     if (!formData.fullName.trim()) {
       newErrors.fullName = "Họ và tên không được để trống.";
