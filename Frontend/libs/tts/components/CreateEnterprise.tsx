@@ -26,6 +26,7 @@ import {
   verifyBusinessProfileEmailOtp,
   updateMyBusinessProfile,
   getAccessToken,
+  checkEmailExists,
   type BusinessTypeCatalogItem,
 } from "../services/api";
 import { IndustrySearchSelect } from "./IndustrySearchSelect";
@@ -548,11 +549,25 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
       setNewEmailError("Email mới phải khác email hiện tại");
       return;
     }
+    
+    setIsSavingNewEmail(true);
     setNewEmailError("");
-    setFormData((prev) => ({ ...prev, email }));
-    setShowNewEmailModal(false);
-    setNewEmailValue("");
-    showToast("Thay đổi email tạm thời. Vui lòng hoàn tất chỉnh sửa và ấn Xác nhận chỉnh sửa ở bước 2 để lưu thay đổi.", "success");
+    try {
+      const res = await checkEmailExists(email);
+      if (res.data?.exists) {
+        setNewEmailError("Email mới đã tồn tại trên hệ thống, vui lòng kiểm tra lại dữ liệu");
+        showToast("Email mới đã tồn tại trên hệ thống, vui lòng kiểm tra lại dữ liệu", "error");
+        return;
+      }
+      setFormData((prev) => ({ ...prev, email }));
+      setShowNewEmailModal(false);
+      setNewEmailValue("");
+      showToast("Thay đổi email tạm thời. Vui lòng hoàn tất chỉnh sửa và ấn Xác nhận chỉnh sửa ở bước 2 để lưu thay đổi.", "success");
+    } catch (err) {
+      setNewEmailError(err instanceof Error ? err.message : "Kiểm tra email trùng lặp thất bại");
+    } finally {
+      setIsSavingNewEmail(false);
+    }
   };
 
   // Verify the current email before allowing a new email to be entered
@@ -2065,7 +2080,9 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                 type="button"
                 disabled={isVerifyingOtp || otpValue.length < 6}
                 onClick={handleVerifyProfileOtp}
-                className="w-full py-3.5 rounded-2xl bg-[#8eaefc] hover:bg-[#7c9ff7] text-white font-extrabold text-base shadow-sm active:scale-99 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                className={`w-full py-3.5 rounded-2xl text-white font-extrabold text-base shadow-sm active:scale-99 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:bg-[#8eaefc] disabled:opacity-70 disabled:cursor-not-allowed ${
+                  isVerifyingOtp || otpValue.length < 6 ? "" : "bg-[#2563eb] hover:bg-[#1d4ed8]"
+                }`}
               >
                 {isVerifyingOtp ? (
                   <>

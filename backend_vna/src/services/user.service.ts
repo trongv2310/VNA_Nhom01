@@ -811,4 +811,20 @@ export class UserService {
 
     return [...permissionCodes].sort();
   }
+
+  async checkEmailExists(email: string, excludeUserId?: number): Promise<boolean> {
+    if (!email || !email.trim()) {
+      return false;
+    }
+    const queryBuilder = this.userRepository
+      .createQueryBuilder('user')
+      .where('LOWER(user.email) = :email', { email: email.trim().toLowerCase() });
+
+    if (excludeUserId) {
+      queryBuilder.andWhere('user.id != :userId', { userId: excludeUserId });
+    }
+
+    const count = await queryBuilder.getCount();
+    return count > 0;
+  }
 }

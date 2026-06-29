@@ -190,11 +190,30 @@ export class BusinessReferenceCatalogService {
     await this.assertIndustryCodeUnique(code);
 
     const parent = await this.resolveIndustryParent(body.parentId);
-    const level = parent ? parent.level + 1 : 1;
-    if (level > 4) {
-      throw new BadRequestException('Ngành nghề chỉ được phép tối đa 4 cấp');
+    
+    let level = 1;
+    if (/^\d{4}$/.test(code)) {
+      level = 4;
+    } else if (/^\d{3}$/.test(code)) {
+      level = 3;
+    } else if (/^\d{2}$/.test(code)) {
+      level = 2;
+    } else if (/^[A-Z]$/.test(code)) {
+      level = 1;
+    } else {
+      throw new BadRequestException(
+        'Mã ngành không hợp lệ (Cấp 1 phải gồm một chữ cái, cấp 2-4 phải gồm 2-4 chữ số)',
+      );
     }
-    this.validateIndustryCodeForLevel(code, level);
+
+    if (parent) {
+      if (level === 1) {
+        throw new BadRequestException('Ngành cấp 1 không thể có ngành cha');
+      }
+      if (level <= parent.level) {
+        throw new BadRequestException('Cấp của ngành con phải lớn hơn cấp của ngành cha');
+      }
+    }
 
     const saved = await this.businessIndustryRepository.save(
       this.businessIndustryRepository.create({
@@ -238,11 +257,32 @@ export class BusinessReferenceCatalogService {
           'Không thể chọn một ngành con làm ngành cha',
         );
       }
-      const nextLevel = parent ? parent.level + 1 : 1;
-      if (nextLevel > 4) {
-        throw new BadRequestException('Ngành nghề chỉ được phép tối đa 4 cấp');
+      
+      let nextLevel = 1;
+      const code = item.code;
+      if (/^\d{4}$/.test(code)) {
+        nextLevel = 4;
+      } else if (/^\d{3}$/.test(code)) {
+        nextLevel = 3;
+      } else if (/^\d{2}$/.test(code)) {
+        nextLevel = 2;
+      } else if (/^[A-Z]$/.test(code)) {
+        nextLevel = 1;
+      } else {
+        throw new BadRequestException(
+          'Mã ngành không hợp lệ (Cấp 1 phải gồm một chữ cái, cấp 2-4 phải gồm 2-4 chữ số)',
+        );
       }
-      this.validateIndustryCodeForLevel(item.code, nextLevel);
+
+      if (parent) {
+        if (nextLevel === 1) {
+          throw new BadRequestException('Ngành cấp 1 không thể có ngành cha');
+        }
+        if (nextLevel <= parent.level) {
+          throw new BadRequestException('Cấp của ngành con phải lớn hơn cấp của ngành cha');
+        }
+      }
+
       await this.assertDescendantDepthFits(item.id, nextLevel);
       const currentParentId = item.parent?.id ?? null;
       const nextParentId = parent?.id ?? null;

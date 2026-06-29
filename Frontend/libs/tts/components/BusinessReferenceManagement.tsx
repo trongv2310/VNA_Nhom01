@@ -8,7 +8,9 @@ import {
   Pencil,
   Plus,
   X,
+  Save,
 } from "lucide-react";
+import { SearchSelect } from "./SearchSelect";
 
 import {
   createBusinessIndustry,
@@ -200,19 +202,13 @@ export const BusinessReferenceManagement: React.FC<
     if (!form.code.trim()) next.code = "Mã không được để trống";
     if (!form.name.trim()) next.name = "Tên không được để trống";
     if (!editingItem && isIndustry) {
-      const expectedLevel = form.parentId
-        ? (parentOptions.find((item) => item.id === Number(form.parentId))
-            ?.level ?? 0) + 1
-        : 1;
-      const pattern =
-        expectedLevel === 1
-          ? /^[A-Za-z]$/
-          : new RegExp(`^\\d{${expectedLevel}}$`);
-      if (!pattern.test(form.code.trim())) {
-        next.code =
-          expectedLevel === 1
-            ? "Mã ngành cấp 1 phải gồm một chữ cái"
-            : `Mã ngành cấp ${expectedLevel} phải gồm ${expectedLevel} chữ số`;
+      const codeTrim = form.code.trim();
+      const expectsDigits = Boolean(form.parentId) || /^\d/.test(codeTrim);
+      const pattern = expectsDigits ? /^\d{4}$/ : /^[A-Za-z]$/;
+      if (!pattern.test(codeTrim)) {
+        next.code = expectsDigits
+          ? "Mã ngành phải gồm 4 chữ số"
+          : "Mã ngành cấp 1 phải gồm một chữ cái";
       }
     }
     setErrors(next);
@@ -518,113 +514,140 @@ export const BusinessReferenceManagement: React.FC<
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between bg-blue-600 px-6 py-5 text-white">
-              <h3 className="text-xl font-bold">
-                {editingItem ? "Cập nhật" : "Thêm mới"}{" "}
-                {isIndustry ? "ngành nghề kinh doanh" : "loại hình kinh doanh"}
-              </h3>
-              <button type="button" onClick={() => setIsModalOpen(false)}>
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="space-y-5 p-6">
-              <label className="block text-sm font-semibold text-zinc-700">
-                Mã <span className="text-red-500">*</span>
-                <input
-                  value={form.code}
-                  disabled={Boolean(editingItem)}
-                  onChange={(event) =>
-                    setForm((value) => ({ ...value, code: event.target.value }))
-                  }
-                  className={`mt-2 w-full rounded-xl border px-4 py-3 outline-none ${
-                    errors.code
-                      ? "border-red-500"
-                      : "border-zinc-200 focus:border-blue-500"
-                  } disabled:bg-zinc-100`}
-                />
-                {errors.code && (
-                  <span className="mt-1 block text-xs text-red-500">
-                    {errors.code}
-                  </span>
-                )}
-              </label>
-              <label className="block text-sm font-semibold text-zinc-700">
-                Tên <span className="text-red-500">*</span>
-                <input
-                  value={form.name}
-                  onChange={(event) =>
-                    setForm((value) => ({ ...value, name: event.target.value }))
-                  }
-                  className={`mt-2 w-full rounded-xl border px-4 py-3 outline-none ${
-                    errors.name
-                      ? "border-red-500"
-                      : "border-zinc-200 focus:border-blue-500"
-                  }`}
-                />
-                {errors.name && (
-                  <span className="mt-1 block text-xs text-red-500">
-                    {errors.name}
-                  </span>
-                )}
-              </label>
-              {isIndustry && (
-                <label className="block text-sm font-semibold text-zinc-700">
-                  Nhóm ngành cha
-                  <select
-                    value={form.parentId}
-                    onChange={(event) =>
-                      setForm((value) => ({
-                        ...value,
-                        parentId: event.target.value,
-                      }))
-                    }
-                    className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 outline-none focus:border-blue-500"
-                  >
-                    <option value="">Không có - ngành cấp 1</option>
-                    {sortedParents.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.code} - {item.name} (Cấp {item.level})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <label className="block text-sm font-semibold text-zinc-700">
-                Trạng thái
-                <select
-                  value={form.isActive ? "true" : "false"}
-                  onChange={(event) =>
-                    setForm((value) => ({
-                      ...value,
-                      isActive: event.target.value === "true",
-                    }))
-                  }
-                  className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 outline-none focus:border-blue-500"
-                >
-                  <option value="true">Sử dụng</option>
-                  <option value="false">Không sử dụng</option>
-                </select>
-              </label>
-            </div>
-            <div className="flex justify-end gap-3 px-6 pb-6">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col">
+            <div className="bg-blue-600 dark:bg-blue-700 text-white py-4 text-center font-bold text-lg select-none tracking-wide relative">
+              {editingItem ? "Cập nhật" : "Thêm mới"}{" "}
+              {isIndustry ? "ngành nghề kinh doanh" : "loại hình kinh doanh"}
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="rounded-xl px-5 py-3 text-sm font-bold text-zinc-500 hover:bg-zinc-100"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white transition-colors cursor-pointer"
               >
-                Hủy bỏ
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-6 p-6">
+              {/* Mã ngành */}
+              <div className="flex flex-col gap-1">
+                <div className={`relative border rounded-xl px-4 py-2.5 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 transition-all bg-white dark:bg-zinc-950
+                  ${errors.code ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"}
+                  ${editingItem ? "opacity-60 bg-zinc-50 dark:bg-zinc-900/40" : ""}
+                `}>
+                  <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold transition-colors
+                    ${errors.code ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"}
+                  `}>
+                    Mã {isIndustry ? "ngành" : "loại hình"} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    value={form.code}
+                    disabled={Boolean(editingItem)}
+                    onChange={(event) => {
+                      setForm((value) => ({ ...value, code: event.target.value }));
+                      if (errors.code) setErrors((prev) => { const next = { ...prev }; delete next.code; return next; });
+                    }}
+                    className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-bold pt-2 pb-0.5 disabled:cursor-not-allowed"
+                  />
+                </div>
+                {errors.code && (
+                  <span className="text-xs text-red-500 pl-1 font-semibold">
+                    {errors.code}
+                  </span>
+                )}
+              </div>
+
+              {/* Tên ngành */}
+              <div className="flex flex-col gap-1">
+                <div className={`relative border rounded-xl px-4 py-2.5 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 transition-all bg-white dark:bg-zinc-950
+                  ${errors.name ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"}
+                `}>
+                  <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold transition-colors
+                    ${errors.name ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"}
+                  `}>
+                    Tên {isIndustry ? "ngành" : "loại hình"} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    value={form.name}
+                    onChange={(event) => {
+                      setForm((value) => ({ ...value, name: event.target.value }));
+                      if (errors.name) setErrors((prev) => { const next = { ...prev }; delete next.name; return next; });
+                    }}
+                    className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-bold pt-2 pb-0.5"
+                  />
+                </div>
+                {errors.name && (
+                  <span className="text-xs text-red-500 pl-1 font-semibold">
+                    {errors.name}
+                  </span>
+                )}
+              </div>
+
+              {isIndustry && (
+                <SearchSelect
+                  label="Nhóm ngành cha"
+                  value={form.parentId}
+                  options={[
+                    { value: "", label: "Không có - ngành cấp 1" },
+                    ...sortedParents.map((item) => ({
+                      value: String(item.id),
+                      label: `${item.code} - ${item.name}`,
+                    })),
+                  ]}
+                  placeholder="Chọn nhóm ngành cha"
+                  onChange={(val) => {
+                    setForm((value) => ({
+                      ...value,
+                      parentId: val,
+                    }));
+                    if (errors.code) {
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.code;
+                        return next;
+                      });
+                    }
+                  }}
+                />
+              )}
+
+              <SearchSelect
+                label="Trạng thái"
+                required
+                value={form.isActive ? "true" : "false"}
+                options={[
+                  { value: "true", label: "Sử dụng" },
+                  { value: "false", label: "Không sử dụng" },
+                ]}
+                onChange={(val) =>
+                  setForm((value) => ({
+                    ...value,
+                    isActive: val === "true",
+                  }))
+                }
+              />
+            </div>
+            
+            <div className="flex items-center justify-end gap-5 px-6 pb-6 select-none text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300 font-bold transition-colors cursor-pointer focus:outline-none"
+              >
+                Huỷ bỏ
               </button>
               <button
                 type="button"
                 disabled={isSaving}
                 onClick={save}
-                className="flex min-w-28 items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                className="flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 font-bold shadow-md transition-all active:scale-98 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isSaving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  "Lưu"
+                  <>
+                    <Save className="w-4 h-4" />
+                    <span>Lưu</span>
+                  </>
                 )}
               </button>
             </div>
