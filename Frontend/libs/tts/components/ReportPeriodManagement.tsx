@@ -33,6 +33,7 @@ interface ReportPeriodItem {
   startDate: string;
   endDate: string;
   isActive: boolean;
+  hasSubmissions?: boolean;
 }
 
 const MIN_REPORT_PERIOD_YEAR = 2000;
@@ -58,6 +59,7 @@ interface FloatingSelectProps {
   onChange: (val: string) => void;
   options: { value: string; label: string }[];
   error?: string;
+  disabled?: boolean;
 }
 
 const FloatingSelect: React.FC<FloatingSelectProps> = ({
@@ -66,6 +68,7 @@ const FloatingSelect: React.FC<FloatingSelectProps> = ({
   onChange,
   options,
   error,
+  disabled = false,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const isFloating = isFocused || value !== "";
@@ -73,6 +76,7 @@ const FloatingSelect: React.FC<FloatingSelectProps> = ({
   return (
     <div className="flex flex-col gap-1 w-full select-none">
       <div className={`relative border rounded-lg px-3.5 py-2.5 bg-white dark:bg-zinc-950 transition-all flex items-center justify-between
+        ${disabled ? "cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40 opacity-70" : ""}
         ${error 
           ? "border-red-500 focus-within:ring-1 focus-within:ring-red-500 focus-within:border-red-500" 
           : "border-zinc-200 dark:border-zinc-800 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
@@ -89,10 +93,11 @@ const FloatingSelect: React.FC<FloatingSelectProps> = ({
 
         <select
           value={value}
+          disabled={disabled}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full text-sm font-semibold outline-none border-none bg-transparent text-zinc-800 dark:text-zinc-200 appearance-none cursor-pointer"
+          className={`w-full text-sm font-semibold outline-none border-none bg-transparent text-zinc-800 dark:text-zinc-200 appearance-none ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
         >
           <option value="" disabled className="text-zinc-400 font-normal">
             {label}
@@ -116,6 +121,7 @@ interface FloatingDateInputProps {
   value: string;
   onChange: (val: string) => void;
   error?: string;
+  disabled?: boolean;
 }
 
 const FloatingDateInput: React.FC<FloatingDateInputProps> = ({
@@ -123,6 +129,7 @@ const FloatingDateInput: React.FC<FloatingDateInputProps> = ({
   value,
   onChange,
   error,
+  disabled = false,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const isFloating = isFocused || !!value;
@@ -139,6 +146,7 @@ const FloatingDateInput: React.FC<FloatingDateInputProps> = ({
   };
 
   const handleContainerClick = () => {
+    if (disabled) return;
     if (nativeInputRef.current) {
       try {
         nativeInputRef.current.showPicker();
@@ -152,7 +160,8 @@ const FloatingDateInput: React.FC<FloatingDateInputProps> = ({
     <div className="flex flex-col gap-1 w-full select-none">
       <div
         onClick={handleContainerClick}
-        className={`relative border rounded-lg px-3.5 py-2.5 bg-white dark:bg-zinc-950 transition-all flex items-center justify-between cursor-pointer
+        className={`relative border rounded-lg px-3.5 py-2.5 bg-white dark:bg-zinc-950 transition-all flex items-center justify-between
+          ${disabled ? "cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40 opacity-70" : "cursor-pointer"}
           ${error 
             ? "border-red-500 focus-within:ring-1 focus-within:ring-red-500 focus-within:border-red-500" 
             : "border-zinc-200 dark:border-zinc-800 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
@@ -176,10 +185,11 @@ const FloatingDateInput: React.FC<FloatingDateInputProps> = ({
           ref={nativeInputRef}
           type="date"
           value={value}
+          disabled={disabled}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           onChange={(e) => onChange(e.target.value)}
-          className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+          className={`absolute inset-0 opacity-0 w-full h-full ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
         />
 
         <Calendar className="w-5 h-5 text-zinc-400 dark:text-zinc-650 pointer-events-none ml-2" />
@@ -195,6 +205,7 @@ interface FloatingYearSelectProps {
   onChange: (val: string) => void;
   options: { value: string; label: string }[];
   error?: string;
+  disabled?: boolean;
 }
 
 const FloatingYearSelect: React.FC<FloatingYearSelectProps> = ({
@@ -203,6 +214,7 @@ const FloatingYearSelect: React.FC<FloatingYearSelectProps> = ({
   onChange,
   options,
   error,
+  disabled = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -224,8 +236,11 @@ const FloatingYearSelect: React.FC<FloatingYearSelectProps> = ({
   return (
     <div className="relative flex flex-col gap-1 w-full select-none">
       <div
-        onClick={() => setIsOpen(true)}
-        className={`relative border rounded-lg px-3.5 py-2.5 bg-white dark:bg-zinc-950 transition-all flex items-center justify-between cursor-pointer
+        onClick={() => {
+          if (!disabled) setIsOpen(true);
+        }}
+        className={`relative border rounded-lg px-3.5 py-2.5 bg-white dark:bg-zinc-950 transition-all flex items-center justify-between
+          ${disabled ? "cursor-not-allowed bg-zinc-50 dark:bg-zinc-900/40 opacity-70" : "cursor-pointer"}
           ${error 
             ? "border-red-500 focus-within:ring-1 focus-within:ring-red-500 focus-within:border-red-500" 
             : isOpen
@@ -355,6 +370,15 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
   const [formIsActive, setFormIsActive] = useState<boolean>(true);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
+  const getVietnamTodayString = () => {
+    const date = new Date();
+    const vnDate = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+    return vnDate.toISOString().slice(0, 10);
+  };
+
+  const todayStr = getVietnamTodayString();
+  const isStartDateLocked = !!editingPeriod && (todayStr >= editingPeriod.startDate || !!editingPeriod.hasSubmissions);
+
   // Fetch report periods from backend
   const fetchPeriods = async () => {
     setIsLoading(true);
@@ -455,6 +479,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
 
   // Auto-fill dates based on year and period selection
   useEffect(() => {
+    if (isStartDateLocked) return;
     const yearNum = Number(formYear);
     if (
       isModalOpen &&
@@ -480,7 +505,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
         }
       }
     }
-  }, [formYear, formPeriodType, isModalOpen]);
+  }, [formYear, formPeriodType, isModalOpen, isStartDateLocked]);
 
   // Validate form inputs
   const validateForm = (): boolean => {
@@ -509,6 +534,11 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
     }
     if (!formEndDate) {
       errors.endDate = "Bắt buộc chọn ngày kết thúc";
+    } else {
+      const today = getVietnamTodayString();
+      if (formEndDate < today) {
+        errors.endDate = "Ngày kết thúc mới không được nhỏ hơn ngày hiện tại";
+      }
     }
 
     // Special validation rules for start date & deadline based on year and period
@@ -553,10 +583,10 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
           (p: any) => !editingPeriod || String(p.id) !== String(editingPeriod.id)
         );
         if (hasDuplicate) {
-          setFormErrors(prev => ({
-            ...prev,
+          setFormErrors({
+            year: `Năm ${formYear} đã có kỳ báo cáo trùng lặp`,
             periodType: `Kỳ báo cáo ${formPeriodType === "SIX_MONTHS" ? "6 tháng" : "Cả năm"} của năm ${formYear} đã tồn tại!`,
-          }));
+          });
           setIsLoading(false);
           return;
         }
@@ -606,8 +636,8 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
   return (
     <div className="flex flex-col gap-6 h-full text-zinc-700 dark:text-zinc-350 relative select-none">
       {/* Top Card Panel - Clean white border, no blue header accent */}
-      <div className="flex items-center justify-between bg-white dark:bg-zinc-950 rounded-2xl p-4.5 shadow-sm border border-zinc-200/60 dark:border-zinc-800/80">
-        <h2 className="text-md font-bold text-zinc-800 dark:text-zinc-100">
+      <div className="flex items-center justify-between bg-white dark:bg-zinc-950 rounded-2xl p-4 shadow-sm border border-zinc-200 dark:border-zinc-800">
+        <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100">
           Danh sách cấu hình báo cáo
         </h2>
         {canCreate && (
@@ -622,7 +652,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
       </div>
 
       {/* Main Table Card */}
-      <div className="relative flex-1 bg-white dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/80 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[400px]">
+      <div className="relative flex-1 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[400px]">
         {/* Table Spinner */}
         {isLoading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-zinc-950/60 backdrop-blur-[1px]">
@@ -631,7 +661,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
         )}
 
         <div className="flex-1 overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-full border-collapse text-left text-xs">
             <thead>
               {/* Columns Header */}
               <tr className="border-b border-zinc-200 dark:border-zinc-800 text-left text-zinc-500 dark:text-zinc-400 text-xs font-bold bg-[#f8fafc] dark:bg-zinc-900/10 select-none">
@@ -657,7 +687,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                       setFilterYear(e.target.value.replace(/\D/g, ""));
                       setPage(1);
                     }}
-                    className="w-full text-xs px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors font-semibold"
+                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
                   />
                 </td>
                 {/* Filter Report Name */}
@@ -668,7 +698,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                       setFilterReportName(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full text-xs pl-3 pr-8 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors font-semibold"
+                    className="w-full pl-3 pr-8 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
                   >
                     <option value=""></option>
                     <option value="Báo cáo TNLĐ">Báo cáo tai nạn lao động</option>
@@ -683,7 +713,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                       setFilterPeriodType(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full text-xs pl-3 pr-8 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors font-semibold"
+                    className="w-full pl-3 pr-8 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
                   >
                     <option value=""></option>
                     <option value="SIX_MONTHS">6 tháng</option>
@@ -703,7 +733,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                       setPage(1);
                     }}
                     placeholder="dd/mm/yyyy"
-                    className="w-full text-xs px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-400 dark:text-zinc-555 focus:border-blue-500 transition-colors font-semibold"
+                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-400 dark:text-zinc-555 focus:border-blue-500 transition-colors"
                   />
                 </td>
                 {/* Filter End Date */}
@@ -718,7 +748,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                       setPage(1);
                     }}
                     placeholder="dd/mm/yyyy"
-                    className="w-full text-xs px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-400 dark:text-zinc-555 focus:border-blue-500 transition-colors font-semibold"
+                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-400 dark:text-zinc-555 focus:border-blue-500 transition-colors"
                   />
                 </td>
                 {/* Filter Active Status */}
@@ -729,7 +759,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                       setFilterIsActive(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full text-xs pl-3 pr-8 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors font-semibold"
+                    className="w-full pl-3 pr-8 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
                   >
                     <option value=""></option>
                     <option value="true">Hoạt động</option>
@@ -743,7 +773,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
             <tbody>
               {periods.length === 0 && !isLoading ? (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-zinc-400 dark:text-zinc-555 font-semibold text-sm">
+                  <td colSpan={7} className="p-12 text-center text-zinc-400 dark:text-zinc-555 font-semibold text-xs">
                     Không tìm thấy cấu hình kỳ báo cáo nào.
                   </td>
                 </tr>
@@ -751,7 +781,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                 periods.map((item) => (
                   <tr
                     key={item.id}
-                    className="border-b border-zinc-100 dark:border-zinc-850 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 text-sm font-medium text-zinc-700 dark:text-zinc-300 transition-colors"
+                    className="border-b border-zinc-100 dark:border-zinc-850 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 text-xs font-medium text-zinc-700 dark:text-zinc-300 transition-colors"
                   >
                     {/* Actions */}
                     <td className="p-4 text-center">
@@ -771,7 +801,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                     </td>
                     {/* Report Name */}
                     <td className="p-4 text-zinc-850 dark:text-zinc-150">
-                      {item.reportName === "Báo cáo TNLĐ" ? "Báo cáo tai nạn lao động" : item.reportName}
+                      {item.reportName === "Báo cáo TNLĐ" || item.reportName === "Báo cáo định kỳ Tai nạn lao động" || item.reportName === "Báo cáo định kỳ tai nạn lao động" ? "Báo cáo tai nạn lao động" : item.reportName}
                     </td>
                     {/* Period Type */}
                     <td className="p-4 text-zinc-550 dark:text-zinc-400">
@@ -884,8 +914,9 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                 label="Tên báo cáo *"
                 value={formReportName}
                 onChange={setFormReportName}
-                options={[{ value: "Báo cáo TNLĐ", label: "Báo cáo TNLĐ" }]}
+                options={[{ value: "Báo cáo TNLĐ", label: "Báo cáo tai nạn lao động" }]}
                 error={formErrors.reportName}
+                disabled={isStartDateLocked}
               />
 
               {/* Row Grid: Năm * & Kỳ báo cáo * */}
@@ -897,6 +928,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                   onChange={setFormYear}
                   options={REPORT_PERIOD_YEAR_OPTIONS}
                   error={formErrors.year}
+                  disabled={isStartDateLocked}
                 />
 
                 {/* Kỳ báo cáo * */}
@@ -909,6 +941,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                     { value: "FULL_YEAR", label: "Cả năm" },
                   ]}
                   error={formErrors.periodType}
+                  disabled={isStartDateLocked}
                 />
               </div>
 
@@ -920,6 +953,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                   value={formStartDate}
                   onChange={setFormStartDate}
                   error={formErrors.startDate}
+                  disabled={isStartDateLocked}
                 />
 
                 {/* Ngày kết thúc * */}

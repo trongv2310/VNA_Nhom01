@@ -110,11 +110,10 @@ const TableFilterIndustrySelect: React.FC<TableFilterIndustrySelectProps> = ({
               onChange("");
               setIsOpen(false);
             }}
-            className={`w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-900 truncate transition-colors ${
-              !value
+            className={`w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-900 truncate transition-colors ${!value
                 ? "font-bold text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20"
                 : "text-zinc-700 dark:text-zinc-300"
-            }`}
+              }`}
           >
             Tất cả
           </button>
@@ -127,11 +126,10 @@ const TableFilterIndustrySelect: React.FC<TableFilterIndustrySelectProps> = ({
                 setIsOpen(false);
               }}
               title={`${ind.code} - ${ind.name}`}
-              className={`w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-900 truncate transition-colors ${
-                value === ind.code
+              className={`w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-900 truncate transition-colors ${value === ind.code
                   ? "font-bold text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20"
                   : "text-zinc-700 dark:text-zinc-300"
-              }`}
+                }`}
             >
               {ind.code} - {ind.name}
             </button>
@@ -415,7 +413,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
   return (
     <div className="flex flex-col gap-6 h-full">
       {/* Top Banner Header */}
-      <div className="flex items-center justify-between border-t-4 border-emerald-600 bg-white dark:bg-zinc-950 rounded-2xl p-4 shadow-sm border border-zinc-200/60 dark:border-zinc-800/80">
+      <div className="flex items-center justify-between bg-white dark:bg-zinc-950 rounded-2xl p-4 shadow-sm border border-zinc-200 dark:border-zinc-800">
         <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 select-none">
           Danh sách doanh nghiệp
         </h2>
@@ -445,7 +443,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
       </div>
 
       {/* Main Table Container */}
-      <div className="relative flex-1 bg-white dark:bg-zinc-950 border border-zinc-200/60 dark:border-zinc-800/80 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[300px]">
+      <div className="relative flex-1 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[300px]">
         {/* Loading Overlay */}
         {isLoading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-zinc-950/60 backdrop-blur-[1px] transition-all">
@@ -458,7 +456,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
           </div>
         )}
         <div className="flex-1 overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-full border-collapse text-left text-xs">
             <thead>
               {/* Row 1: Header Titles */}
               <tr className="border-b border-zinc-200 dark:border-zinc-800 text-left text-zinc-500 dark:text-zinc-400 text-xs font-bold select-none bg-zinc-50/50 dark:bg-zinc-900/10">
@@ -489,7 +487,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                 <td className="p-2">
                   <input
                     type="text"
-                    className="w-full text-xs px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
+                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
                     placeholder="Tìm tên DN"
                     value={filters.businessName}
                     onChange={(e) =>
@@ -500,7 +498,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                 <td className="p-2">
                   <input
                     type="text"
-                    className="w-full text-xs px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
+                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
                     placeholder="Tìm mã số thuế"
                     value={filters.taxCode}
                     onChange={(e) =>
@@ -510,7 +508,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                 </td>
                 <td className="p-2 relative min-w-[150px]">
                   <select
-                    className="w-full text-xs pl-3 pr-8 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
+                    className="w-full pl-3 pr-8 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
                     value={filters.businessType}
                     onChange={(e) =>
                       handleFilterChange("businessType", e.target.value)
@@ -526,6 +524,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
                 </td>
                 <td className="p-2 relative min-w-[150px]">
+
                   <TableFilterIndustrySelect
                     value={filters.industryCode}
                     onChange={(val) => handleFilterChange("industryCode", val)}
@@ -534,7 +533,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                 </td>
                 <td className="p-2 relative min-w-[140px]">
                   <select
-                    className="w-full text-xs pl-3 pr-8 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
+                    className="w-full pl-3 pr-8 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
                     value={filters.wardCommune}
                     onChange={(e) =>
                       handleFilterChange("wardCommune", e.target.value)
@@ -551,7 +550,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                 </td>
                 <td className="p-2 relative min-w-[130px]">
                   <select
-                    className="w-full text-xs pl-3 pr-8 py-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
+                    className="w-full pl-3 pr-8 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
                     value={filters.isActive}
                     onChange={(e) =>
                       handleFilterChange("isActive", e.target.value)
@@ -570,7 +569,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                 <tr>
                   <td
                     colSpan={8}
-                    className="p-12 text-center text-zinc-400 dark:text-zinc-500 font-semibold select-none text-sm"
+                    className="p-12 text-center text-zinc-400 dark:text-zinc-500 font-semibold select-none text-xs"
                   >
                     Không tìm thấy doanh nghiệp nào phù hợp.
                   </td>
@@ -579,7 +578,7 @@ export const EnterpriseManagement: React.FC<EnterpriseManagementProps> = ({
                 businesses.map((ent) => (
                   <tr
                     key={ent.id}
-                    className="border-b border-zinc-100 dark:border-zinc-800/80 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 text-sm font-medium text-zinc-700 dark:text-zinc-300 transition-colors"
+                    className="border-b border-zinc-100 dark:border-zinc-800/80 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 text-xs font-medium text-zinc-700 dark:text-zinc-300 transition-colors"
                   >
                     <td className="p-4 text-center">
                       <input

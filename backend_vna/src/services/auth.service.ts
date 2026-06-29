@@ -49,7 +49,7 @@ export class AuthService {
     private readonly mailService: MailService,
 
     private readonly permissionAccessService: PermissionAccessService,
-  ) {}
+  ) { }
 
   async login(loginDto: LoginDto, userAgent?: string, ipAddress?: string) {
     const { username, password, rememberMe } = loginDto;
@@ -107,7 +107,7 @@ export class AuthService {
     const refreshExpiresIn = (
       rememberMe
         ? this.configService.get<string>('JWT_REFRESH_REMEMBER_EXPIRES_IN') ||
-          '30d'
+        '30d'
         : this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '1d'
     ) as JwtSignOptions['expiresIn'];
 
@@ -519,7 +519,7 @@ export class AuthService {
         throw new BadRequestException('OTP đã vượt quá số lần thử');
       }
 
-      throw new BadRequestException('OTP không đúng');
+      throw new BadRequestException('Mã OTP không chính xác, vui lòng kiểm tra lại');
     }
 
     return emailOtp;

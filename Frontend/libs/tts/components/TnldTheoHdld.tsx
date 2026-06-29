@@ -4639,8 +4639,8 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
             onClick={() => setShowCancelConfirm(false)}
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
-          <div className="relative bg-white dark:bg-zinc-955 border border-zinc-200 dark:border-zinc-800 rounded-[20px] w-full max-w-[460px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
-            <div className="bg-[#2563eb] text-white py-4 text-center font-bold text-lg select-none tracking-wide flex items-center justify-center gap-2">
+          <div className="relative bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-[20px] w-full max-w-[400px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
+            <div className="bg-[#2563eb] text-white py-3.5 text-center font-bold text-base select-none tracking-wide flex items-center justify-center gap-2">
               <AlertTriangle className="w-5 h-5" />
               <span>Cảnh báo</span>
             </div>
@@ -4651,18 +4651,18 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
               </p>
             </div>
 
-            <div className="flex items-center justify-end gap-3 px-6 pb-6 select-none font-bold text-sm">
+            <div className="flex items-center justify-end gap-3 px-6 pb-6 select-none font-bold text-xs">
               <button
                 type="button"
                 onClick={() => setShowCancelConfirm(false)}
-                className="px-5 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-xl text-zinc-550 transition-colors cursor-pointer"
+                className="px-5 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-lg text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 transition-colors cursor-pointer"
               >
                 Hủy bỏ
               </button>
               <button
                 type="button"
                 onClick={handleCancelConfirm}
-                className="px-6 py-2 bg-[#2563eb] hover:bg-blue-700 text-white rounded-xl shadow-md transition-all cursor-pointer"
+                className="px-6 py-2 bg-[#2563eb] hover:bg-blue-700 text-white rounded-lg shadow-md transition-all cursor-pointer"
               >
                 Đồng ý
               </button>

@@ -7,6 +7,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Trash2,
   X,
 } from "lucide-react";
 
@@ -16,10 +17,12 @@ import {
   getLaborCatalogs,
   updateLaborCatalog,
   updateLaborCatalogStatus,
+  deleteLaborCatalogsBulk,
   type BusinessListMeta,
   type LaborCatalogItem,
   type LaborCatalogType,
 } from "../services/api";
+import { DeleteConfirmModal } from "./DeleteConfirmModal";
 
 interface LaborCatalogManagementProps {
   showToast: (message: string, type: "success" | "error") => void;
@@ -77,6 +80,13 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
     isActive: true,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [selectedType, page, limit, filters]);
 
   useEffect(() => {
     let active = true;
@@ -291,6 +301,36 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
     }
   };
 
+  const handleToggleSelectAll = () => {
+    if (items.length > 0 && selectedIds.length === items.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(items.map((item) => item.id));
+    }
+  };
+
+  const handleToggleSelect = (id: number) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!canManage) return;
+    try {
+      await deleteLaborCatalogsBulk(selectedIds);
+      showToast("Xóa danh mục tai nạn lao động thành công!", "success");
+      setSelectedIds([]);
+      setRefreshKey((value) => value + 1);
+      setIsDeleteConfirmOpen(false);
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Xóa danh mục thất bại",
+        "error",
+      );
+    }
+  };
+
   const rangeStart = meta.totalItems ? (meta.page - 1) * meta.limit + 1 : 0;
   const rangeEnd = Math.min(meta.page * meta.limit, meta.totalItems);
 
@@ -302,7 +342,7 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
           <button
             type="button"
             onClick={openCreate}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-xs font-bold text-white hover:bg-blue-700"
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-xs font-bold text-white hover:bg-blue-700 cursor-pointer shadow-sm"
           >
             <Plus className="h-4 w-4" />
             Thêm mới
@@ -337,6 +377,14 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
           <table className="w-full min-w-[800px] border-collapse text-left text-xs">
             <thead className="sticky top-0 z-10 bg-zinc-50 text-zinc-500">
               <tr className="border-b border-zinc-200">
+                <th className="w-12 p-4 text-center select-none">
+                  <input
+                    type="checkbox"
+                    checked={items.length > 0 && selectedIds.length === items.length}
+                    onChange={handleToggleSelectAll}
+                    className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                </th>
                 <th className="w-24 p-4 text-center">Thao tác</th>
                 <th className="w-36 p-4">Mã số</th>
                 <th className="p-4">Tên danh mục</th>
@@ -345,6 +393,7 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
                 <th className="w-32 p-4 text-center">Trạng thái</th>
               </tr>
               <tr className="border-b border-zinc-200 bg-white">
+                <th />
                 <th />
                 <th className="p-2">
                   <input
@@ -421,7 +470,7 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
               {!isLoading && items.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="py-16 text-center font-semibold text-zinc-400"
                   >
                     Không tìm thấy dữ liệu phù hợp
@@ -430,6 +479,14 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
               ) : (
                 items.map((item) => (
                   <tr key={item.id} className="hover:bg-blue-50/30">
+                    <td className="w-12 p-4 text-center select-none">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(item.id)}
+                        onChange={() => handleToggleSelect(item.id)}
+                        className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </td>
                     <td className="p-4 text-center">
                       {canManage && (
                         <button
@@ -608,6 +665,59 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
           </div>
         </div>
       )}
+
+      {/* Selection Action Bar */}
+      {canManage && selectedIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-50 flex items-center justify-between overflow-hidden rounded-xl border border-zinc-200/80 bg-white shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-300 dark:border-zinc-800 dark:bg-zinc-900 -translate-x-1/2">
+          <div className="flex items-center">
+            <div className="flex min-w-[40px] h-10 items-center justify-center bg-blue-600 px-3 text-sm font-bold text-white">
+              {selectedIds.length}
+            </div>
+            <span className="px-3.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300 select-none">
+              dữ liệu được chọn
+            </span>
+          </div>
+          <div className="flex items-center gap-3 pr-3">
+            <button
+              onClick={() => setIsDeleteConfirmOpen(true)}
+              className="bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs px-3.5 py-1.5 flex items-center gap-1.5 transition-all shadow-md shadow-red-500/10 cursor-pointer"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-3.5 h-3.5"
+              >
+                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
+              </svg>
+              <span>Xoá</span>
+            </button>
+            <button
+              onClick={() => setSelectedIds([])}
+              className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer"
+              title="Bỏ chọn"
+            >
+              <X className="h-4.5 w-4.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <DeleteConfirmModal
+        isOpen={canManage && isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        onConfirm={handleDeleteSelected}
+        title="Xác nhận xóa danh mục"
+        description={
+          <p className="text-sm font-semibold select-none leading-relaxed text-zinc-700 dark:text-zinc-300">
+            Bạn có chắc chắn muốn xóa {selectedIds.length} danh mục đã chọn không?
+            Hành động này không thể hoàn tác.
+          </p>
+        }
+      />
     </div>
   );
 };

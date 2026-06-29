@@ -86,7 +86,7 @@ export const ChangeEmailDialog: React.FC<ChangeEmailDialogProps> = ({
     }
   };
 
-  const handleSaveEmail = async (e: React.FormEvent) => {
+  const handleSaveEmail = (e: React.FormEvent) => {
     e.preventDefault();
 
     const trimmedEmail = newEmail.trim();
@@ -106,18 +106,8 @@ export const ChangeEmailDialog: React.FC<ChangeEmailDialogProps> = ({
       return;
     }
 
-    setIsLoading(true);
-    setErrorMsg("");
-    try {
-      const response = await updateChangeGmail(trimmedEmail);
-      const savedEmail = response.data?.email || trimmedEmail;
-      onSave(savedEmail);
-      showToast(String(response.message || "Thay đổi email thành công"), "success");
-    } catch (error) {
-      setErrorMsg(error instanceof Error ? error.message : "Thay đổi email thất bại");
-    } finally {
-      setIsLoading(false);
-    }
+    onSave(trimmedEmail);
+    showToast("Đã ghi nhận email mới tạm thời. Vui lòng ấn nút Lưu ở ngoài để lưu thay đổi.", "success");
   };
 
   return (

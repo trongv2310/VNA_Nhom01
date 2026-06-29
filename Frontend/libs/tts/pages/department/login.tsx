@@ -14,6 +14,7 @@ import { CreateEnterprise } from "../../components/CreateEnterprise";
 export const DepartmentLoginScreen: React.FC = () => {
   const router = useRouter();
   const [username, setUsername] = useState("");
+  const [usernameError, setUsernameError] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
@@ -65,6 +66,16 @@ export const DepartmentLoginScreen: React.FC = () => {
 
     if (!username.trim() || !password) {
       showAlert("Vui lòng nhập đầy đủ thông tin");
+      return;
+    }
+
+    if (/\s/.test(username)) {
+      setUsernameError("Tên tài khoản không được chứa khoảng trắng.");
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9._-]+$/.test(username)) {
+      setUsernameError("Tên tài khoản không được chứa dấu tiếng Việt hoặc ký tự đặc biệt.");
       return;
     }
 
@@ -191,18 +202,34 @@ export const DepartmentLoginScreen: React.FC = () => {
 
               {/* Username Input Field */}
               <div className="flex flex-col gap-1.5 w-full">
-                <label className="text-xs font-semibold !text-zinc-500 select-none">
+                <label className={`text-xs font-semibold select-none ${usernameError ? "text-red-500" : "!text-zinc-500"}`}>
                   Tên tài khoản <span className="text-red-500">*</span>
                 </label>
-                <div className="relative flex items-center w-full rounded-md border border-zinc-300 focus-within:border-[#3b82f6] focus-within:ring-1 focus-within:ring-[#3b82f6] !bg-white transition-all duration-200 shadow-sm">
+                <div className={`relative flex items-center w-full rounded-md border !bg-white transition-all duration-200 shadow-sm
+                  ${usernameError ? "border-red-500 ring-1 ring-red-500" : "border-zinc-300 focus-within:border-[#3b82f6] focus-within:ring-1 focus-within:ring-[#3b82f6]"}`}>
                   <input
                     type="text"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setUsername(val);
+                      if (/\s/.test(val)) {
+                        setUsernameError("Tên tài khoản không được chứa khoảng trắng.");
+                      } else if (!/^[a-zA-Z0-9._-]+$/.test(val) && val !== "") {
+                        setUsernameError("Tên tài khoản không được chứa dấu tiếng Việt hoặc ký tự đặc biệt.");
+                      } else {
+                        setUsernameError("");
+                      }
+                    }}
                     className="w-full px-3.5 py-2.5 text-sm !text-zinc-950 outline-none bg-transparent placeholder-zinc-400 font-medium"
                     placeholder="Nhập tên tài khoản"
                   />
                 </div>
+                {usernameError && (
+                  <span className="text-xs text-red-500 font-semibold pl-1 block">
+                    {usernameError}
+                  </span>
+                )}
               </div>
 
               {/* Password Input Field */}

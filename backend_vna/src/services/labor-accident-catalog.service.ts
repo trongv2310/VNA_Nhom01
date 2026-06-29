@@ -481,6 +481,31 @@ export class LaborAccidentCatalogService {
     return trimmedValue ? trimmedValue : undefined;
   }
 
+  async deleteCatalogsBulk(ids: number[]) {
+    if (!ids || ids.length === 0) {
+      throw new BadRequestException('Danh sách ID xóa không được để trống');
+    }
+
+    const childCount = await this.catalogRepository
+      .createQueryBuilder('catalog')
+      .where('catalog.parent_id IN (:...ids)', { ids })
+      .andWhere('catalog.id NOT IN (:...ids)', { ids })
+      .getCount();
+
+    if (childCount > 0) {
+      throw new BadRequestException(
+        'Không thể xóa danh mục đang có danh mục con chưa được chọn để xóa',
+      );
+    }
+
+    await this.catalogRepository.delete(ids);
+
+    return {
+      message: 'Xóa danh mục tai nạn lao động thành công',
+      data: { deletedCount: ids.length },
+    };
+  }
+
   private mapCatalog(catalog: LaborAccidentCatalog) {
     return {
       id: catalog.id,
