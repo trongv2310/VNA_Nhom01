@@ -162,10 +162,10 @@ export class AuthService {
   }
 
   async requestForgotPassword(body: ForgotPasswordDto) {
-    const user = await this.findUserByEmail(body.email);
+    const user = await this.findUserByIdentifier(body.email);
 
     if (!user) {
-      throw new NotFoundException('Email chưa đăng ký trong hệ thống');
+      throw new NotFoundException('Tài khoản hoặc email chưa đăng ký trong hệ thống');
     }
 
     const otp = this.generateOtp();
@@ -226,10 +226,10 @@ export class AuthService {
   }
 
   async verifyForgotPasswordOtp(body: VerifyForgotPasswordOtpDto) {
-    const user = await this.findUserByEmail(body.email);
+    const user = await this.findUserByIdentifier(body.email);
 
     if (!user) {
-      throw new NotFoundException('Email chưa đăng ký trong hệ thống');
+      throw new NotFoundException('Tài khoản hoặc email chưa đăng ký trong hệ thống');
     }
 
     const emailOtp = await this.findLatestOtp(
@@ -250,10 +250,10 @@ export class AuthService {
       throw new BadRequestException('Mật khẩu xác nhận không khớp');
     }
 
-    const user = await this.findUserByEmail(body.email);
+    const user = await this.findUserByIdentifier(body.email);
 
     if (!user) {
-      throw new NotFoundException('Email chưa đăng ký trong hệ thống');
+      throw new NotFoundException('Tài khoản hoặc email chưa đăng ký trong hệ thống');
     }
 
     const emailOtp = await this.findLatestOtp(
@@ -538,11 +538,12 @@ export class AuthService {
     });
   }
 
-  private findUserByEmail(email: string) {
+  private findUserByIdentifier(identifier: string) {
+    const clean = identifier.trim().toLowerCase();
     return this.userRepository
       .createQueryBuilder('user')
-      .where('LOWER(user.email) = :email', {
-        email: this.normalizeEmail(email),
+      .where('LOWER(user.email) = :clean OR LOWER(user.username) = :clean', {
+        clean,
       })
       .getOne();
   }

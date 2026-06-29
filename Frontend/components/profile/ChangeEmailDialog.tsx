@@ -130,17 +130,18 @@ export const ChangeEmailDialog: React.FC<ChangeEmailDialogProps> = ({
       {step === "otp" && (
         <form
           onSubmit={handleVerifyOtp}
-          className="relative flex w-full max-w-[420px] flex-col gap-5 rounded-[20px] border border-zinc-200/60 bg-white p-6 shadow-2xl dark:border-zinc-800/80 dark:bg-zinc-950"
+          className="relative flex w-full max-w-[440px] flex-col gap-6 rounded-[32px] border border-zinc-200/60 bg-white p-8 shadow-2xl dark:border-zinc-800/80 dark:bg-zinc-950 select-none"
         >
-          <div className="text-center">
-            <h3 className="text-lg font-bold uppercase tracking-wide text-blue-600 dark:text-blue-400">
-              Thay đổi email
+          <div className="text-center flex flex-col gap-2">
+            <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight text-[#2563eb] dark:text-blue-400">
+              THAY ĐỔI EMAIL
             </h3>
-            <div className="mt-4 text-sm font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
-              Chúng tôi đã gửi mã xác minh qua email cũ
-              <span className="my-1 block font-bold text-zinc-800 dark:text-zinc-200">
+            <div className="text-sm font-normal leading-relaxed text-zinc-500 dark:text-zinc-400">
+              Chúng tôi đã gửi mã xác minh qua số email cũ
+              <span className="my-1 block font-extrabold text-zinc-900 dark:text-zinc-100 text-base">
                 {currentEmail}
               </span>
+              <span>Bạn vui lòng kiểm tra và điền mã xác thực</span>
             </div>
           </div>
 
@@ -150,8 +151,8 @@ export const ChangeEmailDialog: React.FC<ChangeEmailDialogProps> = ({
             </Alert>
           )}
 
-          <div className="relative flex w-full flex-col justify-center rounded-xl border border-zinc-200 bg-white px-4 py-2 transition-all focus-within:border-blue-600 focus-within:ring-1 focus-within:ring-blue-600 dark:border-zinc-800 dark:bg-zinc-950">
-            <label className="absolute -top-2.5 left-3 bg-white px-1.5 text-[11px] font-bold text-zinc-400 dark:bg-zinc-950 dark:text-zinc-500">
+          <div className="relative flex w-full flex-col justify-center rounded-2xl border border-zinc-200 bg-white px-4 py-2 transition-all focus-within:border-blue-600 focus-within:ring-1 focus-within:ring-blue-600 dark:border-zinc-800 dark:bg-zinc-950">
+            <label className="absolute -top-2.5 left-4 bg-white px-1 text-[11px] font-bold text-zinc-400 dark:bg-zinc-950 dark:text-zinc-500">
               OTP <span className="text-red-500">*</span>
             </label>
             <input
@@ -166,33 +167,33 @@ export const ChangeEmailDialog: React.FC<ChangeEmailDialogProps> = ({
                   setErrorMsg("");
                 }
               }}
-              placeholder="Ví dụ: 122456"
-              className="w-full border-0 bg-transparent pb-0.5 pt-2 text-sm font-semibold text-zinc-800 outline-none dark:text-zinc-200"
+              placeholder="- - - - - -"
+              className="w-full border-0 bg-transparent py-2 text-center text-lg font-bold tracking-[0.5em] text-zinc-800 outline-none placeholder:font-normal placeholder:tracking-[0.4em] placeholder:text-zinc-400 dark:text-zinc-200"
             />
           </div>
 
-          <div className="flex flex-col items-center gap-1.5">
-            <span className="text-base font-bold text-blue-600 dark:text-blue-400">
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-xl font-extrabold text-[#2563eb] dark:text-blue-400">
               {formatTime(timeLeft)}
             </span>
-            <div className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+            <div className="text-sm font-medium text-zinc-400 dark:text-zinc-500">
               Chưa nhận được mã?{" "}
               <button
                 type="button"
                 onClick={handleResendOtp}
                 disabled={timeLeft > 0 || isLoading}
-                className="font-bold text-blue-600 hover:underline disabled:cursor-not-allowed disabled:text-zinc-400 dark:text-blue-400"
+                className="font-semibold text-zinc-400 underline hover:text-[#2563eb] disabled:cursor-not-allowed disabled:no-underline dark:hover:text-blue-400"
               >
                 Gửi lại
               </button>
             </div>
           </div>
 
-          <div className="mt-1 flex flex-col gap-3.5">
+          <div className="flex flex-col gap-3">
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full rounded-xl bg-blue-600 py-3 text-center text-sm font-bold text-white shadow-md shadow-blue-500/10 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+              className="w-full rounded-2xl bg-[#8eaefc] hover:bg-[#7c9ff7] py-3.5 text-center text-base font-extrabold text-white shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-70 active:scale-99 cursor-pointer"
             >
               {isLoading ? "Đang xử lý..." : "Xác nhận"}
             </button>
@@ -200,7 +201,7 @@ export const ChangeEmailDialog: React.FC<ChangeEmailDialogProps> = ({
               type="button"
               disabled={isLoading}
               onClick={onCancel}
-              className="text-center text-sm font-bold text-zinc-400 transition-colors hover:text-zinc-600 disabled:cursor-not-allowed"
+              className="w-full text-center text-base font-extrabold text-zinc-600 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed cursor-pointer py-1"
             >
               Hủy bỏ
             </button>
@@ -211,13 +212,13 @@ export const ChangeEmailDialog: React.FC<ChangeEmailDialogProps> = ({
       {step === "newEmail" && (
         <form
           onSubmit={handleSaveEmail}
-          className="relative flex w-full max-w-[420px] flex-col gap-5 rounded-[20px] border border-zinc-200/60 bg-white p-6 shadow-2xl dark:border-zinc-800/80 dark:bg-zinc-950"
+          className="relative flex w-full max-w-[440px] flex-col gap-6 rounded-[32px] border border-zinc-200/60 bg-white p-8 shadow-2xl dark:border-zinc-800/80 dark:bg-zinc-950 select-none"
         >
-          <div className="text-center">
-            <h3 className="text-lg font-bold uppercase tracking-wide text-blue-600 dark:text-blue-400">
-              Thay đổi email
+          <div className="text-center flex flex-col gap-2">
+            <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight text-[#2563eb] dark:text-blue-400">
+              THAY ĐỔI EMAIL
             </h3>
-            <div className="mt-4 text-sm font-medium leading-relaxed text-zinc-500 dark:text-zinc-400">
+            <div className="text-sm font-normal leading-relaxed text-zinc-500 dark:text-zinc-400">
               Vui lòng nhập email mới
             </div>
           </div>
@@ -228,8 +229,8 @@ export const ChangeEmailDialog: React.FC<ChangeEmailDialogProps> = ({
             </Alert>
           )}
 
-          <div className="relative flex w-full flex-col justify-center rounded-xl border border-zinc-200 bg-white px-4 py-2 transition-all focus-within:border-blue-600 focus-within:ring-1 focus-within:ring-blue-600 dark:border-zinc-800 dark:bg-zinc-950">
-            <label className="absolute -top-2.5 left-3 bg-white px-1.5 text-[11px] font-bold text-zinc-400 dark:bg-zinc-950 dark:text-zinc-500">
+          <div className="relative flex w-full flex-col justify-center rounded-2xl border border-zinc-200 bg-white px-4 py-2 transition-all focus-within:border-blue-600 focus-within:ring-1 focus-within:ring-blue-600 dark:border-zinc-800 dark:bg-zinc-950">
+            <label className="absolute -top-2.5 left-4 bg-white px-1 text-[11px] font-bold text-zinc-400 dark:bg-zinc-950 dark:text-zinc-500">
               Email <span className="text-red-500">*</span>
             </label>
             <input
@@ -239,16 +240,16 @@ export const ChangeEmailDialog: React.FC<ChangeEmailDialogProps> = ({
                 setNewEmail(e.target.value);
                 setErrorMsg("");
               }}
-              placeholder="Ví dụ: user@gmail.com"
-              className="w-full border-0 bg-transparent pb-0.5 pt-2 text-sm font-semibold text-zinc-800 outline-none dark:text-zinc-200"
+              placeholder="Nhập email mới"
+              className="w-full border-0 bg-transparent py-2 text-base font-bold text-zinc-800 outline-none dark:text-zinc-200"
             />
           </div>
 
-          <div className="mt-1 flex flex-col gap-3.5">
+          <div className="flex flex-col gap-3">
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full rounded-xl bg-blue-600 py-3 text-center text-sm font-bold text-white shadow-md shadow-blue-500/10 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+              className="w-full rounded-2xl bg-[#8eaefc] hover:bg-[#7c9ff7] py-3.5 text-center text-base font-extrabold text-white shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-70 active:scale-99 cursor-pointer"
             >
               {isLoading ? "Đang lưu..." : "Lưu"}
             </button>
@@ -256,7 +257,7 @@ export const ChangeEmailDialog: React.FC<ChangeEmailDialogProps> = ({
               type="button"
               disabled={isLoading}
               onClick={onCancel}
-              className="text-center text-sm font-bold text-zinc-400 transition-colors hover:text-zinc-600 disabled:cursor-not-allowed"
+              className="w-full text-center text-base font-extrabold text-zinc-600 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed cursor-pointer py-1"
             >
               Hủy bỏ
             </button>

@@ -90,7 +90,22 @@ export const CreateUser: React.FC<CreateUserProps> = ({ onSave, onCancel, showTo
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) {
+
+    if (name === "username") {
+      if (!value.trim()) {
+        setErrors((prev) => ({ ...prev, username: "Tên đăng nhập không được để trống." }));
+      } else if (/\s/.test(value)) {
+        setErrors((prev) => ({ ...prev, username: "Tên đăng nhập không được chứa khoảng trắng." }));
+      } else if (!/^[a-zA-Z0-9._-]+$/.test(value)) {
+        setErrors((prev) => ({ ...prev, username: "Tên đăng nhập không được chứa dấu tiếng Việt hoặc ký tự đặc biệt." }));
+      } else {
+        setErrors((prev) => {
+          const next = { ...prev };
+          delete next.username;
+          return next;
+        });
+      }
+    } else if (errors[name]) {
       setErrors((prev) => {
         const next = { ...prev };
         delete next[name];
@@ -156,6 +171,10 @@ export const CreateUser: React.FC<CreateUserProps> = ({ onSave, onCancel, showTo
 
     if (!formData.username.trim()) {
       newErrors.username = "Tên đăng nhập không được để trống.";
+    } else if (/\s/.test(formData.username)) {
+      newErrors.username = "Tên đăng nhập không được chứa khoảng trắng.";
+    } else if (!/^[a-zA-Z0-9._-]+$/.test(formData.username)) {
+      newErrors.username = "Tên đăng nhập không được chứa dấu tiếng Việt hoặc ký tự đặc biệt.";
     }
 
     const pw = formData.password.trim();
@@ -342,69 +361,90 @@ export const CreateUser: React.FC<CreateUserProps> = ({ onSave, onCancel, showTo
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Username Input */}
-              <div className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 transition-all bg-white dark:bg-zinc-950
-                ${errors.username ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"}
-              `}>
-                <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold transition-colors
-                  ${errors.username ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"}
+              <div>
+                <div className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 transition-all bg-white dark:bg-zinc-950
+                  ${errors.username ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"}
                 `}>
-                  Tên đăng nhập <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="username"
-                  value={formData.username}
-                  onChange={handleInputChange}
-                  className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-bold pt-2 pb-0.5"
-                  placeholder="Nhập tên đăng nhập"
-                />
+                  <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold transition-colors
+                    ${errors.username ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"}
+                  `}>
+                    Tên đăng nhập <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="username"
+                    value={formData.username}
+                    onChange={handleInputChange}
+                    className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-bold pt-2 pb-0.5"
+                    placeholder="Nhập tên đăng nhập"
+                  />
+                </div>
+                {errors.username && (
+                  <span className="text-xs text-red-500 font-semibold pl-1 mt-1 block">
+                    {errors.username}
+                  </span>
+                )}
               </div>
 
               {/* Password Input with Hide/Show toggler */}
-              <div className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 transition-all bg-white dark:bg-zinc-950
-                ${errors.password ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"}
-              `}>
-                <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold transition-colors
-                  ${errors.password ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"}
+              <div>
+                <div className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 transition-all bg-white dark:bg-zinc-950
+                  ${errors.password ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"}
                 `}>
-                  Mật khẩu <span className="text-red-500">*</span>
-                </label>
-                <div className="relative flex items-center justify-between w-full pt-2 pb-0.5">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    name="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-bold pr-8"
-                    placeholder="Nhập mật khẩu"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors focus:outline-none cursor-pointer"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                  <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold transition-colors
+                    ${errors.password ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"}
+                  `}>
+                    Mật khẩu <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative flex items-center justify-between w-full pt-2 pb-0.5">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleInputChange}
+                      className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-bold pr-8"
+                      placeholder="Nhập mật khẩu"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute right-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors focus:outline-none cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
+                {errors.password && (
+                  <span className="text-xs text-red-500 font-semibold pl-1 mt-1 block">
+                    {errors.password}
+                  </span>
+                )}
               </div>
 
               {/* Full Name Input */}
-              <div className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 transition-all bg-white dark:bg-zinc-950
-                ${errors.fullName ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"}
-              `}>
-                <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold transition-colors
-                  ${errors.fullName ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"}
+              <div>
+                <div className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 transition-all bg-white dark:bg-zinc-950
+                  ${errors.fullName ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"}
                 `}>
-                  Họ và tên <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="fullName"
-                  value={formData.fullName}
-                  onChange={handleInputChange}
-                  className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-bold pt-2 pb-0.5"
-                  placeholder="Nhập họ và tên"
-                />
+                  <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold transition-colors
+                    ${errors.fullName ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"}
+                  `}>
+                    Họ và tên <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="fullName"
+                    value={formData.fullName}
+                    onChange={handleInputChange}
+                    className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-bold pt-2 pb-0.5"
+                    placeholder="Nhập họ và tên"
+                  />
+                </div>
+                {errors.fullName && (
+                  <span className="text-xs text-red-500 font-semibold pl-1 mt-1 block">
+                    {errors.fullName}
+                  </span>
+                )}
               </div>
 
               {/* DoB Datepicker */}
@@ -465,22 +505,29 @@ export const CreateUser: React.FC<CreateUserProps> = ({ onSave, onCancel, showTo
               />
 
               {/* Email Input */}
-              <div className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 transition-all bg-white dark:bg-zinc-950
-                ${errors.email ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"}
-              `}>
-                <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold transition-colors
-                  ${errors.email ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"}
+              <div>
+                <div className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 transition-all bg-white dark:bg-zinc-950
+                  ${errors.email ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"}
                 `}>
-                  Email <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-bold pt-2 pb-0.5"
-                  placeholder="Nhập email"
-                />
+                  <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold transition-colors
+                    ${errors.email ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"}
+                  `}>
+                    Email <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-bold pt-2 pb-0.5"
+                    placeholder="Nhập email"
+                  />
+                </div>
+                {errors.email && (
+                  <span className="text-xs text-red-500 font-semibold pl-1 mt-1 block">
+                    {errors.email}
+                  </span>
+                )}
               </div>
             </div>
           </div>

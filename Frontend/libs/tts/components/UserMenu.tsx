@@ -7,6 +7,7 @@ interface UserMenuProps {
   fullName: string;
   avatarUrl: string;
   role: string;
+  accountType?: "DEPARTMENT" | "BUSINESS";
   onSelectView: (view: "profile" | "change-password") => void;
   onLogout: () => void;
 }
@@ -15,6 +16,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   fullName,
   avatarUrl,
   role,
+  accountType,
   onSelectView,
   onLogout,
 }) => {
@@ -99,7 +101,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({
               {fullName}
             </p>
             <p className="text-[10px] text-white/50 group-hover:text-white/60 transition-colors truncate">
-              {role === "ADMIN" || role === "Quản trị viên"
+              {accountType === "BUSINESS" || role === "BUSINESS" || role === "Doanh nghiệp"
+                ? "Doanh nghiệp"
+                : role === "ADMIN" || role === "Quản trị viên"
                 ? "Tài khoản quản trị"
                 : role === "USER" || role === "Người dùng"
                 ? "Người dùng"

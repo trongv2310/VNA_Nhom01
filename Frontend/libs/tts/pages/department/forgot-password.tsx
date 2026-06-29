@@ -133,19 +133,32 @@ export const DepartmentForgotPasswordScreen: React.FC = () => {
     setEmailError("");
     setAlertMsg(null);
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email.trim()) {
-      setEmailError("Vui lòng nhập địa chỉ email.");
+    const val = email.trim();
+    if (!val) {
+      setEmailError("Vui lòng nhập tên đăng nhập hoặc email.");
       return;
     }
-    if (!emailRegex.test(email)) {
-      setEmailError("Định dạng email không hợp lệ.");
+    if (/\s/.test(val)) {
+      setEmailError("Thông tin nhập vào không được chứa khoảng trắng.");
       return;
+    }
+
+    if (val.includes("@")) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(val)) {
+        setEmailError("Định dạng email không hợp lệ.");
+        return;
+      }
+    } else {
+      if (!/^[a-zA-Z0-9._-]+$/.test(val)) {
+        setEmailError("Tên đăng nhập không được chứa dấu tiếng Việt hoặc ký tự đặc biệt.");
+        return;
+      }
     }
 
     setIsLoading(true);
     try {
-      const response = await requestForgotPassword(email.trim());
+      const response = await requestForgotPassword(val);
       setStep("VERIFY_OTP");
       setTimer(response.data.expiresInSeconds || 60);
       setOtpCode("");
@@ -155,7 +168,7 @@ export const DepartmentForgotPasswordScreen: React.FC = () => {
       setOtpError("");
       setAlertMsg({
         type: "success",
-        text: String(response.message || "Mã OTP đã được gửi về email của bạn."),
+        text: String(response.message || "Mã OTP đã được gửi về email liên kết tài khoản."),
       });
     } catch (error) {
       setAlertMsg({
@@ -349,36 +362,38 @@ export const DepartmentForgotPasswordScreen: React.FC = () => {
               </Alert>
             )}
 
-            {/* STEP 1: REQUEST EMAIL */}
+            {/* STEP 1: REQUEST EMAIL / USERNAME */}
             {step === "REQUEST" && (
-              <form onSubmit={handleSendRequest} className="w-full flex flex-col gap-6">
+              <form onSubmit={handleSendRequest} noValidate className="w-full flex flex-col gap-6">
 
                 {/* Subtitle */}
                 <div className="flex flex-col items-center pb-1">
                   <p className="text-sm font-semibold text-zinc-500 text-center select-none">
-                    Vui lòng nhập email đã đăng ký tài khoản
+                    Vui lòng nhập tên đăng nhập hoặc email đã đăng ký
                   </p>
                 </div>
 
-                {/* Email Input Field */}
+                {/* Email / Username Input Field */}
                 <div className="relative w-full">
-                  <span className="absolute -top-2 left-3 px-1 text-xs text-zinc-400 bg-white font-medium select-none z-10">
-                    Email <span className="text-red-500">*</span>
+                  <span className={`absolute -top-2 left-3 px-1 text-xs font-medium select-none z-10 bg-white ${emailError ? "text-red-500 font-bold" : "text-zinc-400"}`}>
+                    Tên đăng nhập / Email <span className="text-red-500">*</span>
                   </span>
                   <div className={`relative flex items-center w-full rounded-lg border transition-all duration-200 shadow-sm
-                    ${emailError ? "border-red-500 focus-within:ring-1 focus-within:ring-red-500" : "border-zinc-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"}
+                    ${emailError ? "border-red-500 ring-2 ring-red-500/20 focus-within:ring-2 focus-within:ring-red-500" : "border-zinc-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"}
                   `}>
                     <input
-                      type="email"
+                      type="text"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (emailError) setEmailError("");
+                      }}
                       className="w-full px-3.5 py-3 text-base text-zinc-900 bg-transparent outline-none font-medium"
-                      placeholder="Nhập địa chỉ email"
-                      required
+                      placeholder="Nhập tên đăng nhập hoặc email"
                     />
                   </div>
                   {emailError && (
-                    <span className="text-xs text-red-500 font-medium pl-1 mt-1 block">{emailError}</span>
+                    <span className="text-xs text-red-500 font-semibold pl-1 mt-1 block animate-fade-in">{emailError}</span>
                   )}
                 </div>
 
@@ -408,32 +423,34 @@ export const DepartmentForgotPasswordScreen: React.FC = () => {
 
             {/* STEP 2: VERIFY OTP AND RESET PASSWORD */}
             {step === "VERIFY_OTP" && (
-              <form onSubmit={handleResetPasswordCombined} className="w-full flex flex-col gap-6">
+              <form onSubmit={handleResetPasswordCombined} noValidate className="w-full flex flex-col gap-6">
 
                 {/* Subtitle matching image */}
                 <div className="flex flex-col items-center pb-1">
                   <p className="text-sm text-zinc-500 text-center select-none leading-relaxed">
-                    Chúng tôi đã gửi mã xác minh qua số email <br />
+                    Mã xác minh đã được gửi cho tài khoản / email <br />
                     <strong className="text-zinc-900 font-bold text-base">{email}</strong> <br />
-                    Bạn vui lòng kiểm tra và điền mã xác thực
+                    Bạn vui lòng kiểm tra email và điền mã xác thực
                   </p>
                 </div>
 
                 {/* New Password input field */}
                 <div className="relative w-full">
-                  <span className="absolute -top-2 left-3 px-1 text-xs text-zinc-400 bg-white font-medium select-none z-10">
+                  <span className={`absolute -top-2 left-3 px-1 text-xs font-medium select-none z-10 bg-white ${pwdErrors.new ? "text-red-500 font-bold" : "text-zinc-400"}`}>
                     Nhập mật khẩu mới <span className="text-red-500">*</span>
                   </span>
                   <div className={`relative flex items-center w-full rounded-lg border transition-all duration-200 shadow-sm
-                    ${pwdErrors.new ? "border-red-500 focus-within:ring-1 focus-within:ring-red-500" : "border-zinc-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"}
+                    ${pwdErrors.new ? "border-red-500 ring-2 ring-red-500/20 focus-within:ring-2 focus-within:ring-red-500" : "border-zinc-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"}
                   `}>
                     <input
                       type={showPasswordNew ? "text" : "password"}
                       value={passwordNew}
-                      onChange={(e) => setPasswordNew(e.target.value)}
+                      onChange={(e) => {
+                        setPasswordNew(e.target.value);
+                        if (pwdErrors.new) setPwdErrors((prev) => ({ ...prev, new: undefined }));
+                      }}
                       className="w-full pl-3.5 pr-10 py-3 text-base text-zinc-900 bg-transparent outline-none font-medium"
-                      placeholder="122456"
-                      required
+                      placeholder="Nhập mật khẩu mới"
                     />
                     <button
                       type="button"
@@ -462,25 +479,27 @@ export const DepartmentForgotPasswordScreen: React.FC = () => {
                   )}
 
                   {pwdErrors.new && (
-                    <span className="text-xs text-red-500 font-medium pl-1 mt-1 block">{pwdErrors.new}</span>
+                    <span className="text-xs text-red-500 font-semibold pl-1 mt-1 block animate-fade-in">{pwdErrors.new}</span>
                   )}
                 </div>
 
                 {/* Confirm Password input field */}
                 <div className="relative w-full">
-                  <span className="absolute -top-2 left-3 px-1 text-xs text-zinc-400 bg-white font-medium select-none z-10">
+                  <span className={`absolute -top-2 left-3 px-1 text-xs font-medium select-none z-10 bg-white ${pwdErrors.confirm ? "text-red-500 font-bold" : "text-zinc-400"}`}>
                     Xác nhận mật khẩu mới <span className="text-red-500">*</span>
                   </span>
                   <div className={`relative flex items-center w-full rounded-lg border transition-all duration-200 shadow-sm
-                    ${pwdErrors.confirm ? "border-red-500 focus-within:ring-1 focus-within:ring-red-500" : "border-zinc-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"}
+                    ${pwdErrors.confirm ? "border-red-500 ring-2 ring-red-500/20 focus-within:ring-2 focus-within:ring-red-500" : "border-zinc-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"}
                   `}>
                     <input
                       type={showPasswordConfirm ? "text" : "password"}
                       value={passwordConfirm}
-                      onChange={(e) => setPasswordConfirm(e.target.value)}
+                      onChange={(e) => {
+                        setPasswordConfirm(e.target.value);
+                        if (pwdErrors.confirm) setPwdErrors((prev) => ({ ...prev, confirm: undefined }));
+                      }}
                       className="w-full pl-3.5 pr-10 py-3 text-base text-zinc-900 bg-transparent outline-none font-medium"
-                      placeholder="122456"
-                      required
+                      placeholder="Nhập lại mật khẩu mới"
                     />
                     <button
                       type="button"
@@ -491,17 +510,17 @@ export const DepartmentForgotPasswordScreen: React.FC = () => {
                     </button>
                   </div>
                   {pwdErrors.confirm && (
-                    <span className="text-xs text-red-500 font-medium pl-1 mt-1 block">{pwdErrors.confirm}</span>
+                    <span className="text-xs text-red-500 font-semibold pl-1 mt-1 block animate-fade-in">{pwdErrors.confirm}</span>
                   )}
                 </div>
 
                 {/* OTP Input Field */}
                 <div className="relative w-full">
-                  <span className="absolute -top-2 left-3 px-1 text-xs text-zinc-400 bg-white font-medium select-none z-10">
-                    OTP <span className="text-red-500">*</span>
+                  <span className={`absolute -top-2 left-3 px-1 text-xs font-medium select-none z-10 bg-white ${otpError ? "text-red-500 font-bold" : "text-zinc-400"}`}>
+                    Mã OTP <span className="text-red-500">*</span>
                   </span>
                   <div className={`relative flex items-center w-full rounded-lg border transition-all duration-200 shadow-sm
-                    ${otpError ? "border-red-500 focus-within:ring-1 focus-within:ring-red-500" : "border-zinc-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"}
+                    ${otpError ? "border-red-500 ring-2 ring-red-500/20 focus-within:ring-2 focus-within:ring-red-500" : "border-zinc-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"}
                   `}>
                     <input
                       type="text"
@@ -511,15 +530,15 @@ export const DepartmentForgotPasswordScreen: React.FC = () => {
                         const val = e.target.value;
                         if (val === "" || /^\d+$/.test(val)) {
                           setOtpCode(val);
+                          if (otpError) setOtpError("");
                         }
                       }}
                       className="w-full px-3.5 py-3 text-base text-zinc-900 bg-transparent outline-none font-medium"
-                      placeholder="122456"
-                      required
+                      placeholder="Nhập 6 chữ số OTP"
                     />
                   </div>
                   {otpError && (
-                    <span className="text-xs text-red-500 font-medium pl-1 mt-1 block">{otpError}</span>
+                    <span className="text-xs text-red-500 font-semibold pl-1 mt-1 block animate-fade-in">{otpError}</span>
                   )}
                 </div>
 
