@@ -989,7 +989,7 @@ export const CreateEnterprise: React.FC<CreateEnterpriseProps> = ({
                   <input
                     type="text"
                     inputMode="numeric"
-                    maxLength={13}
+                    maxLength={14}
                     name="taxCode"
                     value={formData.taxCode}
                     onChange={handleInputChange}

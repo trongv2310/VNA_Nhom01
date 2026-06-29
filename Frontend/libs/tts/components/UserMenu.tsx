@@ -104,7 +104,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
               {accountType === "BUSINESS" || role === "BUSINESS" || role === "Doanh nghiệp"
                 ? "Doanh nghiệp"
                 : role === "ADMIN" || role === "Quản trị viên"
-                ? "Tài khoản quản trị"
+                ? "Quản trị viên"
                 : role === "USER" || role === "Người dùng"
                 ? "Người dùng"
                 : role || "Người dùng"}

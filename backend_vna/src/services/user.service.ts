@@ -147,7 +147,8 @@ export class UserService {
       throw new NotFoundException('Không tìm thấy người dùng');
     }
 
-    const roles = user.userRoles.map((userRole) => userRole.role.code);
+    const roles = this.mapRoles(user);
+    const roleDisplay = roles.map((r) => r.name).join(', ');
     const permissions = this.mapPermissionCodes(user);
 
     return {
@@ -167,6 +168,7 @@ export class UserService {
         isActive: user.isActive,
         accountType: user.accountType,
         roles,
+        roleDisplay,
         permissions,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
@@ -230,6 +232,21 @@ export class UserService {
       user.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : user.dateOfBirth;
     }
 
+    if (updateUserDto.isActive !== undefined) {
+      const activeVal = String(updateUserDto.isActive);
+      user.isActive = activeVal === 'true' || activeVal === '1' || (updateUserDto.isActive as any) === true;
+      try {
+        await this.userRepository.manager.createQueryBuilder()
+          .update('businesses')
+          .set({ is_active: user.isActive })
+          .where('account_user_id = :userId', { userId })
+          .execute();
+      } catch {
+        // Ignored if table or column mapping differs
+      }
+    }
+
+    user.updatedAt = new Date();
     await this.userRepository.save(user);
     const savedUser = await this.findSelfUserWithPermissions(userId);
 
