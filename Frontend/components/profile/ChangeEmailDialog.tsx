@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Alert } from "@/libs/core/components/Alert";
 import {
+  checkEmailExists,
   sendChangeGmailOtp,
   updateChangeGmail,
   verifyChangeGmailOtp,
@@ -86,7 +87,7 @@ export const ChangeEmailDialog: React.FC<ChangeEmailDialogProps> = ({
     }
   };
 
-  const handleSaveEmail = (e: React.FormEvent) => {
+  const handleSaveEmail = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const trimmedEmail = newEmail.trim();
@@ -106,8 +107,23 @@ export const ChangeEmailDialog: React.FC<ChangeEmailDialogProps> = ({
       return;
     }
 
-    onSave(trimmedEmail);
-    showToast("Đã ghi nhận email mới tạm thời. Vui lòng ấn nút Lưu ở ngoài để lưu thay đổi.", "success");
+    setIsLoading(true);
+    setErrorMsg("");
+    try {
+      const res = await checkEmailExists(trimmedEmail);
+      if (res.data?.exists) {
+        setErrorMsg("Email mới đã tồn tại trên hệ thống, vui lòng kiểm tra lại dữ liệu");
+        showToast("Email mới đã tồn tại trên hệ thống, vui lòng kiểm tra lại dữ liệu", "error");
+        return;
+      }
+
+      onSave(trimmedEmail);
+      showToast("Đã ghi nhận email mới tạm thời. Vui lòng ấn nút Lưu ở ngoài để lưu thay đổi.", "success");
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Kiểm tra email trùng lặp thất bại");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -182,8 +198,10 @@ export const ChangeEmailDialog: React.FC<ChangeEmailDialogProps> = ({
           <div className="flex flex-col gap-3">
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full rounded-2xl bg-[#8eaefc] hover:bg-[#7c9ff7] py-3.5 text-center text-base font-extrabold text-white shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-70 active:scale-99 cursor-pointer"
+              disabled={isLoading || otp.length < 6}
+              className={`w-full rounded-2xl py-3.5 text-center text-base font-extrabold text-white shadow-sm transition-all active:scale-99 cursor-pointer disabled:bg-[#8eaefc] disabled:opacity-70 disabled:cursor-not-allowed ${
+                isLoading || otp.length < 6 ? "" : "bg-[#2563eb] hover:bg-[#1d4ed8]"
+              }`}
             >
               {isLoading ? "Đang xử lý..." : "Xác nhận"}
             </button>
@@ -219,8 +237,16 @@ export const ChangeEmailDialog: React.FC<ChangeEmailDialogProps> = ({
             </Alert>
           )}
 
-          <div className="relative flex w-full flex-col justify-center rounded-2xl border border-zinc-200 bg-white px-4 py-2 transition-all focus-within:border-blue-600 focus-within:ring-1 focus-within:ring-blue-600 dark:border-zinc-800 dark:bg-zinc-950">
-            <label className="absolute -top-2.5 left-4 bg-white px-1 text-[11px] font-bold text-zinc-400 dark:bg-zinc-950 dark:text-zinc-500">
+          <div className={`relative flex w-full flex-col justify-center rounded-2xl border bg-white px-4 py-2 transition-all focus-within:border-blue-600 focus-within:ring-1 focus-within:ring-blue-600 dark:bg-zinc-950 ${
+            errorMsg
+              ? "border-red-500 ring-1 ring-red-500"
+              : "border-zinc-200 dark:border-zinc-800"
+          }`}>
+            <label className={`absolute -top-2.5 left-4 bg-white px-1 text-[11px] font-bold dark:bg-zinc-950 ${
+              errorMsg
+                ? "text-red-500"
+                : "text-zinc-400 dark:text-zinc-500"
+            }`}>
               Email <span className="text-red-500">*</span>
             </label>
             <input

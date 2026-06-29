@@ -1159,6 +1159,13 @@ export async function updateMyBusinessProfile(formData: FormData) {
   });
 }
 
+export async function checkEmailExists(email: string) {
+  return request<{ exists: boolean }>(`/users/check-email?email=${encodeURIComponent(email)}`, {
+    method: "GET",
+    headers: authHeaders(),
+  });
+}
+
 export interface ListDepartmentReportsQuery {
   page?: number | string;
   limit?: number | string;

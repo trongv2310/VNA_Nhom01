@@ -14,9 +14,9 @@ export enum LaborAccidentReportPeriodType {
 
 @Entity('labor_accident_report_periods')
 @Index(
-  'IDX_labor_accident_report_period_unique',
+  'IDX_labor_accident_report_period_active_unique',
   ['reportName', 'year', 'periodType'],
-  { unique: true },
+  { unique: true, where: 'is_active = true' },
 )
 export class LaborAccidentReportPeriod {
   @PrimaryGeneratedColumn('increment')

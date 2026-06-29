@@ -431,6 +431,26 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
 
     try {
       const newStatus = !item.isActive;
+
+      if (newStatus) {
+        // Check if there is already an active duplicate period
+        const checkRes = await getReportPeriods({
+          year: String(item.year),
+          periodType: item.periodType,
+          isActive: true,
+          limit: 100,
+        });
+        if (checkRes.success && checkRes.data) {
+          const activeDuplicates = (checkRes.data.items || []).filter(
+            (p: any) => String(p.id) !== String(item.id) && p.isActive
+          );
+          if (activeDuplicates.length > 0) {
+            showToast(`Không thể kích hoạt: Kỳ báo cáo ${item.periodType === "SIX_MONTHS" ? "6 tháng" : "Cả năm"} đang hoạt động khác của năm ${item.year} đã tồn tại!`, "error");
+            return;
+          }
+        }
+      }
+
       const res = await updateReportPeriodStatus(item.id, newStatus);
       if (res.success) {
         showToast(`Cập nhật trạng thái kỳ báo cáo thành công!`, "success");
@@ -570,25 +590,28 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
 
     setIsLoading(true);
     try {
-      // Check duplicate using the API first to show inline error
-      const checkRes = await getReportPeriods({
-        year: formYear,
-        periodType: formPeriodType,
-        limit: 100,
-      });
+      // Check duplicate using the API first to show inline error if saving as active
+      if (formIsActive) {
+        const checkRes = await getReportPeriods({
+          year: formYear,
+          periodType: formPeriodType,
+          isActive: true,
+          limit: 100,
+        });
 
-      if (checkRes.success && checkRes.data) {
-        const existingItems = checkRes.data.items || [];
-        const hasDuplicate = existingItems.some(
-          (p: any) => !editingPeriod || String(p.id) !== String(editingPeriod.id)
-        );
-        if (hasDuplicate) {
-          setFormErrors({
-            year: `Năm ${formYear} đã có kỳ báo cáo trùng lặp`,
-            periodType: `Kỳ báo cáo ${formPeriodType === "SIX_MONTHS" ? "6 tháng" : "Cả năm"} của năm ${formYear} đã tồn tại!`,
-          });
-          setIsLoading(false);
-          return;
+        if (checkRes.success && checkRes.data) {
+          const existingItems = checkRes.data.items || [];
+          const hasActiveDuplicate = existingItems.some(
+            (p: any) => p.isActive && (!editingPeriod || String(p.id) !== String(editingPeriod.id))
+          );
+          if (hasActiveDuplicate) {
+            setFormErrors({
+              year: `Năm ${formYear} đã có kỳ báo cáo hoạt động trùng lặp`,
+              periodType: `Kỳ báo cáo ${formPeriodType === "SIX_MONTHS" ? "6 tháng" : "Cả năm"} hoạt động của năm ${formYear} đã tồn tại!`,
+            });
+            setIsLoading(false);
+            return;
+          }
         }
       }
 

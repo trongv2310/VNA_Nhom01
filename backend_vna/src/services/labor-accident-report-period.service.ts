@@ -272,7 +272,21 @@ export class LaborAccidentReportPeriodService {
     body: UpdateLaborAccidentReportPeriodStatusDto,
   ) {
     const reportPeriod = await this.findReportPeriod(id);
-    reportPeriod.isActive = this.toBoolean(body.isActive);
+    const nextActive = this.toBoolean(body.isActive);
+
+    if (nextActive && !reportPeriod.isActive) {
+      await this.validateUniqueReportPeriod(
+        {
+          reportName: reportPeriod.reportName,
+          year: reportPeriod.year,
+          periodType: reportPeriod.periodType as LaborAccidentReportPeriodType,
+          isActive: true,
+        },
+        id,
+      );
+    }
+
+    reportPeriod.isActive = nextActive;
 
     const savedReportPeriod =
       await this.reportPeriodRepository.save(reportPeriod);
@@ -375,9 +389,14 @@ export class LaborAccidentReportPeriodService {
       reportName: string;
       year: number;
       periodType: LaborAccidentReportPeriodType;
+      isActive: boolean;
     },
     ignoredId?: number,
   ) {
+    if (!payload.isActive) {
+      return;
+    }
+
     const queryBuilder = this.reportPeriodRepository
       .createQueryBuilder('reportPeriod')
       .where('reportPeriod.reportName = :reportName', {
@@ -386,7 +405,8 @@ export class LaborAccidentReportPeriodService {
       .andWhere('reportPeriod.year = :year', { year: payload.year })
       .andWhere('reportPeriod.periodType = :periodType', {
         periodType: payload.periodType,
-      });
+      })
+      .andWhere('reportPeriod.isActive = :isActive', { isActive: true });
 
     if (ignoredId) {
       queryBuilder.andWhere('reportPeriod.id != :ignoredId', { ignoredId });
@@ -396,7 +416,7 @@ export class LaborAccidentReportPeriodService {
 
     if (existedReportPeriod) {
       throw new BadRequestException(
-        'Cấu hình kỳ báo cáo đã tồn tại trong năm này',
+        'Một kỳ báo cáo tương tự đang hoạt động đã tồn tại trong năm này',
       );
     }
   }

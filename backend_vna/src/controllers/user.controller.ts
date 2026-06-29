@@ -110,6 +110,23 @@ export class UserController {
     return this.userService.getMe(currentUser.id);
   }
 
+  @Get('check-email')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Kiểm tra email đã tồn tại trên hệ thống chưa' })
+  async checkEmail(
+    @Query('email') email: string,
+    @currentUserDecorator.CurrentUser()
+    currentUser: currentUserDecorator.CurrentUserData,
+  ) {
+    const exists = await this.userService.checkEmailExists(email, currentUser.id);
+    return {
+      success: true,
+      message: 'Kiểm tra email thành công',
+      data: { exists },
+    };
+  }
+
   @Patch('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
