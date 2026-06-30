@@ -8,6 +8,7 @@ import {
   Loader2,
   Eye,
   FileText,
+  X,
 } from "lucide-react";
 import {
   getDepartmentReports,
@@ -388,24 +389,6 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
           Báo cáo định kỳ Tai nạn lao động
         </h2>
         <div className="flex items-center gap-3">
-          {canReceive && selectedIds.length > 0 && (
-            <div className="flex items-center gap-2 select-none animate-in fade-in slide-in-from-top-1.5 duration-200">
-              <button
-                onClick={handleBulkApproveClick}
-                disabled={isSubmitting}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs select-none transition-all cursor-pointer shadow-md shadow-emerald-500/10 active:scale-98 disabled:opacity-50"
-              >
-                Duyệt ({selectedIds.length})
-              </button>
-              <button
-                onClick={handleBulkRejectClick}
-                disabled={isSubmitting}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs select-none transition-all cursor-pointer shadow-md shadow-red-500/10 active:scale-98 disabled:opacity-50"
-              >
-                Từ chối ({selectedIds.length})
-              </button>
-            </div>
-          )}
           {/* Year selector */}
           <div className="relative min-w-[100px]">
             <select
@@ -697,6 +680,67 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Selection Action Bar */}
+      {canReceive && selectedIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-50 flex items-center justify-between overflow-hidden rounded-xl border border-zinc-200/80 bg-white shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-300 dark:border-zinc-800 dark:bg-zinc-900 -translate-x-1/2">
+          <div className="flex items-center">
+            <div className="flex min-w-[40px] h-10 items-center justify-center bg-blue-600 px-3 text-sm font-bold text-white">
+              {selectedIds.length}
+            </div>
+            <span className="px-3.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300 select-none">
+              báo cáo được chọn
+            </span>
+          </div>
+          <div className="flex items-center gap-3 pr-3">
+            <button
+              onClick={handleBulkApproveClick}
+              disabled={isSubmitting}
+              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg font-bold text-xs px-3.5 py-1.5 flex items-center gap-1.5 transition-all shadow-md shadow-emerald-500/10 cursor-pointer"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-3.5 h-3.5"
+              >
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+              <span>Duyệt</span>
+            </button>
+            <button
+              onClick={handleBulkRejectClick}
+              disabled={isSubmitting}
+              className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg font-bold text-xs px-3.5 py-1.5 flex items-center gap-1.5 transition-all shadow-md shadow-red-500/10 cursor-pointer"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-3.5 h-3.5"
+              >
+                <path d="m15 9-6 6M9 9l6 6" />
+                <circle cx="12" cy="12" r="10" />
+              </svg>
+              <span>Từ chối</span>
+            </button>
+            <button
+              onClick={() => setSelectedIds([])}
+              className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer"
+              title="Bỏ chọn"
+            >
+              <X className="h-4.5 w-4.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 1. Modal Xác nhận duyệt */}
       {canReceive && showApproveModal && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
