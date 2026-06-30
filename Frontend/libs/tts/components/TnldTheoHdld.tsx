@@ -2634,7 +2634,7 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                       <td className="p-4 text-center">
                         <span
                           title={rep.unavailableReason || undefined}
-                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-zinc-50 dark:bg-zinc-900 select-none"
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-zinc-50 dark:bg-zinc-900 select-none whitespace-nowrap"
                         >
                           <span
                             className={`w-2 h-2 rounded-full ${
@@ -4606,14 +4606,18 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                 : "z-30 flex-shrink-0 bg-white px-6 py-4 dark:bg-zinc-950"
             }`}
           >
-            <button
-              type="button"
-              onClick={handleBack}
-              className="flex items-center gap-1.5 px-4 py-2 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-xl font-bold text-xs text-zinc-700 dark:text-zinc-300 transition-all cursor-pointer bg-transparent hover:text-zinc-900"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              <span>Quay lại</span>
-            </button>
+            {currentSection !== "enterprise-info" ? (
+              <button
+                type="button"
+                onClick={handleBack}
+                className="flex items-center gap-1.5 px-4 py-2 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-xl font-bold text-xs text-zinc-700 dark:text-zinc-300 transition-all cursor-pointer bg-transparent hover:text-zinc-900"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span>Quay lại</span>
+              </button>
+            ) : (
+              <div className="w-[104px]" />
+            )}
 
             <span className="justify-self-center text-[10px] font-bold text-zinc-400">
               {currentSection === "enterprise-info"
