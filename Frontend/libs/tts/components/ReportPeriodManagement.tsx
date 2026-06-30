@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import {
-  Pencil,
   Plus,
   ChevronLeft,
   ChevronRight,
@@ -814,7 +813,10 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                           className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-blue-600 transition-all cursor-pointer"
                           title="Chỉnh sửa cấu hình"
                         >
-                          <Pencil className="w-[17px] h-[17px] text-zinc-400 hover:text-blue-600" />
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]">
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                          </svg>
                         </button>
                       )}
                     </td>

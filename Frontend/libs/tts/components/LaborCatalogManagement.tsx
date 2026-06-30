@@ -5,10 +5,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  Pencil,
   Plus,
   Trash2,
   X,
+  Save,
 } from "lucide-react";
 
 import {
@@ -23,6 +23,7 @@ import {
   type LaborCatalogType,
 } from "../services/api";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
+import { SearchSelect } from "./SearchSelect";
 
 interface LaborCatalogManagementProps {
   showToast: (message: string, type: "success" | "error") => void;
@@ -541,7 +542,10 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
                           className="text-slate-400 hover:text-blue-600"
                           aria-label="Chỉnh sửa"
                         >
-                          <Pencil className="h-4 w-4" />
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]">
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                          </svg>
                         </button>
                       )}
                     </td>
@@ -615,111 +619,132 @@ export const LaborCatalogManagement: React.FC<LaborCatalogManagementProps> = ({
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between bg-blue-600 px-6 py-5 text-white">
-              <h3 className="text-xl font-bold">
-                {editingItem ? "Cập nhật" : "Thêm mới"} {modalCopy.titleName}
-              </h3>
-              <button type="button" onClick={() => setIsModalOpen(false)}>
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="space-y-5 p-6">
-              <label className="block text-sm font-semibold text-zinc-700">
-                {modalCopy.codeLabel} <span className="text-red-500">*</span>
-                <input
-                  value={form.code}
-                  onChange={(event) =>
-                    setForm((value) => ({ ...value, code: event.target.value }))
-                  }
-                  className={`mt-2 w-full rounded-xl border px-4 py-3 outline-none ${
-                    errors.code
-                      ? "border-red-500"
-                      : "border-zinc-200 focus:border-blue-500"
-                  }`}
-                />
-                {errors.code && (
-                  <span className="mt-1 block text-xs text-red-500">
-                    {errors.code}
-                  </span>
-                )}
-              </label>
-              <label className="block text-sm font-semibold text-zinc-700">
-                {modalCopy.nameLabel} <span className="text-red-500">*</span>
-                <input
-                  value={form.name}
-                  onChange={(event) =>
-                    setForm((value) => ({ ...value, name: event.target.value }))
-                  }
-                  className={`mt-2 w-full rounded-xl border px-4 py-3 outline-none ${
-                    errors.name
-                      ? "border-red-500"
-                      : "border-zinc-200 focus:border-blue-500"
-                  }`}
-                />
-                {errors.name && (
-                  <span className="mt-1 block text-xs text-red-500">
-                    {errors.name}
-                  </span>
-                )}
-              </label>
-              {selectedType !== "INJURY_FACTOR" && (
-                <label className="block text-sm font-semibold text-zinc-700">
-                  {modalCopy.parentLabel}
-                  <select
-                    value={form.parentId}
-                    onChange={(event) =>
-                      setForm((value) => ({
-                        ...value,
-                        parentId: event.target.value,
-                      }))
-                    }
-                    className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 outline-none focus:border-blue-500"
-                  >
-                    <option value="">{modalCopy.noParentLabel}</option>
-                    {sortedParents.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.code} - {item.name} (Cấp {item.level})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <label className="block text-sm font-semibold text-zinc-700">
-                Trạng thái <span className="text-red-500">*</span>
-                <select
-                  value={form.isActive ? "true" : "false"}
-                  onChange={(event) =>
-                    setForm((value) => ({
-                      ...value,
-                      isActive: event.target.value === "true",
-                    }))
-                  }
-                  className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 outline-none focus:border-blue-500"
-                >
-                  <option value="true">Sử dụng</option>
-                  <option value="false">Không sử dụng</option>
-                </select>
-              </label>
-            </div>
-            <div className="flex justify-end gap-3 px-6 pb-6">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col">
+            <div className="bg-blue-600 dark:bg-blue-700 text-white py-4 text-center font-bold text-lg select-none tracking-wide relative rounded-t-2xl">
+              {editingItem ? "Cập nhật" : "Thêm mới"} {modalCopy.titleName}
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="rounded-xl px-5 py-3 text-sm font-bold text-zinc-500 hover:bg-zinc-100"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white transition-colors cursor-pointer"
               >
-                Hủy bỏ
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-6 p-6">
+              {/* Mã số */}
+              <div className="flex flex-col gap-1">
+                <div className={`relative border rounded-xl px-4 py-2.5 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 transition-all bg-white dark:bg-zinc-950
+                  ${errors.code ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"}
+                  ${editingItem ? "opacity-60 bg-zinc-50 dark:bg-zinc-900/40" : ""}
+                `}>
+                  <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold transition-colors
+                    ${errors.code ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"}
+                  `}>
+                    {modalCopy.codeLabel} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    value={form.code}
+                    disabled={Boolean(editingItem)}
+                    onChange={(event) => {
+                      setForm((value) => ({ ...value, code: event.target.value }));
+                      if (errors.code) setErrors((prev) => { const next = { ...prev }; delete next.code; return next; });
+                    }}
+                    className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-bold pt-2 pb-0.5 disabled:cursor-not-allowed"
+                  />
+                </div>
+                {errors.code && (
+                  <span className="text-xs text-red-500 pl-1 font-semibold">
+                    {errors.code}
+                  </span>
+                )}
+              </div>
+
+              {/* Tên */}
+              <div className="flex flex-col gap-1">
+                <div className={`relative border rounded-xl px-4 py-2.5 flex flex-col justify-center focus-within:ring-1 focus-within:ring-blue-600 focus-within:border-blue-600 transition-all bg-white dark:bg-zinc-950
+                  ${errors.name ? "border-red-500 ring-1 ring-red-500" : "border-zinc-200 dark:border-zinc-800"}
+                `}>
+                  <label className={`absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold transition-colors
+                    ${errors.name ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"}
+                  `}>
+                    {modalCopy.nameLabel} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    value={form.name}
+                    onChange={(event) => {
+                      setForm((value) => ({ ...value, name: event.target.value }));
+                      if (errors.name) setErrors((prev) => { const next = { ...prev }; delete next.name; return next; });
+                    }}
+                    className="w-full bg-transparent border-0 outline-none text-zinc-800 dark:text-zinc-200 text-sm font-bold pt-2 pb-0.5"
+                  />
+                </div>
+                {errors.name && (
+                  <span className="text-xs text-red-500 pl-1 font-semibold">
+                    {errors.name}
+                  </span>
+                )}
+              </div>
+
+              {selectedType !== "INJURY_FACTOR" && (
+                <SearchSelect
+                  label={modalCopy.parentLabel}
+                  value={form.parentId}
+                  options={[
+                    { value: "", label: modalCopy.noParentLabel },
+                    ...sortedParents.map((item) => ({
+                      value: String(item.id),
+                      label: `${item.code} - ${item.name} (Cấp ${item.level})`,
+                    })),
+                  ]}
+                  placeholder={modalCopy.parentLabel || "Chọn danh mục cha"}
+                  onChange={(val) => {
+                    setForm((value) => ({
+                      ...value,
+                      parentId: val,
+                    }));
+                  }}
+                />
+              )}
+
+              <SearchSelect
+                label="Trạng thái"
+                required
+                value={form.isActive ? "true" : "false"}
+                options={[
+                  { value: "true", label: "Sử dụng" },
+                  { value: "false", label: "Không sử dụng" },
+                ]}
+                onChange={(val) =>
+                  setForm((value) => ({
+                    ...value,
+                    isActive: val === "true",
+                  }))
+                }
+              />
+            </div>
+            
+            <div className="flex items-center justify-end gap-5 px-6 pb-6 select-none text-xs font-bold rounded-b-2xl">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300 font-bold transition-colors cursor-pointer focus:outline-none"
+              >
+                Huỷ bỏ
               </button>
               <button
                 type="button"
                 disabled={isSaving}
                 onClick={save}
-                className="flex min-w-28 items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                className="flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 font-bold shadow-md transition-all active:scale-98 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isSaving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  "Lưu"
+                  <>
+                    <Save className="w-4 h-4" />
+                    <span>Lưu</span>
+                  </>
                 )}
               </button>
             </div>
