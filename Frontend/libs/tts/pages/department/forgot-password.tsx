@@ -278,9 +278,8 @@ export const DepartmentForgotPasswordScreen: React.FC = () => {
     <div className="min-h-screen w-full font-sans relative flex flex-col md:flex-row bg-white overflow-hidden">
       {/* Unsplash Background Image Layer */}
       <div
-        className={`absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-500 ease-in-out z-0 ${
-          isUnsplash ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
+        className={`absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-500 ease-in-out z-0 ${isUnsplash ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
         style={{
           backgroundImage: "url('/images/marina-lobato-kG7pOXbBfNs-unsplash.jpg')",
         }}
@@ -288,9 +287,8 @@ export const DepartmentForgotPasswordScreen: React.FC = () => {
 
       {/* Dark overlay for Unsplash background */}
       <div
-        className={`absolute inset-0 bg-slate-900/10 pointer-events-none transition-opacity duration-500 ease-in-out z-0 ${
-          isUnsplash ? "opacity-100" : "opacity-0"
-        }`}
+        className={`absolute inset-0 bg-slate-900/10 pointer-events-none transition-opacity duration-500 ease-in-out z-0 ${isUnsplash ? "opacity-100" : "opacity-0"
+          }`}
       />
 
       {/* Floating Toggle Button */}
@@ -316,9 +314,8 @@ export const DepartmentForgotPasswordScreen: React.FC = () => {
 
       {/* Left side illustration for split layout */}
       <div
-        className={`hidden md:flex items-center justify-center bg-white transition-all duration-500 ease-in-out overflow-hidden z-10 ${
-          isUnsplash ? "w-0 opacity-0 pointer-events-none" : "w-1/2 lg:w-7/12 opacity-100"
-        }`}
+        className={`hidden md:flex items-center justify-center bg-white transition-all duration-500 ease-in-out overflow-hidden z-10 ${isUnsplash ? "w-0 opacity-0 pointer-events-none" : "w-1/2 lg:w-7/12 opacity-100"
+          }`}
       >
         <div className="max-w-[620px] w-[90%] flex flex-col items-center justify-center transition-all duration-500">
           <img
@@ -331,9 +328,8 @@ export const DepartmentForgotPasswordScreen: React.FC = () => {
 
       {/* Right/Centered side containing the forgot-password card */}
       <div
-        className={`flex items-center justify-center p-6 sm:p-12 z-10 transition-all duration-500 ease-in-out ${
-          isUnsplash ? "w-full" : "w-full md:w-1/2 lg:w-5/12 bg-white"
-        }`}
+        className={`flex items-center justify-center p-6 sm:p-12 z-10 transition-all duration-500 ease-in-out ${isUnsplash ? "w-full" : "w-full md:w-1/2 lg:w-5/12 bg-white"
+          }`}
       >
         <Card
           glassmorphism={false}
@@ -376,7 +372,7 @@ export const DepartmentForgotPasswordScreen: React.FC = () => {
                 {/* Email / Username Input Field */}
                 <div className="relative w-full">
                   <span className={`absolute -top-2 left-3 px-1 text-xs font-medium select-none z-10 bg-white ${emailError ? "text-red-500 font-bold" : "text-zinc-400"}`}>
-                    Tên đăng nhập / Email <span className="text-red-500">*</span>
+                    Email <span className="text-red-500">*</span>
                   </span>
                   <div className={`relative flex items-center w-full rounded-lg border transition-all duration-200 shadow-sm
                     ${emailError ? "border-red-500 ring-2 ring-red-500/20 focus-within:ring-2 focus-within:ring-red-500" : "border-zinc-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"}
@@ -402,7 +398,7 @@ export const DepartmentForgotPasswordScreen: React.FC = () => {
                         }
                       }}
                       className="w-full px-3.5 py-3 text-base text-zinc-900 bg-transparent outline-none font-medium"
-                      placeholder="Nhập tên đăng nhập hoặc email"
+                      placeholder="Nhập email"
                     />
                   </div>
                   {emailError && (

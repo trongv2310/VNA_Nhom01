@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  Pencil,
   Plus,
   Save,
   Trash2,
@@ -597,7 +596,10 @@ export const RoleManagement: React.FC<RoleManagementProps> = ({
                             }
                             className="rounded-lg p-1 text-slate-400 transition-all hover:bg-zinc-100 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-slate-400 dark:hover:bg-zinc-800"
                           >
-                            <Pencil className="h-[18px] w-[18px]" />
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]">
+                              <path d="M12 20h9" />
+                              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                            </svg>
                           </button>
                         )}
                         {canDelete && (

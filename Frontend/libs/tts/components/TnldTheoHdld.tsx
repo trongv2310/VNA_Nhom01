@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Eye,
-  Pencil,
   ChevronLeft,
   ChevronRight,
   X,
@@ -2615,7 +2614,10 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                               }
                               className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all cursor-pointer group"
                             >
-                              <Pencil className="h-[18px] w-[18px] text-zinc-400 group-hover:text-blue-600 transition-colors" />
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] text-zinc-400 group-hover:text-blue-600 transition-colors">
+                                <path d="M12 20h9" />
+                                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                              </svg>
                             </button>
                           )}
                         </div>

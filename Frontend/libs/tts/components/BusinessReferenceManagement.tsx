@@ -5,7 +5,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  Pencil,
   Plus,
   X,
   Save,
@@ -432,7 +431,10 @@ export const BusinessReferenceManagement: React.FC<
                             className="text-slate-400 hover:text-blue-600"
                             aria-label="Chỉnh sửa"
                           >
-                            <Pencil className="h-4 w-4" />
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]">
+                              <path d="M12 20h9" />
+                              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                            </svg>
                           </button>
                         )}
                       </td>
@@ -514,8 +516,8 @@ export const BusinessReferenceManagement: React.FC<
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col">
-            <div className="bg-blue-600 dark:bg-blue-700 text-white py-4 text-center font-bold text-lg select-none tracking-wide relative">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col">
+            <div className="bg-blue-600 dark:bg-blue-700 text-white py-4 text-center font-bold text-lg select-none tracking-wide relative rounded-t-2xl">
               {editingItem ? "Cập nhật" : "Thêm mới"}{" "}
               {isIndustry ? "ngành nghề kinh doanh" : "loại hình kinh doanh"}
               <button
@@ -627,7 +629,7 @@ export const BusinessReferenceManagement: React.FC<
               />
             </div>
             
-            <div className="flex items-center justify-end gap-5 px-6 pb-6 select-none text-xs font-bold">
+            <div className="flex items-center justify-end gap-5 px-6 pb-6 select-none text-xs font-bold rounded-b-2xl">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
