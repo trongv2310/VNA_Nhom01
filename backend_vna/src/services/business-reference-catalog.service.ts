@@ -161,6 +161,35 @@ export class BusinessReferenceCatalogService {
     };
   }
 
+  async deleteBusinessIndustry(id: number) {
+    const item = await this.findBusinessIndustry(id);
+
+    const childCount = await this.businessIndustryRepository.count({
+      where: { parent: { id } },
+    });
+    if (childCount > 0) {
+      throw new BadRequestException(
+        'Không thể xóa ngành nghề kinh doanh này vì đang là danh mục cha của danh mục khác',
+      );
+    }
+
+    const inUseCount = await this.dataSource.getRepository(Business).count({
+      where: { industryCatalog: { id } },
+    });
+    if (inUseCount > 0) {
+      throw new BadRequestException(
+        'Không thể xóa ngành nghề kinh doanh này vì đang có doanh nghiệp sử dụng',
+      );
+    }
+
+    await this.businessIndustryRepository.remove(item);
+
+    return {
+      message: 'Xóa ngành nghề kinh doanh thành công',
+      data: { id },
+    };
+  }
+
   async getBusinessIndustries(query: ListBusinessIndustriesQueryDto) {
     const { page, limit, skip } = this.getPagination(query.page, query.limit);
     const queryBuilder = this.businessIndustryRepository

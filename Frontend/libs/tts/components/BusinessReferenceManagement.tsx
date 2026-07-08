@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -22,6 +22,7 @@ import {
   updateBusinessType,
   updateBusinessTypeCatalogStatus,
   deleteBusinessType,
+  deleteBusinessIndustry,
   type BusinessIndustryCatalogItem,
   type BusinessListMeta,
   type BusinessTypeCatalogItem,
@@ -60,9 +61,6 @@ export const BusinessReferenceManagement: React.FC<
     );
 
   const [items, setItems] = useState<ReferenceItem[]>([]);
-  const [parentOptions, setParentOptions] = useState<
-    BusinessIndustryCatalogItem[]
-  >([]);
   const [meta, setMeta] = useState<BusinessListMeta>(EMPTY_META);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
@@ -114,17 +112,28 @@ export const BusinessReferenceManagement: React.FC<
     setIsLoading(true);
     try {
       for (const id of selectedIds) {
-        if (!isIndustry) {
+        if (isIndustry) {
+          await deleteBusinessIndustry(id);
+        } else {
           await deleteBusinessType(id);
         }
       }
-      showToast("Xóa loại hình kinh doanh thành công", "success");
+      showToast(
+        isIndustry
+          ? "Xóa ngành nghề kinh doanh thành công"
+          : "Xóa loại hình kinh doanh thành công",
+        "success",
+      );
       setSelectedIds([]);
       setPage(1);
       setRefreshKey((value) => value + 1);
     } catch (error) {
       showToast(
-        error instanceof Error ? error.message : "Xóa loại hình kinh doanh thất bại",
+        error instanceof Error
+          ? error.message
+          : isIndustry
+            ? "Xóa ngành nghề kinh doanh thất bại"
+            : "Xóa loại hình kinh doanh thất bại",
         "error",
       );
     } finally {
@@ -137,20 +146,20 @@ export const BusinessReferenceManagement: React.FC<
     try {
       const response = isIndustry
         ? await getBusinessIndustries({
-            page,
-            limit,
-            code: filters.code,
-            name: filters.name,
-            level: filters.level,
-            isActive: filters.isActive,
-          })
+          page,
+          limit,
+          code: filters.code,
+          name: filters.name,
+          level: filters.level,
+          isActive: filters.isActive,
+        })
         : await getBusinessTypes({
-            page,
-            limit,
-            code: filters.code,
-            name: filters.name,
-            isActive: filters.isActive,
-          });
+          page,
+          limit,
+          code: filters.code,
+          name: filters.name,
+          isActive: filters.isActive,
+        });
       setItems(response.data.items);
       setMeta(response.data.meta);
     } catch (error) {
@@ -170,50 +179,7 @@ export const BusinessReferenceManagement: React.FC<
     return () => window.clearTimeout(timer);
   }, [loadItems, refreshKey]);
 
-  useEffect(() => {
-    if (!isIndustry || !isModalOpen) return;
-    let active = true;
-    const loadParents = async () => {
-      try {
-        const first = await getBusinessIndustries({ page: 1, limit: 100 });
-        const all = [...first.data.items];
-        for (
-          let nextPage = 2;
-          nextPage <= first.data.meta.totalPages;
-          nextPage += 1
-        ) {
-          const next = await getBusinessIndustries({
-            page: nextPage,
-            limit: 100,
-          });
-          all.push(...next.data.items);
-        }
-        if (active) {
-          setParentOptions(
-            all.filter(
-              (item) =>
-                item.isActive && item.level < 4 && item.id !== editingItem?.id,
-            ),
-          );
-        }
-      } catch (error) {
-        if (active) {
-          showToast(
-            error instanceof Error
-              ? error.message
-              : "Không thể tải danh mục ngành cha",
-            "error",
-          );
-        }
-      }
-    };
-    loadParents();
-    return () => {
-      active = false;
-    };
-    // showToast is intentionally omitted because the dashboard callback is not memoized.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingItem?.id, isIndustry, isModalOpen]);
+
 
   const openCreate = () => {
     setEditingItem(null);
@@ -250,12 +216,9 @@ export const BusinessReferenceManagement: React.FC<
     if (!form.name.trim()) next.name = "Tên không được để trống";
     if (!editingItem && isIndustry) {
       const codeTrim = form.code.trim();
-      const expectsDigits = Boolean(form.parentId) || /^\d/.test(codeTrim);
-      const pattern = expectsDigits ? /^\d{4}$/ : /^[A-Za-z]$/;
+      const pattern = /^\d{4}$/;
       if (!pattern.test(codeTrim)) {
-        next.code = expectsDigits
-          ? "Mã ngành phải gồm 4 chữ số"
-          : "Mã ngành cấp 1 phải gồm một chữ cái";
+        next.code = "Mã ngành phải gồm 4 chữ số";
       }
     }
     setErrors(next);
@@ -341,15 +304,7 @@ export const BusinessReferenceManagement: React.FC<
 
   const rangeStart = meta.totalItems ? (meta.page - 1) * meta.limit + 1 : 0;
   const rangeEnd = Math.min(meta.page * meta.limit, meta.totalItems);
-  const sortedParents = useMemo(
-    () =>
-      [...parentOptions].sort(
-        (left, right) =>
-          left.level - right.level ||
-          left.code.localeCompare(right.code, "vi", { numeric: true }),
-      ),
-    [parentOptions],
-  );
+
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-6">
@@ -377,29 +332,25 @@ export const BusinessReferenceManagement: React.FC<
           <table className="w-full min-w-[760px] border-collapse text-left text-xs">
             <thead className="sticky top-0 z-10 bg-zinc-50 text-zinc-500">
               <tr className="border-b border-zinc-200">
-                {!isIndustry && (
-                  <th className="w-12 p-4 text-center">
-                    <input
-                      type="checkbox"
-                      checked={
-                        items.length > 0 &&
-                        selectedIds.length === items.length
-                      }
-                      onChange={handleSelectAll}
-                      disabled={!canManage}
-                      className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
-                    />
-                  </th>
-                )}
+                <th className="w-12 p-4 text-center">
+                  <input
+                    type="checkbox"
+                    checked={
+                      items.length > 0 &&
+                      selectedIds.length === items.length
+                    }
+                    onChange={handleSelectAll}
+                    disabled={!canManage}
+                    className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                  />
+                </th>
                 <th className="w-24 p-4 text-center">Thao tác</th>
                 <th className="w-40 p-4">Mã</th>
                 <th className="p-4">Tên danh mục</th>
-                {isIndustry && <th className="w-24 p-4">Cấp</th>}
-                {isIndustry && <th className="w-64 p-4">Danh mục cha</th>}
                 <th className="w-32 p-4 text-center">Trạng thái</th>
               </tr>
               <tr className="border-b border-zinc-200 bg-white">
-                {!isIndustry && <th />}
+                <th />
                 <th />
                 <th className="p-2">
                   <input
@@ -429,29 +380,6 @@ export const BusinessReferenceManagement: React.FC<
                     className="w-full rounded-lg border border-zinc-200 px-3 py-2 outline-none focus:border-blue-500"
                   />
                 </th>
-                {isIndustry && (
-                  <th className="p-2">
-                    <select
-                      value={filters.level}
-                      onChange={(event) => {
-                        setFilters((value) => ({
-                          ...value,
-                          level: event.target.value,
-                        }));
-                        setPage(1);
-                      }}
-                      className="w-full rounded-lg border border-zinc-200 px-2 py-2"
-                    >
-                      <option value="">Tất cả</option>
-                      {[1, 2, 3, 4].map((level) => (
-                        <option key={level} value={level}>
-                          {level}
-                        </option>
-                      ))}
-                    </select>
-                  </th>
-                )}
-                {isIndustry && <th />}
                 <th className="p-2">
                   <select
                     value={filters.isActive}
@@ -475,7 +403,7 @@ export const BusinessReferenceManagement: React.FC<
               {!isLoading && items.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={isIndustry ? 6 : 5}
+                    colSpan={5}
                     className="py-16 text-center font-semibold text-zinc-400"
                   >
                     Không tìm thấy dữ liệu phù hợp
@@ -486,17 +414,15 @@ export const BusinessReferenceManagement: React.FC<
                   const industry = isIndustry && "level" in item ? item : null;
                   return (
                     <tr key={item.id} className="hover:bg-blue-50/30">
-                      {!isIndustry && (
-                        <td className="p-4 text-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.includes(item.id)}
-                            onChange={() => handleSelectRow(item.id)}
-                            disabled={!canManage}
-                            className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
-                          />
-                        </td>
-                      )}
+                      <td className="p-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(item.id)}
+                          onChange={() => handleSelectRow(item.id)}
+                          disabled={!canManage}
+                          className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                        />
+                      </td>
                       <td className="p-4 text-center">
                         {canManage && (
                           <button
@@ -516,30 +442,19 @@ export const BusinessReferenceManagement: React.FC<
                         {item.code}
                       </td>
                       <td className="p-4 font-semibold">{item.name}</td>
-                      {isIndustry && (
-                        <td className="p-4">Cấp {industry?.level}</td>
-                      )}
-                      {isIndustry && (
-                        <td className="p-4 text-zinc-500">
-                          {industry?.parentCode
-                            ? `${industry.parentCode} - ${industry.parentName}`
-                            : "-"}
-                        </td>
-                      )}
+
                       <td className="p-4 text-center">
                         <button
                           type="button"
                           disabled={!canManage}
                           onClick={() => toggleStatus(item)}
-                          className={`relative h-6 w-11 rounded-full transition-colors ${
-                            item.isActive ? "bg-blue-600" : "bg-zinc-300"
-                          } disabled:cursor-not-allowed disabled:opacity-60`}
+                          className={`relative h-6 w-11 rounded-full transition-colors ${item.isActive ? "bg-blue-600" : "bg-zinc-300"
+                            } disabled:cursor-not-allowed disabled:opacity-60`}
                           aria-label="Đổi trạng thái"
                         >
                           <span
-                            className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all ${
-                              item.isActive ? "left-6" : "left-1"
-                            }`}
+                            className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all ${item.isActive ? "left-6" : "left-1"
+                              }`}
                           />
                         </button>
                       </td>
@@ -602,7 +517,7 @@ export const BusinessReferenceManagement: React.FC<
                 <X className="h-5 w-5" />
               </button>
             </div>
-            
+
             <div className="space-y-6 p-6">
               {/* Mã ngành */}
               <div className="flex flex-col gap-1">
@@ -658,33 +573,7 @@ export const BusinessReferenceManagement: React.FC<
                 )}
               </div>
 
-              {isIndustry && (
-                <SearchSelect
-                  label="Nhóm ngành cha"
-                  value={form.parentId}
-                  options={[
-                    { value: "", label: "Không có - ngành cấp 1" },
-                    ...sortedParents.map((item) => ({
-                      value: String(item.id),
-                      label: `${item.code} - ${item.name}`,
-                    })),
-                  ]}
-                  placeholder="Chọn nhóm ngành cha"
-                  onChange={(val) => {
-                    setForm((value) => ({
-                      ...value,
-                      parentId: val,
-                    }));
-                    if (errors.code) {
-                      setErrors((prev) => {
-                        const next = { ...prev };
-                        delete next.code;
-                        return next;
-                      });
-                    }
-                  }}
-                />
-              )}
+
 
               <SearchSelect
                 label="Trạng thái"
@@ -702,7 +591,7 @@ export const BusinessReferenceManagement: React.FC<
                 }
               />
             </div>
-            
+
             <div className="flex items-center justify-end gap-5 px-6 pb-6 select-none text-xs font-bold rounded-b-2xl">
               <button
                 type="button"
@@ -732,7 +621,7 @@ export const BusinessReferenceManagement: React.FC<
       )}
 
       {/* Selection Action Bar */}
-      {!isIndustry && canManage && selectedIds.length > 0 && (
+      {canManage && selectedIds.length > 0 && (
         <div className="fixed bottom-6 left-1/2 z-50 flex items-center justify-between overflow-hidden rounded-xl border border-zinc-200/80 bg-white shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-300 dark:border-zinc-800 dark:bg-zinc-900 -translate-x-1/2">
           <div className="flex items-center">
             <div className="flex min-w-[40px] h-10 items-center justify-center bg-blue-600 px-3 text-sm font-bold text-white">
@@ -772,15 +661,22 @@ export const BusinessReferenceManagement: React.FC<
       )}
 
       <DeleteConfirmModal
-        isOpen={!isIndustry && canManage && isDeleteConfirmOpen}
+        isOpen={canManage && isDeleteConfirmOpen}
         onClose={() => setIsDeleteConfirmOpen(false)}
         onConfirm={handleDeleteSelected}
-        title="Xác nhận xóa loại hình kinh doanh"
+        title={isIndustry ? "Xác nhận xóa ngành nghề kinh doanh" : "Xác nhận xóa loại hình kinh doanh"}
         description={
-          <>
-            Bạn có chắc chắn muốn xóa <strong>{selectedIds.length}</strong>{" "}
-            loại hình kinh doanh đã chọn không? Hành động này sẽ xóa vĩnh viễn dữ liệu.
-          </>
+          isIndustry ? (
+            <>
+              Bạn có chắc chắn muốn xóa <strong>{selectedIds.length}</strong>{" "}
+              ngành nghề kinh doanh đã chọn không? Hành động này sẽ xóa vĩnh viễn dữ liệu.
+            </>
+          ) : (
+            <>
+              Bạn có chắc chắn muốn xóa <strong>{selectedIds.length}</strong>{" "}
+              loại hình kinh doanh đã chọn không? Hành động này sẽ xóa vĩnh viễn dữ liệu.
+            </>
+          )
         }
       />
     </div>

@@ -984,6 +984,14 @@ export async function updateBusinessIndustryStatus(
   );
 }
 
+export async function deleteBusinessIndustry(id: number | string) {
+  return request<any>(`/business-industries/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+}
+
+
 export async function getBusinessDetail(id: number | string) {
   return request<BusinessListItem>(`/businesses/${id}`, {
     method: "GET",
@@ -1259,13 +1267,12 @@ export async function bulkReceiveDepartmentReports(ids: number[]) {
 }
 
 export async function bulkRejectDepartmentReports(
-  ids: number[],
-  rejectReason: string,
+  reports: { id: number; rejectReason: string }[],
 ) {
   return request<any>(`/labor-accident-reports/admin/bulk-reject`, {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ ids, rejectReason }),
+    body: JSON.stringify({ reports }),
   });
 }
 

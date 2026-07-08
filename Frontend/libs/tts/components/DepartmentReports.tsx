@@ -70,14 +70,8 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
     };
     fetchPeriods();
   }, []);
-  // Get logged-in user to default the provinceCity
-  const [provinceCity, setProvinceCity] = useState(() => {
-    if (typeof window !== "undefined") {
-      const user = getStoredBackendUser();
-      return user?.provinceCity || "Thành phố Hồ Chí Minh";
-    }
-    return "Thành phố Hồ Chí Minh";
-  });
+  // Default to "Tất cả" (empty string)
+  const [provinceCity, setProvinceCity] = useState("");
   const [wardCommune, setWardCommune] = useState("");
 
   const {
@@ -103,7 +97,7 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectReasonModal, setShowRejectReasonModal] = useState(false);
   const [showRejectConfirmModal, setShowRejectConfirmModal] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
+  const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Sync API reports if available
@@ -121,8 +115,8 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
           status: statusFilter || undefined,
           businessName: businessNameQuery || undefined,
           taxCode: taxCodeQuery || undefined,
-          provinceCity: provinceCity === "Tất cả" ? undefined : provinceCity,
-          wardCommune: wardCommune === "Tất cả" ? undefined : wardCommune,
+          provinceCity: (provinceCity === "Tất cả" || !provinceCity) ? undefined : provinceCity,
+          wardCommune: (wardCommune === "Tất cả" || !wardCommune) ? undefined : wardCommune,
         });
 
         if (active && response.success && response.data && response.data.items) {
@@ -318,7 +312,12 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
     }
 
     if (!checkAllSelectedReportsAreViewed()) return;
-    setRejectReason("");
+
+    const initialReasons: Record<number, string> = {};
+    selectedIds.forEach((id) => {
+      initialReasons[id] = "";
+    });
+    setRejectReasons(initialReasons);
     setShowRejectReasonModal(true);
   };
 
@@ -326,8 +325,9 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
     e.preventDefault();
     if (!canReceive) return;
 
-    if (!rejectReason.trim()) {
-      showToast("Vui lòng nhập lý do từ chối", "error");
+    const hasEmpty = selectedIds.some((id) => !rejectReasons[id]?.trim());
+    if (hasEmpty) {
+      showToast("Vui lòng nhập lý do từ chối cho tất cả báo cáo đã chọn", "error");
       return;
     }
     setShowRejectReasonModal(false);
@@ -346,7 +346,11 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
 
     setIsSubmitting(true);
     try {
-      const res = await bulkRejectDepartmentReports(selectedIds, rejectReason);
+      const reportsToReject = selectedIds.map((id) => ({
+        id,
+        rejectReason: rejectReasons[id]?.trim() || "",
+      }));
+      const res = await bulkRejectDepartmentReports(reportsToReject);
       if (res.success) {
         showToast(res.message || "Từ chối báo cáo thành công", "success");
         setSelectedIds([]);
@@ -795,23 +799,35 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
       {canReceive && showRejectReasonModal && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowRejectReasonModal(false)} />
-          <div className="relative bg-white dark:bg-zinc-950 border border-zinc-200/80 shadow-2xl rounded-[20px] w-full max-w-[480px] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col dark:border-zinc-800">
+          <div className="relative bg-white dark:bg-zinc-950 border border-zinc-200/80 shadow-2xl rounded-[20px] w-full max-w-[540px] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col dark:border-zinc-800">
             <div className="bg-red-600 dark:bg-red-700 text-white py-4 text-center font-bold text-base tracking-wide">
               Từ chối báo cáo
             </div>
             <form onSubmit={handleRejectReasonSubmit} className="p-6 flex flex-col gap-4 bg-white dark:bg-zinc-950">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-zinc-500 dark:text-zinc-400">
-                  Lý do từ chối (bắt buộc)
-                </label>
-                <textarea
-                  required
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder="Nêu rõ lý do từ chối để doanh nghiệp có thể chỉnh sửa chính xác..."
-                  rows={4}
-                  className="w-full text-sm px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-xl outline-none bg-white dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 focus:border-red-500 transition-colors font-medium resize-none"
-                />
+              <div className="max-h-[50vh] overflow-y-auto pr-1 flex flex-col gap-4">
+                {(() => {
+                  const selectedReports = reports.filter((r) => selectedIds.includes(r.id));
+                  return selectedReports.map((report) => (
+                    <div key={report.id} className="flex flex-col gap-1.5 border-b border-zinc-100 dark:border-zinc-850 pb-3.5 last:border-0 last:pb-0">
+                      <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 leading-tight">
+                        {report.businessName} <span className="text-zinc-400 font-medium">({report.periodLabel})</span>
+                      </span>
+                      <textarea
+                        required
+                        value={rejectReasons[report.id] || ""}
+                        onChange={(e) => {
+                          setRejectReasons((prev) => ({
+                            ...prev,
+                            [report.id]: e.target.value,
+                          }));
+                        }}
+                        placeholder="Nêu rõ lý do từ chối để doanh nghiệp có thể chỉnh sửa chính xác..."
+                        rows={3}
+                        className="w-full text-xs px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-xl outline-none bg-white dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 focus:border-red-500 transition-colors font-medium resize-none"
+                      />
+                    </div>
+                  ));
+                })()}
               </div>
               <div className="flex items-center justify-end gap-3 mt-2">
                 <button

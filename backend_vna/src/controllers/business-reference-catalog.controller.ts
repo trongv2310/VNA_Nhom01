@@ -137,4 +137,11 @@ export class BusinessIndustryController {
   ) {
     return this.catalogService.updateBusinessIndustryStatus(id, body);
   }
+
+  @Delete(':id')
+  @Permissions('SYSTEM_C_INDUSTRY_MANAGE')
+  @ApiOperation({ summary: 'Xóa ngành nghề kinh doanh' })
+  deleteItem(@Param('id', ParseIntPipe) id: number) {
+    return this.catalogService.deleteBusinessIndustry(id);
+  }
 }

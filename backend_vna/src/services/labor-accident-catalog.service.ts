@@ -4,7 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
+import { LaborAccidentReportDetail } from '../entities/labor-accident-report-detail.entity';
 
 import {
   CreateLaborAccidentCatalogDto,
@@ -39,6 +40,7 @@ export class LaborAccidentCatalogService {
   constructor(
     @InjectRepository(LaborAccidentCatalog)
     private readonly catalogRepository: Repository<LaborAccidentCatalog>,
+    private readonly dataSource: DataSource,
   ) {}
 
   getCatalogTypes() {
@@ -495,6 +497,21 @@ export class LaborAccidentCatalogService {
     if (childCount > 0) {
       throw new BadRequestException(
         'Không thể xóa danh mục đang có danh mục con chưa được chọn để xóa',
+      );
+    }
+
+    const inUseCount = await this.dataSource
+      .getRepository(LaborAccidentReportDetail)
+      .createQueryBuilder('detail')
+      .where(
+        'detail.accident_cause_catalog_id IN (:...ids) OR detail.injury_factor_catalog_id IN (:...ids) OR detail.occupation_catalog_id IN (:...ids)',
+        { ids },
+      )
+      .getCount();
+
+    if (inUseCount > 0) {
+      throw new BadRequestException(
+        'Không thể xóa danh mục vì đang có báo cáo chi tiết tai nạn lao động sử dụng (bao gồm các danh mục con liên quan)',
       );
     }
 

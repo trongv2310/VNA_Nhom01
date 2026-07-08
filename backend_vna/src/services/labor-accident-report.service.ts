@@ -3420,13 +3420,12 @@ export class LaborAccidentReportService {
 
   async bulkRejectDepartmentReports(
     userId: number,
-    reportIds: number[],
-    rejectReason: string,
+    reports: { id: number; rejectReason: string }[],
   ) {
     const results: LaborAccidentReport[] = [];
-    for (const id of reportIds) {
+    for (const item of reports) {
       try {
-        const report = await this.findReportByIdForDepartment(id);
+        const report = await this.findReportByIdForDepartment(item.id);
         if (
           report.status === LaborAccidentReportStatus.DRAFT ||
           report.status === LaborAccidentReportStatus.REJECTED
@@ -3434,17 +3433,17 @@ export class LaborAccidentReportService {
           continue;
         }
         report.status = LaborAccidentReportStatus.REJECTED;
-        report.rejectReason = rejectReason;
+        report.rejectReason = item.rejectReason;
         report.receivedAt = null;
         report.receivedByUser = null;
         const saved = await this.reportRepository.save(report);
         results.push(saved);
       } catch (err) {
-        console.error(`Error bulk rejecting report ${id}:`, err);
+        console.error(`Error bulk rejecting report ${item.id}:`, err);
       }
     }
     return {
-      message: `Từ chối thành công ${results.length}/${reportIds.length} báo cáo`,
+      message: `Từ chối thành công ${results.length}/${reports.length} báo cáo`,
       success: true,
     };
   }
@@ -3648,12 +3647,22 @@ export class LaborAccidentReportAdminController {
   })
   bulkReject(
     @CurrentUser() currentUser: CurrentUserData,
-    @Body() body: { ids: number[]; rejectReason: string },
+    @Body() body: {
+      ids?: number[];
+      rejectReason?: string;
+      reports?: { id: number; rejectReason: string }[];
+    },
   ) {
+    let reportsToReject: { id: number; rejectReason: string }[] = [];
+    if (body.reports && Array.isArray(body.reports)) {
+      reportsToReject = body.reports;
+    } else if (body.ids && Array.isArray(body.ids)) {
+      const reason = body.rejectReason || '';
+      reportsToReject = body.ids.map((id) => ({ id, rejectReason: reason }));
+    }
     return this.reportService.bulkRejectDepartmentReports(
       currentUser.id,
-      body.ids,
-      body.rejectReason,
+      reportsToReject,
     );
   }
 }
