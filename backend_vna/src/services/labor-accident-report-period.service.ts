@@ -281,6 +281,8 @@ export class LaborAccidentReportPeriodService {
           year: reportPeriod.year,
           periodType: reportPeriod.periodType as LaborAccidentReportPeriodType,
           isActive: true,
+          startDate: reportPeriod.startDate,
+          endDate: reportPeriod.endDate,
         },
         id,
       );
@@ -390,6 +392,8 @@ export class LaborAccidentReportPeriodService {
       year: number;
       periodType: LaborAccidentReportPeriodType;
       isActive: boolean;
+      startDate?: Date;
+      endDate?: Date;
     },
     ignoredId?: number,
   ) {
@@ -418,6 +422,30 @@ export class LaborAccidentReportPeriodService {
       throw new BadRequestException(
         'Một kỳ báo cáo tương tự đang hoạt động đã tồn tại trong năm này',
       );
+    }
+
+    if (payload.startDate && payload.endDate) {
+      const overlappingPeriod = await this.reportPeriodRepository
+        .createQueryBuilder('reportPeriod')
+        .where('reportPeriod.reportName = :reportName', {
+          reportName: payload.reportName,
+        })
+        .andWhere('reportPeriod.isActive = :isActive', { isActive: true })
+        .andWhere(
+          'reportPeriod.startDate <= :endDate AND reportPeriod.endDate >= :startDate',
+          {
+            startDate: payload.startDate,
+            endDate: payload.endDate,
+          },
+        )
+        .andWhere(ignoredId ? 'reportPeriod.id != :ignoredId' : '1=1', { ignoredId })
+        .getOne();
+
+      if (overlappingPeriod) {
+        throw new BadRequestException(
+          'Thời gian bắt đầu và kết thúc của kỳ báo cáo này không được nằm trong khoảng thời gian bắt đầu và kết thúc của kỳ báo cáo khác',
+        );
+      }
     }
   }
 

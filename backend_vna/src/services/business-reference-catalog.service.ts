@@ -4,7 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
+import { Business } from '../entities/business.entity';
 import type { ObjectLiteral, SelectQueryBuilder } from 'typeorm';
 
 import {
@@ -22,6 +23,7 @@ import { BusinessType } from '../entities/business-type.entity';
 @Injectable()
 export class BusinessReferenceCatalogService {
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(BusinessType)
     private readonly businessTypeRepository: Repository<BusinessType>,
     @InjectRepository(BusinessIndustry)
@@ -136,6 +138,55 @@ export class BusinessReferenceCatalogService {
     return {
       message: 'Cập nhật trạng thái loại hình kinh doanh thành công',
       data: this.mapBusinessType(saved),
+    };
+  }
+
+  async deleteBusinessType(id: number) {
+    const item = await this.findBusinessType(id);
+
+    const inUseCount = await this.dataSource.getRepository(Business).count({
+      where: { businessTypeCatalog: { id } },
+    });
+    if (inUseCount > 0) {
+      throw new BadRequestException(
+        'Không thể xóa loại hình kinh doanh này vì đang có doanh nghiệp sử dụng',
+      );
+    }
+
+    await this.businessTypeRepository.remove(item);
+
+    return {
+      message: 'Xóa loại hình kinh doanh thành công',
+      data: { id },
+    };
+  }
+
+  async deleteBusinessIndustry(id: number) {
+    const item = await this.findBusinessIndustry(id);
+
+    const childCount = await this.businessIndustryRepository.count({
+      where: { parent: { id } },
+    });
+    if (childCount > 0) {
+      throw new BadRequestException(
+        'Không thể xóa ngành nghề kinh doanh này vì đang là danh mục cha của danh mục khác',
+      );
+    }
+
+    const inUseCount = await this.dataSource.getRepository(Business).count({
+      where: { industryCatalog: { id } },
+    });
+    if (inUseCount > 0) {
+      throw new BadRequestException(
+        'Không thể xóa ngành nghề kinh doanh này vì đang có doanh nghiệp sử dụng',
+      );
+    }
+
+    await this.businessIndustryRepository.remove(item);
+
+    return {
+      message: 'Xóa ngành nghề kinh doanh thành công',
+      data: { id },
     };
   }
 

@@ -922,6 +922,13 @@ export async function updateBusinessTypeCatalogStatus(
   });
 }
 
+export async function deleteBusinessType(id: number | string) {
+  return request<any>(`/business-types/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+}
+
 export async function getBusinessIndustries(query?: {
   page?: number;
   limit?: number;
@@ -976,6 +983,14 @@ export async function updateBusinessIndustryStatus(
     },
   );
 }
+
+export async function deleteBusinessIndustry(id: number | string) {
+  return request<any>(`/business-industries/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+}
+
 
 export async function getBusinessDetail(id: number | string) {
   return request<BusinessListItem>(`/businesses/${id}`, {
@@ -1252,13 +1267,12 @@ export async function bulkReceiveDepartmentReports(ids: number[]) {
 }
 
 export async function bulkRejectDepartmentReports(
-  ids: number[],
-  rejectReason: string,
+  reports: { id: number; rejectReason: string }[],
 ) {
   return request<any>(`/labor-accident-reports/admin/bulk-reject`, {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ ids, rejectReason }),
+    body: JSON.stringify({ reports }),
   });
 }
 
@@ -1504,4 +1518,97 @@ export async function deleteLaborCatalogsBulk(ids: number[]) {
     headers: authHeaders(),
     body: JSON.stringify({ ids }),
   });
+}
+
+export async function getDepartmentReportSummary(query?: {
+  year?: string;
+  periodType?: string;
+  provinceCity?: string;
+  wardCommune?: string;
+  status?: string;
+}) {
+  const params = new URLSearchParams();
+  if (query) {
+    Object.entries(query).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== "") {
+        params.append(key, String(val));
+      }
+    });
+  }
+  const queryString = params.toString();
+  return request<any>(
+    `/labor-accident-reports/admin/summary${queryString ? `?${queryString}` : ""}`,
+    {
+      method: "GET",
+      headers: authHeaders(),
+    },
+  );
+}
+
+export async function exportDepartmentSummaryExcel(query?: {
+  year?: string;
+  periodType?: string;
+  provinceCity?: string;
+  wardCommune?: string;
+  status?: string;
+}) {
+  const params = new URLSearchParams();
+  if (query) {
+    Object.entries(query).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== "") {
+        params.append(key, String(val));
+      }
+    });
+  }
+  const queryString = params.toString();
+  const url = joinApiPath(
+    API_BASE_URL,
+    `/labor-accident-reports/admin/summary/export/excel${queryString ? `?${queryString}` : ""}`
+  );
+  
+  const headers = authHeaders();
+  const response = await fetch(url, {
+    method: "GET",
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error("Không thể xuất file Excel");
+  }
+
+  return response.blob();
+}
+
+export async function exportDepartmentSummaryWord(query?: {
+  year?: string;
+  periodType?: string;
+  provinceCity?: string;
+  wardCommune?: string;
+  status?: string;
+}) {
+  const params = new URLSearchParams();
+  if (query) {
+    Object.entries(query).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== "") {
+        params.append(key, String(val));
+      }
+    });
+  }
+  const queryString = params.toString();
+  const url = joinApiPath(
+    API_BASE_URL,
+    `/labor-accident-reports/admin/summary/export/word${queryString ? `?${queryString}` : ""}`
+  );
+  
+  const headers = authHeaders();
+  const response = await fetch(url, {
+    method: "GET",
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error("Không thể xuất file Word");
+  }
+
+  return response.blob();
 }

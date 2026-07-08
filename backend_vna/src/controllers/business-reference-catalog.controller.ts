@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -77,6 +78,13 @@ export class BusinessTypeController {
   ) {
     return this.catalogService.updateBusinessTypeStatus(id, body);
   }
+
+  @Delete(':id')
+  @Permissions('SYSTEM_C_BUSINESS_TYPE_MANAGE')
+  @ApiOperation({ summary: 'Xóa loại hình kinh doanh' })
+  deleteItem(@Param('id', ParseIntPipe) id: number) {
+    return this.catalogService.deleteBusinessType(id);
+  }
 }
 
 @Controller('business-industries')
@@ -128,5 +136,12 @@ export class BusinessIndustryController {
     @Body() body: UpdateBusinessReferenceCatalogStatusDto,
   ) {
     return this.catalogService.updateBusinessIndustryStatus(id, body);
+  }
+
+  @Delete(':id')
+  @Permissions('SYSTEM_C_INDUSTRY_MANAGE')
+  @ApiOperation({ summary: 'Xóa ngành nghề kinh doanh' })
+  deleteItem(@Param('id', ParseIntPipe) id: number) {
+    return this.catalogService.deleteBusinessIndustry(id);
   }
 }

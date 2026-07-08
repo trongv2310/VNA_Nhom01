@@ -49,6 +49,7 @@ import type { CurrentUserData } from '../decorators/current-user.decorator';
 import { Permissions } from '../decorators/permissions.decorator';
 import { Roles } from '../decorators/roles.decorator';
 import { Business } from '../entities/business.entity';
+import { BusinessType } from '../entities/business-type.entity';
 import {
   LaborAccidentCatalog,
   LaborAccidentCatalogType,
@@ -678,6 +679,7 @@ export class LaborAccidentReportService {
     const queryBuilder = this.reportRepository
       .createQueryBuilder('report')
       .leftJoinAndSelect('report.business', 'business')
+      .leftJoinAndSelect('business.businessTypeCatalog', 'businessTypeCatalog')
       .leftJoinAndSelect('report.reportPeriod', 'reportPeriod')
       .leftJoinAndSelect('report.details', 'detail')
       .leftJoinAndSelect('detail.accidentCauseCatalog', 'accidentCauseCatalog')
@@ -693,6 +695,57 @@ export class LaborAccidentReportService {
       .addOrderBy('report.id', 'DESC')
       .getMany();
 
+    // Query active businesses count by type under the province/ward filters
+    const businessQuery = this.businessRepository
+      .createQueryBuilder('business')
+      .leftJoinAndSelect('business.businessTypeCatalog', 'businessTypeCatalog')
+      .where('business.isActive = :isActive', { isActive: true });
+
+    if (query.provinceCity?.trim()) {
+      businessQuery.andWhere('LOWER(business.provinceCity) LIKE :provinceCity', {
+        provinceCity: `%${query.provinceCity.toLowerCase()}%`,
+      });
+    }
+    if (query.wardCommune?.trim()) {
+      businessQuery.andWhere('LOWER(business.wardCommune) LIKE :wardCommune', {
+        wardCommune: `%${query.wardCommune.toLowerCase()}%`,
+      });
+    }
+
+    const businesses = await businessQuery.getMany();
+
+    const businessCounts = {
+      'Doanh nghiệp nhà nước': 0,
+      'Công ty trách nhiệm hữu hạn': 0,
+      'Công ty cổ phần': 0,
+      'Công ty hợp danh': 0,
+      'Doanh nghiệp tư nhân': 0,
+      'Doanh nghiệp có vốn đầu tư nước ngoài': 0,
+      'Đơn vị kinh tế tập thể': 0,
+      'Đơn vị kinh tế cá thể': 0,
+      'Đơn vị hành chính sự nghiệp, đảng, đoàn thể, hiệp hội': 0,
+    };
+
+    for (const b of businesses) {
+      const typeName = b.businessTypeCatalog?.name || b.businessType || '';
+      const category = this.classifyBusinessType(typeName);
+      if (category in businessCounts) {
+        businessCounts[category]++;
+      }
+    }
+
+    const categoryMetrics = {
+      'Doanh nghiệp nhà nước': this.createEmptyCategoryMetrics(),
+      'Công ty trách nhiệm hữu hạn': this.createEmptyCategoryMetrics(),
+      'Công ty cổ phần': this.createEmptyCategoryMetrics(),
+      'Công ty hợp danh': this.createEmptyCategoryMetrics(),
+      'Doanh nghiệp tư nhân': this.createEmptyCategoryMetrics(),
+      'Doanh nghiệp có vốn đầu tư nước ngoài': this.createEmptyCategoryMetrics(),
+      'Đơn vị kinh tế tập thể': this.createEmptyCategoryMetrics(),
+      'Đơn vị kinh tế cá thể': this.createEmptyCategoryMetrics(),
+      'Đơn vị hành chính sự nghiệp, đảng, đoàn thể, hiệp hội': this.createEmptyCategoryMetrics(),
+    };
+
     const totals = this.createEmptyMetricTotals();
     const byAccidentCause = new Map<string, SummaryCatalogRow>();
     const byInjuryFactor = new Map<string, SummaryCatalogRow>();
@@ -700,6 +753,19 @@ export class LaborAccidentReportService {
     const article39Allowance = this.createEmptyMetricTotals();
 
     for (const report of reports) {
+      const typeName = report.business?.businessTypeCatalog?.name || report.business?.businessType || report.businessType || '';
+      const category = this.classifyBusinessType(typeName);
+      if (category in categoryMetrics) {
+        const metrics = categoryMetrics[category];
+        metrics.participatingBusinesses++;
+        metrics.totalEmployees += Number(report.totalEmployees) || 0;
+        metrics.participatingEmployees += Number(report.totalEmployees) || 0;
+        metrics.femaleEmployees += Number(report.femaleEmployees) || 0;
+        metrics.totalVictims += Number(report.totalVictims) || 0;
+        metrics.deathVictims += Number(report.deathVictims) || 0;
+        metrics.severeInjuryVictims += Number(report.severeInjuryVictims) || 0;
+      }
+
       this.addReportTotals(totals, report);
 
       for (const detail of report.details ?? []) {
@@ -736,12 +802,26 @@ export class LaborAccidentReportService {
       }
     }
 
+    // Post-process category metrics
+    for (const category of Object.keys(categoryMetrics)) {
+      const metrics = categoryMetrics[category];
+      metrics.totalBusinesses = businessCounts[category] || 0;
+      if (metrics.participatingEmployees > 0) {
+        metrics.ktnld = Math.round((metrics.totalVictims / metrics.participatingEmployees) * 1000 * 100) / 100;
+        metrics.kchet = Math.round((metrics.deathVictims / metrics.participatingEmployees) * 1000 * 100) / 100;
+      } else {
+        metrics.ktnld = 0;
+        metrics.kchet = 0;
+      }
+    }
+
     return {
       message: 'Lấy báo cáo tổng hợp tai nạn lao động thành công',
       data: {
         filters: this.mapSummaryFilters(query),
         reportCount: reports.length,
         totals,
+        byBusinessType: categoryMetrics,
         byAccidentCause: this.mapSummaryCatalogRows(byAccidentCause),
         byInjuryFactor: this.mapSummaryCatalogRows(byInjuryFactor),
         byOccupation: this.mapSummaryCatalogRows(byOccupation),
@@ -755,6 +835,74 @@ export class LaborAccidentReportService {
           propertyDamage: totals.propertyDamage,
         },
       },
+    };
+  }
+
+  private classifyBusinessType(name: string): string {
+    const norm = (name || '').toLowerCase().trim();
+    if (!norm) return 'Doanh nghiệp tư nhân';
+
+    if (norm.includes('nhà nước') || norm.includes('nha nuoc') || norm.includes('quốc doanh')) {
+      return 'Doanh nghiệp nhà nước';
+    }
+    if (norm.includes('nước ngoài') || norm.includes('nuoc ngoai') || norm.includes('fdi') || norm.includes('liên doanh')) {
+      return 'Doanh nghiệp có vốn đầu tư nước ngoài';
+    }
+    if (norm.includes('tập thể') || norm.includes('tap the') || norm.includes('hợp tác xã') || norm.includes('htx')) {
+      return 'Đơn vị kinh tế tập thể';
+    }
+    if (norm.includes('cá thể') || norm.includes('ca the') || norm.includes('hộ kinh doanh') || norm.includes('ho kinh doanh') || norm.includes('cá nhân') || norm.includes('hộ gia đình')) {
+      return 'Đơn vị kinh tế cá thể';
+    }
+    if (
+      norm.includes('hành chính') ||
+      norm.includes('hanh chinh') ||
+      norm.includes('sự nghiệp') ||
+      norm.includes('su nghiep') ||
+      norm.includes('đảng') ||
+      norm.includes('dang') ||
+      norm.includes('đoàn thể') ||
+      norm.includes('doan the') ||
+      norm.includes('hiệp hội') ||
+      norm.includes('hiep hoi') ||
+      norm.includes('ủy ban') ||
+      norm.includes('uy ban') ||
+      norm.includes('cơ quan') ||
+      norm.includes('sở') ||
+      norm.includes('phòng') ||
+      norm.includes('ban') ||
+      norm.includes('bệnh viện') ||
+      norm.includes('trường')
+    ) {
+      return 'Đơn vị hành chính sự nghiệp, đảng, đoàn thể, hiệp hội';
+    }
+    if (norm.includes('cổ phần') || norm.includes('co phan')) {
+      return 'Công ty cổ phần';
+    }
+    if (norm.includes('trách nhiệm hữu hạn') || norm.includes('trach nhiem huu han') || norm.includes('tnhh')) {
+      return 'Công ty trách nhiệm hữu hạn';
+    }
+    if (norm.includes('hợp danh') || norm.includes('hop danh')) {
+      return 'Công ty hợp danh';
+    }
+    if (norm.includes('tư nhân') || norm.includes('tu nhan') || norm.includes('dntn')) {
+      return 'Doanh nghiệp tư nhân';
+    }
+    return 'Doanh nghiệp tư nhân';
+  }
+
+  private createEmptyCategoryMetrics() {
+    return {
+      totalBusinesses: 0,
+      participatingBusinesses: 0,
+      totalEmployees: 0,
+      participatingEmployees: 0,
+      femaleEmployees: 0,
+      totalVictims: 0,
+      deathVictims: 0,
+      severeInjuryVictims: 0,
+      ktnld: 0,
+      kchet: 0,
     };
   }
 
@@ -2303,25 +2451,153 @@ export class LaborAccidentReportService {
 
     return this.buildOfficeHtml(title, [
       this.buildSummaryFilterTable(summary),
-      this.buildMetricTable('I. Tổng số tai nạn lao động', summary?.totals),
+      this.buildBusinessTypeTable(summary?.byBusinessType),
+      this.buildMetricTable('II. Tổng số tai nạn lao động', summary?.totals),
       this.buildCatalogMetricTable(
-        '1.1 Phân theo nguyên nhân xảy ra TNLĐ',
+        '2.1 Phân theo nguyên nhân xảy ra TNLĐ',
         summary?.byAccidentCause,
       ),
       this.buildCatalogMetricTable(
-        '1.2 Phân theo yếu tố gây chấn thương',
+        '2.2 Phân theo yếu tố gây chấn thương',
         summary?.byInjuryFactor,
       ),
       this.buildCatalogMetricTable(
-        '1.3 Phân theo nghề nghiệp',
+        '2.3 Phân theo nghề nghiệp',
         summary?.byOccupation,
       ),
       this.buildMetricTable(
-        '2. Tai nạn được hưởng trợ cấp theo Khoản 2 Điều 39 Luật ATVSLĐ',
+        '3. Tai nạn được hưởng trợ cấp theo Khoản 2 Điều 39 Luật ATVSLĐ',
         summary?.article39Allowance,
       ),
       this.buildDamageTable(summary?.damage),
     ]);
+  }
+
+  private buildBusinessTypeTable(byBusinessType: any) {
+    const categories = [
+      'Doanh nghiệp nhà nước',
+      'Công ty trách nhiệm hữu hạn',
+      'Công ty cổ phần',
+      'Công ty hợp danh',
+      'Doanh nghiệp tư nhân',
+      'Doanh nghiệp có vốn đầu tư nước ngoài',
+      'Đơn vị kinh tế tập thể',
+      'Đơn vị kinh tế cá thể',
+      'Đơn vị hành chính sự nghiệp, đảng, đoàn thể, hiệp hội',
+    ];
+
+    const totalRow = {
+      totalBusinesses: 0,
+      participatingBusinesses: 0,
+      totalEmployees: 0,
+      participatingEmployees: 0,
+      femaleEmployees: 0,
+      totalVictims: 0,
+      deathVictims: 0,
+      severeInjuryVictims: 0,
+      ktnld: 0,
+      kchet: 0,
+    };
+
+    for (const cat of categories) {
+      const data = byBusinessType?.[cat] || {};
+      totalRow.totalBusinesses += Number(data.totalBusinesses) || 0;
+      totalRow.participatingBusinesses += Number(data.participatingBusinesses) || 0;
+      totalRow.totalEmployees += Number(data.totalEmployees) || 0;
+      totalRow.participatingEmployees += Number(data.participatingEmployees) || 0;
+      totalRow.femaleEmployees += Number(data.femaleEmployees) || 0;
+      totalRow.totalVictims += Number(data.totalVictims) || 0;
+      totalRow.deathVictims += Number(data.deathVictims) || 0;
+      totalRow.severeInjuryVictims += Number(data.severeInjuryVictims) || 0;
+    }
+
+    if (totalRow.participatingEmployees > 0) {
+      totalRow.ktnld = Math.round((totalRow.totalVictims / totalRow.participatingEmployees) * 1000 * 100) / 100;
+      totalRow.kchet = Math.round((totalRow.deathVictims / totalRow.participatingEmployees) * 1000 * 100) / 100;
+    } else {
+      totalRow.ktnld = 0;
+      totalRow.kchet = 0;
+    }
+
+    const rowsHtml = categories
+      .map((cat, index) => {
+        const data = byBusinessType?.[cat] || {};
+        return `<tr>
+          <td class="metric-name">${cat}</td>
+          <td class="center">${index + 1}</td>
+          ${this.numberCell(data.totalBusinesses)}
+          ${this.numberCell(data.participatingBusinesses)}
+          ${this.numberCell(data.totalEmployees)}
+          ${this.numberCell(data.participatingEmployees)}
+          ${this.numberCell(data.femaleEmployees)}
+          ${this.numberCell(data.totalVictims)}
+          ${this.numberCell(data.deathVictims)}
+          ${this.numberCell(data.severeInjuryVictims)}
+          ${this.numberCell(data.ktnld)}
+          ${this.numberCell(data.kchet)}
+          <td></td>
+        </tr>`;
+      })
+      .join('\n');
+
+    return `<div class="section-title">I. Th&ocirc;ng tin t&#7895;ng quan:</div>
+<table class="metric-table">
+  <colgroup>
+    <col style="width: 22%" />
+    <col style="width: 6%" />
+    <col style="width: 6.5%" />
+    <col style="width: 6.5%" />
+    <col style="width: 6.5%" />
+    <col style="width: 6.5%" />
+    <col style="width: 6.5%" />
+    <col style="width: 6.5%" />
+    <col style="width: 6.5%" />
+    <col style="width: 6.5%" />
+    <col style="width: 6.5%" />
+    <col style="width: 6.5%" />
+    <col style="width: 6.5%" />
+  </colgroup>
+  <tr>
+    <th rowspan="3">Lo&#7841;i h&igrave;nh c&#417; s&#7903;</th>
+    <th rowspan="3">M&atilde; s&#7889;</th>
+    <th colspan="2">C&#417; s&#7903;</th>
+    <th colspan="3">L&#7921;c l&#432;&#7907;ng lao &#273;&#7897;ng</th>
+    <th colspan="3">T&#7895;ng s&#7889; tai n&#7841;n lao &#273;&#7897;ng</th>
+    <th colspan="2">T&#7847;n su&#7845;t tai n&#7841;n lao &#273;&#7897;ng</th>
+    <th rowspan="3">Ghi ch&uacute;</th>
+  </tr>
+  <tr>
+    <th rowspan="2">T&#7895;ng s&#7889;</th>
+    <th rowspan="2">S&#7889; c&#417; s&#7903;<br/>tham gia</th>
+    <th rowspan="2">T&#7895;ng s&#7889;<br/>lao &#273;&#7897;ng</th>
+    <th rowspan="2">S&#7889; L&#272; c&#7911;a c&#417; s&#7903;<br/>tham gia b&aacute;o c&aacute;o</th>
+    <th rowspan="2">S&#7889; lao &#273;&#7897;ng n&#7919;</th>
+    <th colspan="3">S&#7889; ng&#432;&#7901;i b&#7883; TNL&#272;</th>
+    <th rowspan="2">KTNL&#272;</th>
+    <th rowspan="2">KCh&#7871;t</th>
+  </tr>
+  <tr>
+    <th>T&#7895;ng s&#7889;</th>
+    <th>S&#7889; ng&#432;&#7901;i<br/>ch&#7871;t</th>
+    <th>S&#7889; ng&#432;&#7901;i b&#7883;<br/>th&#432;&#417;ng n&#7863;ng</th>
+  </tr>
+  <tr class="total-row">
+    <td>T&#7895;ng s&#7889;</td>
+    <td></td>
+    ${this.numberCell(totalRow.totalBusinesses)}
+    ${this.numberCell(totalRow.participatingBusinesses)}
+    ${this.numberCell(totalRow.totalEmployees)}
+    ${this.numberCell(totalRow.participatingEmployees)}
+    ${this.numberCell(totalRow.femaleEmployees)}
+    ${this.numberCell(totalRow.totalVictims)}
+    ${this.numberCell(totalRow.deathVictims)}
+    ${this.numberCell(totalRow.severeInjuryVictims)}
+    ${this.numberCell(totalRow.ktnld)}
+    ${this.numberCell(totalRow.kchet)}
+    <td></td>
+  </tr>
+  ${rowsHtml}
+</table>`;
   }
 
   private buildReportOfficeHtml(report: any) {
@@ -3144,13 +3420,12 @@ export class LaborAccidentReportService {
 
   async bulkRejectDepartmentReports(
     userId: number,
-    reportIds: number[],
-    rejectReason: string,
+    reports: { id: number; rejectReason: string }[],
   ) {
     const results: LaborAccidentReport[] = [];
-    for (const id of reportIds) {
+    for (const item of reports) {
       try {
-        const report = await this.findReportByIdForDepartment(id);
+        const report = await this.findReportByIdForDepartment(item.id);
         if (
           report.status === LaborAccidentReportStatus.DRAFT ||
           report.status === LaborAccidentReportStatus.REJECTED
@@ -3158,17 +3433,17 @@ export class LaborAccidentReportService {
           continue;
         }
         report.status = LaborAccidentReportStatus.REJECTED;
-        report.rejectReason = rejectReason;
+        report.rejectReason = item.rejectReason;
         report.receivedAt = null;
         report.receivedByUser = null;
         const saved = await this.reportRepository.save(report);
         results.push(saved);
       } catch (err) {
-        console.error(`Error bulk rejecting report ${id}:`, err);
+        console.error(`Error bulk rejecting report ${item.id}:`, err);
       }
     }
     return {
-      message: `Từ chối thành công ${results.length}/${reportIds.length} báo cáo`,
+      message: `Từ chối thành công ${results.length}/${reports.length} báo cáo`,
       success: true,
     };
   }
@@ -3372,12 +3647,22 @@ export class LaborAccidentReportAdminController {
   })
   bulkReject(
     @CurrentUser() currentUser: CurrentUserData,
-    @Body() body: { ids: number[]; rejectReason: string },
+    @Body() body: {
+      ids?: number[];
+      rejectReason?: string;
+      reports?: { id: number; rejectReason: string }[];
+    },
   ) {
+    let reportsToReject: { id: number; rejectReason: string }[] = [];
+    if (body.reports && Array.isArray(body.reports)) {
+      reportsToReject = body.reports;
+    } else if (body.ids && Array.isArray(body.ids)) {
+      const reason = body.rejectReason || '';
+      reportsToReject = body.ids.map((id) => ({ id, rejectReason: reason }));
+    }
     return this.reportService.bulkRejectDepartmentReports(
       currentUser.id,
-      body.ids,
-      body.rejectReason,
+      reportsToReject,
     );
   }
 }
