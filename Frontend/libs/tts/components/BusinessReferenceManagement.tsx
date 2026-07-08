@@ -10,6 +10,7 @@ import {
   Save,
 } from "lucide-react";
 import { SearchSelect } from "./SearchSelect";
+import { DeleteConfirmModal } from "./DeleteConfirmModal";
 
 import {
   createBusinessIndustry,
@@ -20,6 +21,7 @@ import {
   updateBusinessIndustryStatus,
   updateBusinessType,
   updateBusinessTypeCatalogStatus,
+  deleteBusinessType,
   type BusinessIndustryCatalogItem,
   type BusinessListMeta,
   type BusinessTypeCatalogItem,
@@ -83,6 +85,52 @@ export const BusinessReferenceManagement: React.FC<
     isActive: true,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+
+  // Clear selections when page/filters/kind changes
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [page, limit, filters, refreshKey, kind]);
+
+  const handleSelectRow = (id: number) => {
+    if (!canManage) return;
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (!canManage) return;
+    if (selectedIds.length === items.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(items.map((b) => b.id));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!canManage) return;
+    setIsLoading(true);
+    try {
+      for (const id of selectedIds) {
+        if (!isIndustry) {
+          await deleteBusinessType(id);
+        }
+      }
+      showToast("Xóa loại hình kinh doanh thành công", "success");
+      setSelectedIds([]);
+      setPage(1);
+      setRefreshKey((value) => value + 1);
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Xóa loại hình kinh doanh thất bại",
+        "error",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const loadItems = useCallback(async () => {
     setIsLoading(true);
@@ -329,6 +377,20 @@ export const BusinessReferenceManagement: React.FC<
           <table className="w-full min-w-[760px] border-collapse text-left text-xs">
             <thead className="sticky top-0 z-10 bg-zinc-50 text-zinc-500">
               <tr className="border-b border-zinc-200">
+                {!isIndustry && (
+                  <th className="w-12 p-4 text-center">
+                    <input
+                      type="checkbox"
+                      checked={
+                        items.length > 0 &&
+                        selectedIds.length === items.length
+                      }
+                      onChange={handleSelectAll}
+                      disabled={!canManage}
+                      className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                    />
+                  </th>
+                )}
                 <th className="w-24 p-4 text-center">Thao tác</th>
                 <th className="w-40 p-4">Mã</th>
                 <th className="p-4">Tên danh mục</th>
@@ -337,6 +399,7 @@ export const BusinessReferenceManagement: React.FC<
                 <th className="w-32 p-4 text-center">Trạng thái</th>
               </tr>
               <tr className="border-b border-zinc-200 bg-white">
+                {!isIndustry && <th />}
                 <th />
                 <th className="p-2">
                   <input
@@ -412,7 +475,7 @@ export const BusinessReferenceManagement: React.FC<
               {!isLoading && items.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={isIndustry ? 6 : 4}
+                    colSpan={isIndustry ? 6 : 5}
                     className="py-16 text-center font-semibold text-zinc-400"
                   >
                     Không tìm thấy dữ liệu phù hợp
@@ -423,6 +486,17 @@ export const BusinessReferenceManagement: React.FC<
                   const industry = isIndustry && "level" in item ? item : null;
                   return (
                     <tr key={item.id} className="hover:bg-blue-50/30">
+                      {!isIndustry && (
+                        <td className="p-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(item.id)}
+                            onChange={() => handleSelectRow(item.id)}
+                            disabled={!canManage}
+                            className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                          />
+                        </td>
+                      )}
                       <td className="p-4 text-center">
                         {canManage && (
                           <button
@@ -656,6 +730,59 @@ export const BusinessReferenceManagement: React.FC<
           </div>
         </div>
       )}
+
+      {/* Selection Action Bar */}
+      {!isIndustry && canManage && selectedIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-50 flex items-center justify-between overflow-hidden rounded-xl border border-zinc-200/80 bg-white shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-300 dark:border-zinc-800 dark:bg-zinc-900 -translate-x-1/2">
+          <div className="flex items-center">
+            <div className="flex min-w-[40px] h-10 items-center justify-center bg-blue-600 px-3 text-sm font-bold text-white">
+              {selectedIds.length}
+            </div>
+            <span className="px-3.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300 select-none">
+              dữ liệu được chọn
+            </span>
+          </div>
+          <div className="flex items-center gap-3 pr-3">
+            <button
+              onClick={() => setIsDeleteConfirmOpen(true)}
+              className="bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs px-3.5 py-1.5 flex items-center gap-1.5 transition-all shadow-md shadow-red-500/10 cursor-pointer"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-3.5 h-3.5"
+              >
+                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
+              </svg>
+              <span>Xoá</span>
+            </button>
+            <button
+              onClick={() => setSelectedIds([])}
+              className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer"
+              title="Bỏ chọn"
+            >
+              <X className="h-4.5 w-4.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <DeleteConfirmModal
+        isOpen={!isIndustry && canManage && isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        onConfirm={handleDeleteSelected}
+        title="Xác nhận xóa loại hình kinh doanh"
+        description={
+          <>
+            Bạn có chắc chắn muốn xóa <strong>{selectedIds.length}</strong>{" "}
+            loại hình kinh doanh đã chọn không? Hành động này sẽ xóa vĩnh viễn dữ liệu.
+          </>
+        }
+      />
     </div>
   );
 };

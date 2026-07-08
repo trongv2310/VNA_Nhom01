@@ -21,3 +21,5 @@ export * from "./PermissionManagement";
 export * from "./RoleManagement";
 export * from "./BusinessReferenceManagement";
 export * from "./LaborCatalogManagement";
+export * from "./DepartmentSummaryReport";
+

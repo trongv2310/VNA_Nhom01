@@ -430,15 +430,15 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
   };
 
   const mapCauseToFrontend = (catalog: any) => {
-    return catalog?.name || causeCategories[0] || "";
+    return catalog?.name || "";
   };
 
   const mapFactorToFrontend = (catalog: any) => {
-    return catalog?.name || factorCategories[0] || "";
+    return catalog?.name || "";
   };
 
   const mapJobToFrontend = (catalog: any) => {
-    return catalog?.name || jobCategories[0] || "";
+    return catalog?.name || "";
   };
 
   const mapApiReportToFrontend = (r: any): ReportData => {
@@ -960,9 +960,9 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
             for (let i = nextDetails.length; i < count; i++) {
               nextDetails.push({
                 id: i + 1,
-                causeCategory: causeCategories[0] || "",
-                factorCategory: factorCategories[0] || "",
-                jobCategory: jobCategories[0] || "",
+                causeCategory: "",
+                factorCategory: "",
+                jobCategory: "",
                 tongSoVu: "1",
                 soVuCoNguoiChet: "0",
                 soVuHaiNguoiTroLen: "0",
@@ -1069,6 +1069,22 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
     val: string,
   ) => {
     if (!formData || isReadOnly) return;
+
+    if (blockErrors[blockIdx]?.[field]) {
+      setBlockErrors((prev) => {
+        const next = { ...prev };
+        if (next[blockIdx]) {
+          const updatedBlock = { ...next[blockIdx] };
+          delete updatedBlock[field];
+          if (Object.keys(updatedBlock).length === 0) {
+            delete next[blockIdx];
+          } else {
+            next[blockIdx] = updatedBlock;
+          }
+        }
+        return next;
+      });
+    }
 
     setFormData((prev) => {
       if (!prev) return null;
@@ -1496,6 +1512,22 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
         (formData.details || []).forEach((block, idx) => {
           const blockErrs: Record<string, string> = {};
           const blockMsgs: string[] = [];
+
+          if (!block.causeCategory) {
+            blockErrs.causeCategory = "Bắt buộc";
+            blockHasError = true;
+            blockMsgs.push(`Vụ tai nạn số ${idx + 1}: Vui lòng chọn nguyên nhân xảy ra TNLĐ`);
+          }
+          if (!block.factorCategory) {
+            blockErrs.factorCategory = "Bắt buộc";
+            blockHasError = true;
+            blockMsgs.push(`Vụ tai nạn số ${idx + 1}: Vui lòng chọn yếu tố gây chấn thương`);
+          }
+          if (!block.jobCategory) {
+            blockErrs.jobCategory = "Bắt buộc";
+            blockHasError = true;
+            blockMsgs.push(`Vụ tai nạn số ${idx + 1}: Vui lòng chọn nghề nghiệp`);
+          }
 
           countFields.forEach((f) => {
             if (
@@ -3370,9 +3402,13 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                                 {/* 3 Classification Dropdowns */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                   {/* Dropdown 1: Nguyên nhân */}
-                                  <div className="relative border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2 flex flex-col justify-center bg-white dark:bg-zinc-950">
-                                    <label className="absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold text-zinc-450 dark:text-zinc-550">
-                                      1. Phân theo nguyên nhân xảy ra TNLĐ
+                                  <div className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center bg-white dark:bg-zinc-950 transition-all ${
+                                    blockErrors[idx]?.causeCategory
+                                      ? "border-red-500 ring-1 ring-red-500"
+                                      : "border-zinc-200 dark:border-zinc-800"
+                                  }`}>
+                                    <label className="absolute -top-2.5 left-3 bg-white dark:bg-zinc-955 px-1.5 text-[11px] font-bold text-zinc-455 dark:text-zinc-550">
+                                      1. Phân theo nguyên nhân xảy ra TNLĐ <span className="text-red-500">*</span>
                                     </label>
                                     <select
                                       disabled={isReadOnly}
@@ -3386,6 +3422,7 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                                       }
                                       className="w-full bg-transparent border-0 outline-none text-zinc-850 dark:text-zinc-150 text-sm font-bold pt-2.5 pb-0.5 cursor-pointer appearance-none disabled:cursor-not-allowed"
                                     >
+                                      <option value="">-- Chọn nguyên nhân xảy ra TNLĐ --</option>
                                       {block.causeCategory &&
                                         !causeCategories.includes(
                                           block.causeCategory,
@@ -3405,12 +3442,21 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                                       ))}
                                     </select>
                                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none mt-1" />
+                                    {blockErrors[idx]?.causeCategory && (
+                                      <span className="text-[10px] text-red-500 mt-0.5 font-semibold">
+                                        {blockErrors[idx].causeCategory}
+                                      </span>
+                                    )}
                                   </div>
 
                                   {/* Dropdown 2: Yếu tố gây chấn thương */}
-                                  <div className="relative border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2 flex flex-col justify-center bg-white dark:bg-zinc-950">
-                                    <label className="absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold text-zinc-450 dark:text-zinc-550">
-                                      2. Phân theo yếu tố gây chấn thương
+                                  <div className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center bg-white dark:bg-zinc-950 transition-all ${
+                                    blockErrors[idx]?.factorCategory
+                                      ? "border-red-500 ring-1 ring-red-500"
+                                      : "border-zinc-200 dark:border-zinc-800"
+                                  }`}>
+                                    <label className="absolute -top-2.5 left-3 bg-white dark:bg-zinc-955 px-1.5 text-[11px] font-bold text-zinc-455 dark:text-zinc-550">
+                                      2. Phân theo yếu tố gây chấn thương <span className="text-red-500">*</span>
                                     </label>
                                     <select
                                       disabled={isReadOnly}
@@ -3424,6 +3470,7 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                                       }
                                       className="w-full bg-transparent border-0 outline-none text-zinc-855 dark:text-zinc-150 text-sm font-bold pt-2.5 pb-0.5 cursor-pointer appearance-none disabled:cursor-not-allowed"
                                     >
+                                      <option value="">-- Chọn yếu tố gây chấn thương --</option>
                                       {block.factorCategory &&
                                         !factorCategories.includes(
                                           block.factorCategory,
@@ -3443,12 +3490,21 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                                       ))}
                                     </select>
                                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none mt-1" />
+                                    {blockErrors[idx]?.factorCategory && (
+                                      <span className="text-[10px] text-red-500 mt-0.5 font-semibold">
+                                        {blockErrors[idx].factorCategory}
+                                      </span>
+                                    )}
                                   </div>
 
                                   {/* Dropdown 3: Nghề nghiệp */}
-                                  <div className="relative border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2 flex flex-col justify-center bg-white dark:bg-zinc-950 md:col-span-2">
-                                    <label className="absolute -top-2.5 left-3 bg-white dark:bg-zinc-950 px-1.5 text-[11px] font-bold text-zinc-450 dark:text-zinc-550">
-                                      3. Phân theo nghề nghiệp
+                                  <div className={`relative border rounded-xl px-4 py-2 flex flex-col justify-center bg-white dark:bg-zinc-950 md:col-span-2 transition-all ${
+                                    blockErrors[idx]?.jobCategory
+                                      ? "border-red-500 ring-1 ring-red-500"
+                                      : "border-zinc-200 dark:border-zinc-800"
+                                  }`}>
+                                    <label className="absolute -top-2.5 left-3 bg-white dark:bg-zinc-955 px-1.5 text-[11px] font-bold text-zinc-455 dark:text-zinc-550">
+                                      3. Phân theo nghề nghiệp <span className="text-red-500">*</span>
                                     </label>
                                     <select
                                       disabled={isReadOnly}
@@ -3462,6 +3518,7 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                                       }
                                       className="w-full bg-transparent border-0 outline-none text-zinc-855 dark:text-zinc-150 text-sm font-bold pt-2.5 pb-0.5 cursor-pointer appearance-none disabled:cursor-not-allowed"
                                     >
+                                      <option value="">-- Chọn nghề nghiệp --</option>
                                       {block.jobCategory &&
                                         !jobCategories.includes(
                                           block.jobCategory,
@@ -3481,6 +3538,11 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                                       ))}
                                     </select>
                                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none mt-1" />
+                                    {blockErrors[idx]?.jobCategory && (
+                                      <span className="text-[10px] text-red-500 mt-0.5 font-semibold">
+                                        {blockErrors[idx].jobCategory}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
 

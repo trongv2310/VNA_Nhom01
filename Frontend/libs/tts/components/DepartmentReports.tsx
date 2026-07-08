@@ -19,6 +19,7 @@ import {
   bulkRejectDepartmentReports
 } from "../services/api";
 import { DepartmentReportDetail } from "./DepartmentReportDetail";
+import { DepartmentSummaryReport } from "./DepartmentSummaryReport";
 import { useAddress } from "../hooks/useAddress";
 
 interface DepartmentReportsProps {
@@ -96,6 +97,7 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
   const [limit, setLimit] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
   const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null);
+  const [isShowingSummary, setIsShowingSummary] = useState(false);
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [showApproveModal, setShowApproveModal] = useState(false);
@@ -361,13 +363,25 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
   };
 
   const handleAggregateReport = () => {
-    showToast("Tính năng tổng hợp dữ liệu báo cáo đang được xử lý", "success");
+    setIsShowingSummary(true);
   };
 
   // Pagination bounds
   const startIdx = totalItems > 0 ? (page - 1) * limit + 1 : 0;
   const endIdx = Math.min(page * limit, totalItems);
   const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+
+  if (isShowingSummary) {
+    return (
+      <DepartmentSummaryReport
+        initialYear={year}
+        initialProvinceCity={provinceCity}
+        onBack={() => setIsShowingSummary(false)}
+        showToast={showToast}
+        canExport={canExport}
+      />
+    );
+  }
 
   if (selectedReport) {
     return (
