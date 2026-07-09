@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,11 +9,13 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -31,6 +34,7 @@ import type {} from 'multer';
 import { Roles } from '../decorators/roles.decorator';
 import { Permissions } from '../decorators/permissions.decorator';
 import { CreateUserDto } from '../dtos/create-user.dto';
+import { UserImportSummaryResponseDto } from '../dtos/user-import.dto';
 import { ListUsersQueryDto } from '../dtos/list-users-query.dto';
 import { UpdateUserDto } from '../dtos/update-user.dto';
 import { UserService } from '../services/user.service';
@@ -215,6 +219,86 @@ export class UserController {
     currentUser: currentUserDecorator.CurrentUserData,
   ) {
     return this.userService.removeMyAvatar(currentUser.id);
+  }
+
+  @Get('export')
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles('ADMIN')
+  @Permissions('SYSTEM_C_USER_VIEW')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Xuất danh sách người dùng ra file Excel' })
+  async exportUsers(
+    @Query() query: ListUsersQueryDto,
+    @Res() res: Response,
+    @currentUserDecorator.CurrentUser()
+    currentUser: currentUserDecorator.CurrentUserData,
+  ) {
+    const buffer = await this.userService.exportUsersToExcel(query, currentUser);
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="DanhSachNguoiDung.xlsx"',
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
+  @Get('import/template')
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles('ADMIN')
+  @Permissions('SYSTEM_C_USER_CREATE')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Tải file Excel mẫu để nhập người dùng' })
+  async downloadTemplate(@Res() res: Response) {
+    const buffer = await this.userService.generateImportTemplate();
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="User_Import_Template.xlsx"',
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
+  @Post('import')
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles('ADMIN')
+  @Permissions('SYSTEM_C_USER_CREATE')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Thêm người dùng hàng loạt từ file Excel' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'File Excel (.xlsx, .xls) chứa danh sách người dùng',
+        },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+      },
+      fileFilter: (_req, file, callback) => {
+        const ext = file.originalname.split('.').pop()?.toLowerCase();
+        if (ext !== 'xlsx' && ext !== 'xls') {
+          callback(new BadRequestException('Chỉ chấp nhận file Excel (.xlsx, .xls)'), false);
+          return;
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  async importUsers(
+    @UploadedFile() file: Express.Multer.File,
+    @currentUserDecorator.CurrentUser()
+    currentUser: currentUserDecorator.CurrentUserData,
+  ): Promise<UserImportSummaryResponseDto> {
+    return this.userService.importFromExcel(file, currentUser);
   }
 
   @Get(':id')

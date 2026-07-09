@@ -7,11 +7,17 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
+import { randomInt } from 'crypto';
+import { Repository, EntityManager } from 'typeorm';
+import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
+import { validate } from 'class-validator';
+import { plainToInstance } from 'class-transformer';
 import type {} from 'multer';
-import { Repository } from 'typeorm';
 
 import type { CurrentUserData } from '../decorators/current-user.decorator';
 import { CreateUserDto } from '../dtos/create-user.dto';
+import { UserImportSummaryResponseDto, UserImportResultDetailDto } from '../dtos/user-import.dto';
 import { ListUsersQueryDto } from '../dtos/list-users-query.dto';
 import { UpdateUserDto } from '../dtos/update-user.dto';
 import { Role } from '../entities/role.entity';
@@ -826,5 +832,478 @@ export class UserService {
 
     const count = await queryBuilder.getCount();
     return count > 0;
+  }
+
+  async importFromExcel(
+    file: Express.Multer.File,
+    currentUser: CurrentUserData,
+  ): Promise<UserImportSummaryResponseDto> {
+    this.assertAdminOrHasAnyPermission(currentUser, ['SYSTEM_C_USER_CREATE']);
+
+    if (!file || !file.buffer) {
+      throw new BadRequestException('Vui lòng cung cấp file Excel hợp lệ');
+    }
+
+    let workbook: XLSX.WorkBook;
+    try {
+      workbook = XLSX.read(file.buffer, { type: 'buffer' });
+    } catch {
+      throw new BadRequestException('Không thể đọc file Excel. File có thể bị hỏng.');
+    }
+
+    const firstSheetName = workbook.SheetNames[0];
+    if (!firstSheetName) {
+      throw new BadRequestException('File Excel không có sheet nào');
+    }
+
+    const worksheet = workbook.Sheets[firstSheetName];
+    const rawData = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+
+    if (rawData.length <= 1) {
+      return {
+        total: 0,
+        successCount: 0,
+        failCount: 0,
+        details: [],
+      };
+    }
+
+    const headers = rawData[0] as string[];
+    const dataRows = rawData.slice(1);
+
+    const getColumnIndex = (name: string) => {
+      return headers.findIndex((h) => h && h.trim().toLowerCase().startsWith(name.trim().toLowerCase()));
+    };
+
+    const usernameIdx = getColumnIndex('Tên đăng nhập');
+    const fullNameIdx = getColumnIndex('Họ và tên');
+    const roleIdx = getColumnIndex('Vai trò');
+    const emailIdx = getColumnIndex('Email');
+    const genderIdx = getColumnIndex('Giới tính');
+    const dobIdx = getColumnIndex('Ngày sinh');
+    const positionIdx = getColumnIndex('Chức vụ');
+    const provinceIdx = getColumnIndex('Tỉnh/Thành phố');
+    const wardIdx = getColumnIndex('Phường/Xã');
+    const addressIdx = getColumnIndex('Địa chỉ');
+    const statusIdx = getColumnIndex('Trạng thái');
+
+    const roles = await this.roleRepository.find();
+    const rolesMap = new Map<string, Role>();
+    for (const role of roles) {
+      rolesMap.set(role.code.toLowerCase().trim(), role);
+      rolesMap.set(role.name.toLowerCase().trim(), role);
+    }
+
+    const details: UserImportResultDetailDto[] = [];
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const row = dataRows[i] as any[];
+      const rowNumber = i + 2;
+
+      if (!row || row.every((val) => val === undefined || val === null || val === '')) {
+        continue;
+      }
+
+      const getValue = (idx: number) => {
+        if (idx === -1 || idx >= row.length) return undefined;
+        const val = row[idx];
+        if (val === undefined || val === null) return undefined;
+        return String(val).trim();
+      };
+
+      const username = getValue(usernameIdx);
+      const fullName = getValue(fullNameIdx);
+      const roleVal = getValue(roleIdx);
+      const email = getValue(emailIdx);
+      const gender = getValue(genderIdx);
+      const dobVal = getValue(dobIdx);
+      const position = getValue(positionIdx);
+      const provinceCity = getValue(provinceIdx);
+      const wardCommune = getValue(wardIdx);
+      const address = getValue(addressIdx);
+      const statusVal = getValue(statusIdx);
+
+      const rowErrors: string[] = [];
+
+      if (!username) rowErrors.push('Tên đăng nhập không được để trống');
+      if (!fullName) rowErrors.push('Họ và tên không được để trống');
+      if (!roleVal) rowErrors.push('Vai trò không được để trống');
+      if (!email) rowErrors.push('Email không được để trống');
+
+      let dateOfBirth: string | undefined = undefined;
+      if (dobVal) {
+        try {
+          if (/^\d{5}$/.test(dobVal)) {
+            const dateObj = XLSX.SSF.parse_date_code(Number(dobVal));
+            const y = dateObj.y;
+            const m = String(dateObj.m).padStart(2, '0');
+            const d = String(dateObj.d).padStart(2, '0');
+            dateOfBirth = `${y}-${m}-${d}`;
+          } else {
+            let parts: string[] = [];
+            if (dobVal.includes('-')) {
+              parts = dobVal.split('-');
+            } else if (dobVal.includes('/')) {
+              parts = dobVal.split('/');
+            }
+            if (parts.length === 3) {
+              if (parts[0].length === 4) {
+                dateOfBirth = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+              } else if (parts[2].length === 4) {
+                dateOfBirth = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+              }
+            }
+          }
+          if (dateOfBirth && isNaN(Date.parse(dateOfBirth))) {
+            rowErrors.push('Ngày sinh không đúng định dạng YYYY-MM-DD');
+          }
+        } catch {
+          rowErrors.push('Ngày sinh không đúng định dạng YYYY-MM-DD');
+        }
+      }
+
+      if (username) {
+        const usernameExisted = await this.userRepository.findOne({
+          where: { username },
+        });
+        if (usernameExisted) {
+          rowErrors.push('Tên đăng nhập đã tồn tại trong hệ thống');
+        }
+      }
+
+      if (email) {
+        const emailExisted = await this.userRepository.findOne({
+          where: { email },
+        });
+        if (emailExisted) {
+          rowErrors.push('Email đã tồn tại trong hệ thống');
+        }
+      }
+
+      let roleObj: Role | undefined = undefined;
+      if (roleVal) {
+        roleObj = rolesMap.get(roleVal.toLowerCase());
+        if (!roleObj) {
+          rowErrors.push(`Vai trò "${roleVal}" không hợp lệ hoặc không tồn tại`);
+        }
+      }
+
+      let isActive = 'true';
+      if (statusVal) {
+        const lowerStatus = statusVal.toLowerCase();
+        if (lowerStatus === 'khóa' || lowerStatus === 'khoa' || lowerStatus === 'false' || lowerStatus === 'inactive') {
+          isActive = 'false';
+        }
+      }
+
+      const createUserDtoData = {
+        username: username || '',
+        password: '123456',
+        fullName: fullName || '',
+        email: email || '',
+        gender,
+        dateOfBirth,
+        position,
+        provinceCity,
+        wardCommune,
+        address,
+        isActive,
+        roleCode: roleObj?.code,
+        roleId: roleObj ? String(roleObj.id) : undefined,
+      };
+
+      const createUserDto = plainToInstance(CreateUserDto, createUserDtoData);
+      const validationErrors = await validate(createUserDto);
+      if (validationErrors.length > 0) {
+        const validationMsgs = this.formatValidationErrors(validationErrors);
+        rowErrors.push(...validationMsgs);
+      }
+
+      if (rowErrors.length > 0) {
+        failCount++;
+        details.push({
+          rowNumber,
+          username: username || '',
+          fullName: fullName || '',
+          errors: Array.from(new Set(rowErrors)),
+        });
+      } else {
+        try {
+          await this.userRepository.manager.transaction(async (transactionalEntityManager) => {
+            const userEntity = transactionalEntityManager.create(User, {
+              username,
+              password: await bcrypt.hash('123456', 10),
+              fullName,
+              email,
+              gender: gender || null,
+              dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+              position: position || null,
+              provinceCity: provinceCity || null,
+              wardCommune: wardCommune || null,
+              address: address || null,
+              accountType: UserAccountType.DEPARTMENT,
+              isActive: isActive === 'true',
+            });
+
+            const savedUser = await transactionalEntityManager.save(userEntity);
+
+            await transactionalEntityManager.save(UserRole, {
+              user: savedUser,
+              role: roleObj!,
+            });
+          });
+          successCount++;
+        } catch (err) {
+          failCount++;
+          details.push({
+            rowNumber,
+            username: username || '',
+            fullName: fullName || '',
+            errors: [err instanceof Error ? err.message : 'Lỗi hệ thống khi lưu người dùng'],
+          });
+        }
+      }
+    }
+
+    return {
+      total: dataRows.length,
+      successCount,
+      failCount,
+      details,
+    };
+  }
+
+  async generateImportTemplate(): Promise<Buffer> {
+    const headers = [
+      'Tên đăng nhập *',
+      'Họ và tên *',
+      'Vai trò *',
+      'Email *',
+      'Giới tính',
+      'Ngày sinh (YYYY-MM-DD)',
+      'Chức vụ',
+      'Tỉnh/Thành phố',
+      'Phường/Xã',
+      'Địa chỉ',
+      'Trạng thái (Hoạt động/Khóa)',
+    ];
+
+    const sampleRow = [
+      'nguyenvana',
+      'Nguyễn Văn A',
+      'USER',
+      'nguyenvana@gmail.com',
+      'Nam',
+      '1995-06-01',
+      'Chuyên viên',
+      'Thành phố Hà Nội',
+      'Phường Trúc Bạch',
+      '123 Phố Trúc Bạch',
+      'Hoạt động',
+    ];
+
+    const roles = await this.roleRepository.find();
+    const docRows = [
+      ['HƯỚNG DẪN NHẬP LIỆU FILE MẪU'],
+      [''],
+      ['1. Các cột có dấu * là bắt buộc phải nhập.'],
+      ['2. Cột Vai trò phải điền đúng mã vai trò hoặc tên vai trò hiện có trong hệ thống.'],
+      ['3. Cột Trạng thái chỉ chấp nhận giá trị: "Hoạt động" hoặc "Khóa" (mặc định là Hoạt động).'],
+      ['4. Cột Ngày sinh phải nhập theo định dạng YYYY-MM-DD (ví dụ: 1995-06-01).'],
+      [''],
+      ['DANH SÁCH VAI TRÒ HỢP LỆ TRONG HỆ THỐNG:'],
+      ['Mã vai trò', 'Tên vai trò', 'Phạm vi'],
+    ];
+
+    for (const r of roles) {
+      docRows.push([r.code, r.name, r.scope]);
+    }
+
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+    XLSX.utils.book_append_sheet(wb, ws1, 'Nhập người dùng');
+
+    const ws2 = XLSX.utils.aoa_to_sheet(docRows);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Hướng dẫn & Danh mục');
+
+    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  }
+
+  private formatValidationErrors(errors: any[]): string[] {
+    const messages: string[] = [];
+    for (const error of errors) {
+      if (error.constraints) {
+        messages.push(...(Object.values(error.constraints) as string[]));
+      }
+      if (error.children?.length) {
+        messages.push(...this.formatValidationErrors(error.children));
+      }
+    }
+    return messages;
+  }
+
+  async exportUsersToExcel(
+    query: ListUsersQueryDto,
+    currentUser: CurrentUserData,
+  ): Promise<Buffer> {
+    this.assertAdminOrHasAnyPermission(currentUser, ['SYSTEM_C_USER_VIEW']);
+
+    const queryBuilder = this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.userRoles', 'userRole')
+      .leftJoinAndSelect('userRole.role', 'role')
+      .andWhere('user.accountType = :accountType', {
+        accountType: UserAccountType.DEPARTMENT,
+      })
+      .distinct(true);
+
+    this.excludeAdminUsers(queryBuilder);
+
+    if (query.keyword?.trim()) {
+      const keyword = this.toLikeValue(query.keyword);
+      queryBuilder.andWhere(
+        '(LOWER(user.fullName) LIKE :keyword OR LOWER(user.username) LIKE :keyword OR LOWER(user.email) LIKE :keyword OR LOWER(user.position) LIKE :keyword OR LOWER(role.name) LIKE :keyword OR LOWER(role.code) LIKE :keyword)',
+        { keyword },
+      );
+    }
+
+    if (query.fullName?.trim()) {
+      queryBuilder.andWhere('LOWER(user.fullName) LIKE :fullName', {
+        fullName: this.toLikeValue(query.fullName),
+      });
+    }
+
+    if (query.username?.trim()) {
+      queryBuilder.andWhere('LOWER(user.username) LIKE :username', {
+        username: this.toLikeValue(query.username),
+      });
+    }
+
+    if (query.email?.trim()) {
+      queryBuilder.andWhere('LOWER(user.email) LIKE :email', {
+        email: this.toLikeValue(query.email),
+      });
+    }
+
+    if (query.role?.trim()) {
+      queryBuilder.andWhere(
+        '(LOWER(role.code) LIKE :role OR LOWER(role.name) LIKE :role)',
+        {
+          role: this.toLikeValue(query.role),
+        },
+      );
+    }
+
+    if (query.position?.trim()) {
+      queryBuilder.andWhere('LOWER(user.position) LIKE :position', {
+        position: this.toLikeValue(query.position),
+      });
+    }
+
+    if (query.isActive !== undefined) {
+      queryBuilder.andWhere('user.isActive = :isActive', {
+        isActive: query.isActive === 'true',
+      });
+    }
+
+    const users = await queryBuilder
+      .orderBy('user.createdAt', 'DESC')
+      .addOrderBy('user.id', 'DESC')
+      .getMany();
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách người dùng');
+
+    const columns = [
+      { header: 'Họ và tên', key: 'fullName' },
+      { header: 'Tài khoản', key: 'username' },
+      { header: 'Email', key: 'email' },
+      { header: 'Vai trò', key: 'roleDisplay' },
+      { header: 'Chức danh', key: 'position' },
+    ];
+
+    worksheet.columns = columns;
+
+    for (const user of users) {
+      const mapped = this.mapUserListItem(user);
+      worksheet.addRow({
+        fullName: mapped.fullName || '',
+        username: mapped.username || '',
+        email: mapped.email || '',
+        roleDisplay: mapped.roleDisplay || '',
+        position: mapped.position || '',
+      });
+    }
+
+    // Header styling
+    const headerRow = worksheet.getRow(1);
+    headerRow.height = 25;
+    headerRow.eachCell((cell) => {
+      cell.font = {
+        name: 'Arial',
+        size: 11,
+        bold: true,
+        color: { argb: 'FF1F2937' },
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFEBF2FE' },
+      };
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: 'center',
+      };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+        left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+        bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+        right: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+      };
+    });
+
+    // Data styling
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      row.height = 20;
+      row.eachCell((cell) => {
+        cell.font = {
+          name: 'Arial',
+          size: 10,
+        };
+        cell.alignment = {
+          vertical: 'middle',
+          horizontal: 'left',
+          wrapText: true,
+        };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+        };
+      });
+    });
+
+    // Auto fit
+    worksheet.columns.forEach((column) => {
+      let maxLen = 0;
+      if (column.header) {
+        maxLen = Math.max(maxLen, column.header.toString().length);
+      }
+      column.eachCell && column.eachCell((cell, rowNumber) => {
+        if (rowNumber === 1) return;
+        const val = cell.value;
+        if (val) {
+          maxLen = Math.max(maxLen, val.toString().length);
+        }
+      });
+      column.width = Math.min(Math.max(maxLen + 4, 15), 50);
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
   }
 }

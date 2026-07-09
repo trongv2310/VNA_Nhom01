@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,6 +10,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { randomInt } from 'crypto';
 import { Repository, EntityManager } from 'typeorm';
+import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
+import { validate } from 'class-validator';
+import { plainToInstance } from 'class-transformer';
 
 import {
   UpdateBusinessProfileDto,
@@ -23,6 +28,7 @@ import { CreateBusinessDto } from '../dtos/create-business.dto';
 import { ListBusinessesQueryDto } from '../dtos/list-businesses-query.dto';
 import { UpdateBusinessDto } from '../dtos/update-business.dto';
 import { ValidateBusinessUniquenessDto } from '../dtos/validate-business-uniqueness.dto';
+import { ImportSummaryResponseDto, ImportResultDetailDto } from '../dtos/business-import.dto';
 import { BusinessAttachment } from '../entities/business-attachment.entity';
 import { BusinessIndustry } from '../entities/business-industry.entity';
 import { BusinessType } from '../entities/business-type.entity';
@@ -51,6 +57,9 @@ type ResolvedBusinessReferenceSelection = {
 
 @Injectable()
 export class BusinessService {
+  private provincesCache: any[] | null = null;
+  private wardsCache: Record<number, any[]> = {};
+
   constructor(
     @InjectRepository(Business)
     private readonly businessRepository: Repository<Business>,
@@ -1783,5 +1792,611 @@ export class BusinessService {
       createdAt: business.createdAt,
       updatedAt: business.updatedAt,
     };
+  }
+
+  private cleanLocationName(name: string): string {
+    return name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/^(tinh|thanh pho|tp\.|tp|district|quan|huyen|thi xa|phuong|xa|thi tran)\s+/g, '')
+      .replace(/\s+/g, '')
+      .trim();
+  }
+
+  private matchProvince(provinces: any[], input: string) {
+    const normInput = input.trim().toLowerCase();
+    let found = provinces.find((p) => p.name.trim().toLowerCase() === normInput);
+    if (found) return found;
+
+    const cleanInput = this.cleanLocationName(input);
+    found = provinces.find((p) => this.cleanLocationName(p.name) === cleanInput);
+    return found;
+  }
+
+  private matchWard(wards: any[], input: string) {
+    const normInput = input.trim().toLowerCase();
+    let found = wards.find((w) => w.name.trim().toLowerCase() === normInput);
+    if (found) return found;
+
+    const cleanInput = this.cleanLocationName(input);
+    found = wards.find((w) => this.cleanLocationName(w.name) === cleanInput);
+    return found;
+  }
+
+  private parseExcelDate(val: any): string | undefined {
+    if (val === undefined || val === null || val === '') return undefined;
+    if (val instanceof Date) {
+      return val.toISOString().slice(0, 10);
+    }
+    if (typeof val === 'number') {
+      const date = new Date((val - 25569) * 86400 * 1000);
+      return date.toISOString().slice(0, 10);
+    }
+    if (typeof val === 'string') {
+      const cleanStr = val.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
+        return cleanStr;
+      }
+      const dmy = cleanStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (dmy) {
+        const day = dmy[1].padStart(2, '0');
+        const month = dmy[2].padStart(2, '0');
+        const year = dmy[3];
+        return `${year}-${month}-${day}`;
+      }
+      const parsed = new Date(cleanStr);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString().slice(0, 10);
+      }
+    }
+    return String(val).trim();
+  }
+
+  private parseIndustryCode(val: any): string | undefined {
+    if (val === undefined || val === null || val === '') return undefined;
+    const str = String(val).trim();
+    const match = str.match(/^(\d{4})/);
+    if (match) {
+      return match[1];
+    }
+    return str;
+  }
+
+  private formatValidationErrors(errors: any[]): string[] {
+    const messages: string[] = [];
+    for (const error of errors) {
+      if (error.constraints) {
+        messages.push(...(Object.values(error.constraints) as string[]));
+      }
+      if (error.children?.length) {
+        messages.push(...this.formatValidationErrors(error.children));
+      }
+    }
+    return messages;
+  }
+
+  private getErrorMessage(error: any): string {
+    if (error instanceof HttpException) {
+      const response = error.getResponse();
+      if (typeof response === 'object' && response !== null && 'message' in response) {
+        const msg = (response as any).message;
+        return Array.isArray(msg) ? msg.join(', ') : String(msg);
+      }
+      return typeof response === 'string' ? response : error.message;
+    }
+    return error.message || String(error);
+  }
+
+  private async fetchProvinces(): Promise<any[]> {
+    if (this.provincesCache) return this.provincesCache;
+    try {
+      const res = await fetch('https://provinces.open-api.vn/api/v2/p/');
+      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      const data = await res.json();
+      this.provincesCache = data;
+      return data;
+    } catch (error) {
+      throw new Error('Không thể kết nối đến máy chủ danh mục Tỉnh/Thành phố');
+    }
+  }
+
+  private async fetchWards(provinceCode: number): Promise<any[]> {
+    if (this.wardsCache[provinceCode]) return this.wardsCache[provinceCode];
+    try {
+      const res = await fetch(`https://provinces.open-api.vn/api/v2/p/${provinceCode}?depth=2`);
+      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      const data = await res.json();
+      const wards = data?.wards || [];
+      this.wardsCache[provinceCode] = wards;
+      return wards;
+    } catch (error) {
+      throw new Error(`Không thể tải danh sách Phường/Xã cho tỉnh có mã ${provinceCode}`);
+    }
+  }
+
+  private async validateProvinceAndWard(provinceCity: string, wardCommune: string) {
+    if (!provinceCity?.trim()) {
+      throw new BadRequestException('Tỉnh/Thành phố ĐKKD không được để trống');
+    }
+    if (!wardCommune?.trim()) {
+      throw new BadRequestException('Phường/Xã ĐKKD không được để trống');
+    }
+
+    const provinces = await this.fetchProvinces();
+    const matchedProv = this.matchProvince(provinces, provinceCity);
+    if (!matchedProv) {
+      throw new BadRequestException(`Tỉnh/Thành phố ĐKKD "${provinceCity}" không tồn tại trong danh mục`);
+    }
+
+    const wards = await this.fetchWards(matchedProv.code);
+    const matchedWd = this.matchWard(wards, wardCommune);
+    if (!matchedWd) {
+      throw new BadRequestException(`Phường/Xã ĐKKD "${wardCommune}" không thuộc Tỉnh/Thành phố "${matchedProv.name}"`);
+    }
+  }
+
+  async importFromExcel(file: Express.Multer.File): Promise<ImportSummaryResponseDto> {
+    if (!file) {
+      throw new BadRequestException('Không tìm thấy file upload');
+    }
+
+    const ext = file.originalname.split('.').pop()?.toLowerCase();
+    if (ext !== 'xlsx' && ext !== 'xls') {
+      throw new BadRequestException('Chỉ chấp nhận file Excel (.xlsx hoặc .xls)');
+    }
+
+    let workbook: XLSX.WorkBook;
+    try {
+      workbook = XLSX.read(file.buffer, { type: 'buffer' });
+    } catch (e) {
+      throw new BadRequestException('File Excel không hợp lệ hoặc bị hỏng');
+    }
+
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    if (!worksheet) {
+      throw new BadRequestException('File Excel không có sheet nào');
+    }
+
+    const rows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+    if (rows.length <= 1) {
+      throw new BadRequestException('File Excel không có dữ liệu doanh nghiệp');
+    }
+
+    const dataRows = rows.slice(1);
+    const results: ImportSummaryResponseDto = {
+      total: 0,
+      successCount: 0,
+      failCount: 0,
+      details: [],
+    };
+
+    // Pre-load all provinces to warm cache
+    try {
+      await this.fetchProvinces();
+    } catch (e) {
+      throw new BadRequestException('Không thể tải danh sách Tỉnh/Thành phố để xác thực địa chỉ');
+    }
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const row = dataRows[i];
+      if (!row || row.length === 0 || row.every((cell) => cell === null || cell === undefined || cell === '')) {
+        continue; // Skip empty rows
+      }
+
+      results.total++;
+      const rowNum = i + 2;
+
+      const rawBusinessName = row[0];
+      const rawTaxCode = row[1];
+      const rawBusinessType = row[2];
+      const rawIndustryCode = row[3];
+      const rawLicenseIssueDate = row[4];
+      const rawProvinceCity = row[5];
+      const rawWardCommune = row[6];
+      const rawEmail = row[7];
+      const rawForeignName = row[8];
+      const rawAddress = row[9];
+      const rawBusinessLocation = row[10];
+      const rawOperatingProvinceCity = row[11];
+      const rawOperatingWardCommune = row[12];
+      const rawAgencyPhone = row[13];
+      const rawRepresentativeName = row[14];
+      const rawRepresentativePhone = row[15];
+
+      const taxCode = rawTaxCode ? String(rawTaxCode).trim() : '';
+      const businessName = rawBusinessName ? String(rawBusinessName).trim() : '';
+
+      const errors: string[] = [];
+
+      const industryCodeParsed = this.parseIndustryCode(rawIndustryCode);
+      const licenseIssueDateParsed = this.parseExcelDate(rawLicenseIssueDate);
+
+      const createDto = plainToInstance(CreateBusinessDto, {
+        businessName,
+        taxCode,
+        businessType: rawBusinessType ? String(rawBusinessType).trim() : undefined,
+        industryCode: industryCodeParsed,
+        licenseIssueDate: licenseIssueDateParsed,
+        provinceCity: rawProvinceCity ? String(rawProvinceCity).trim() : '',
+        wardCommune: rawWardCommune ? String(rawWardCommune).trim() : '',
+        email: rawEmail ? String(rawEmail).trim() : undefined,
+        foreignName: rawForeignName ? String(rawForeignName).trim() : undefined,
+        address: rawAddress ? String(rawAddress).trim() : undefined,
+        businessLocation: rawBusinessLocation ? String(rawBusinessLocation).trim() : undefined,
+        operatingProvinceCity: rawOperatingProvinceCity ? String(rawOperatingProvinceCity).trim() : undefined,
+        operatingWardCommune: rawOperatingWardCommune ? String(rawOperatingWardCommune).trim() : undefined,
+        agencyPhone: rawAgencyPhone ? String(rawAgencyPhone).trim() : undefined,
+        representativeName: rawRepresentativeName ? String(rawRepresentativeName).trim() : undefined,
+        representativePhone: rawRepresentativePhone ? String(rawRepresentativePhone).trim() : undefined,
+        isActive: true,
+      });
+
+      // 1. Validation using class-validator
+      const classErrors = await validate(createDto);
+      if (classErrors.length > 0) {
+        errors.push(...this.formatValidationErrors(classErrors));
+      }
+
+      // Check mandatory columns required by import
+      if (!createDto.businessType) {
+        errors.push('Loại hình doanh nghiệp không được để trống');
+      }
+      if (!createDto.industryCode) {
+        errors.push('Ngành nghề kinh doanh không được để trống');
+      }
+      if (!createDto.licenseIssueDate) {
+        errors.push('Ngày cấp giấy phép kinh doanh không được để trống');
+      }
+      if (!createDto.email) {
+        errors.push('Email không được để trống');
+      }
+
+      // 2. Validate using service logic if no structural errors so far
+      let resolvedRef: ResolvedBusinessReferenceSelection | null = null;
+      if (errors.length === 0) {
+        try {
+          this.validateBusinessPayload(createDto);
+        } catch (e: any) {
+          errors.push(this.getErrorMessage(e));
+        }
+
+        try {
+          resolvedRef = await this.resolveBusinessReferenceSelection(createDto, undefined, true);
+        } catch (e: any) {
+          errors.push(this.getErrorMessage(e));
+        }
+
+        try {
+          await this.validateProvinceAndWard(createDto.provinceCity, createDto.wardCommune);
+        } catch (e: any) {
+          errors.push(this.getErrorMessage(e));
+        }
+
+        if (createDto.operatingProvinceCity || createDto.operatingWardCommune) {
+          try {
+            if (createDto.operatingProvinceCity && createDto.operatingWardCommune) {
+              const provinces = await this.fetchProvinces();
+              const matchedProv = this.matchProvince(provinces, createDto.operatingProvinceCity);
+              if (!matchedProv) {
+                errors.push(`Tỉnh/Thành phố hoạt động "${createDto.operatingProvinceCity}" không tồn tại trong danh mục`);
+              } else {
+                const wards = await this.fetchWards(matchedProv.code);
+                const matchedWd = this.matchWard(wards, createDto.operatingWardCommune);
+                if (!matchedWd) {
+                  errors.push(`Phường/Xã hoạt động "${createDto.operatingWardCommune}" không thuộc Tỉnh/Thành phố "${matchedProv.name}"`);
+                }
+              }
+            } else {
+              errors.push('Vui lòng điền đầy đủ cả Tỉnh/Thành phố và Phường/Xã hoạt động');
+            }
+          } catch (e: any) {
+            errors.push(this.getErrorMessage(e));
+          }
+        }
+
+        // Uniqueness checks
+        try {
+          await this.validateUniqueTaxCode(createDto.taxCode);
+        } catch (e: any) {
+          errors.push(this.getErrorMessage(e));
+        }
+
+        try {
+          await this.validateUniqueBusinessAccount(createDto.taxCode, createDto.email);
+        } catch (e: any) {
+          errors.push(this.getErrorMessage(e));
+        }
+
+        if (createDto.representativePhone) {
+          try {
+            await this.validateUniqueRepresentativePhone(createDto.representativePhone);
+          } catch (e: any) {
+            errors.push(this.getErrorMessage(e));
+          }
+        }
+      }
+
+      if (errors.length > 0) {
+        results.failCount++;
+        results.details.push({
+          rowNumber: rowNum,
+          taxCode,
+          businessName,
+          errors,
+        });
+      } else {
+        try {
+          if (resolvedRef?.businessTypeCatalog) {
+            createDto.businessType = resolvedRef.businessTypeCatalog.name;
+            createDto.businessTypeId = resolvedRef.businessTypeCatalog.id;
+          }
+          if (resolvedRef?.industryCatalog) {
+            createDto.industryCode = resolvedRef.industryCatalog.code;
+            createDto.industryName = resolvedRef.industryCatalog.name;
+            createDto.industryId = resolvedRef.industryCatalog.id;
+          }
+
+          createDto.email = createDto.email?.toLowerCase().trim();
+          createDto.taxCode = createDto.taxCode.replace(/\s/g, '');
+
+          await this.createBusiness(createDto, []);
+          results.successCount++;
+        } catch (e: any) {
+          results.failCount++;
+          results.details.push({
+            rowNumber: rowNum,
+            taxCode,
+            businessName,
+            errors: [this.getErrorMessage(e)],
+          });
+        }
+      }
+    }
+
+    return results;
+  }
+
+  async generateImportTemplate(): Promise<Buffer> {
+    const headers = [
+      'Tên doanh nghiệp *',
+      'Mã số thuế *',
+      'Loại hình doanh nghiệp *',
+      'Ngành nghề kinh doanh *',
+      'Ngày cấp giấy phép kinh doanh *',
+      'Tỉnh/Thành phố ĐKKD *',
+      'Phường/Xã ĐKKD *',
+      'Email *',
+      'Tên doanh nghiệp nước ngoài',
+      'Địa chỉ',
+      'Địa điểm kinh doanh',
+      'Tỉnh/Thành phố hoạt động',
+      'Phường/Xã hoạt động',
+      'Số điện thoại',
+      'Người đại diện',
+      'Số điện thoại người đại diện',
+    ];
+
+    const sampleRow = [
+      'Công ty cổ phần công nghệ quốc tế VNA',
+      '0312345678',
+      'Công ty TNHH 1 thành viên',
+      '4669',
+      '2020-01-01',
+      'Thành phố Hồ Chí Minh',
+      'Phường Hiệp Bình Phước',
+      'vna@gmail.com',
+      'VNA International Technology Joint Stock Company',
+      '162 đường số 2, khu đô thị Vạn Phúc',
+      '162 đường số 2, khu đô thị Vạn Phúc',
+      'Thành phố Hồ Chí Minh',
+      'Phường Hiệp Bình Phước',
+      '02812345678',
+      'Nguyễn Văn A',
+      '0909123456',
+    ];
+
+    const businessTypes = await this.businessTypeRepository.find({
+      where: { isActive: true },
+      order: { sortOrder: 'ASC', id: 'ASC' },
+    });
+
+    const industries = await this.businessIndustryRepository.find({
+      where: { level: 4, isActive: true },
+      order: { code: 'ASC' },
+      take: 50,
+    });
+
+    const docRows = [
+      ['HƯỚNG DẪN NHẬP LIỆU DOANH NGHIỆP'],
+      [''],
+      ['1. Quy tắc chung:'],
+      ['- Các trường có dấu * ở Sheet "Danh sách doanh nghiệp" là bắt buộc.'],
+      ['- Cột "Loại hình doanh nghiệp" phải khớp chính xác với danh sách ở dưới (không phân biệt hoa thường).'],
+      ['- Cột "Ngành nghề kinh doanh" phải là Mã ngành cấp 4 (gồm 4 chữ số), ví dụ: 4669.'],
+      ['- Cột "Ngày cấp giấy phép kinh doanh" định dạng YYYY-MM-DD (ví dụ: 2023-05-15) hoặc DD/MM/YYYY.'],
+      ['- Cột "Tỉnh/Thành phố ĐKKD" và "Phường/Xã ĐKKD" phải đúng chính tả theo danh mục hành chính Việt Nam.'],
+      ['- Mã số thuế phải gồm 10 chữ số hoặc dạng 10 số - 3 số (ví dụ: 0100109106-001) và phải là duy nhất.'],
+      ['- Email phải đúng định dạng và chưa tồn tại trong hệ thống.'],
+      [''],
+      ['2. Danh sách Loại hình doanh nghiệp hợp lệ:'],
+      ...businessTypes.map((t) => [`- ${t.name}`]),
+      [''],
+      ['3. Ví dụ một số Mã ngành nghề cấp 4 hợp lệ (tổng hợp 50 ngành đầu tiên):'],
+      ...industries.map((i) => [`- ${i.code}: ${i.name}`]),
+    ];
+
+    const wb = XLSX.utils.book_new();
+
+    const wsData = [headers, sampleRow];
+    const ws1 = XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb, ws1, 'Danh sách doanh nghiệp');
+
+    const ws2 = XLSX.utils.aoa_to_sheet(docRows);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Hướng dẫn & Danh mục');
+
+    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  }
+
+  async exportBusinessesToExcel(query: ListBusinessesQueryDto): Promise<Buffer> {
+    const queryBuilder = this.businessRepository
+      .createQueryBuilder('business')
+      .leftJoinAndSelect('business.attachments', 'attachment')
+      .leftJoinAndSelect('business.accountUser', 'accountUser')
+      .leftJoinAndSelect('business.businessTypeCatalog', 'businessTypeCatalog')
+      .leftJoinAndSelect('business.industryCatalog', 'industryCatalog')
+      .distinct(true);
+
+    if (query.keyword?.trim()) {
+      const keyword = this.toLikeValue(query.keyword);
+      queryBuilder.andWhere(
+        '(LOWER(business.businessName) LIKE :keyword OR LOWER(business.taxCode) LIKE :keyword OR LOWER(business.businessType) LIKE :keyword OR LOWER(business.industryCode) LIKE :keyword OR LOWER(business.industryName) LIKE :keyword OR LOWER(business.wardCommune) LIKE :keyword)',
+        { keyword },
+      );
+    }
+
+    if (query.businessName?.trim()) {
+      queryBuilder.andWhere('LOWER(business.businessName) LIKE :businessName', {
+        businessName: this.toLikeValue(query.businessName),
+      });
+    }
+
+    if (query.taxCode?.trim()) {
+      queryBuilder.andWhere('LOWER(business.taxCode) LIKE :taxCode', {
+        taxCode: this.toLikeValue(query.taxCode),
+      });
+    }
+
+    if (query.businessType?.trim()) {
+      queryBuilder.andWhere('LOWER(business.businessType) LIKE :businessType', {
+        businessType: this.toLikeValue(query.businessType),
+      });
+    }
+
+    if (query.industryCode?.trim()) {
+      queryBuilder.andWhere('LOWER(business.industryCode) LIKE :industryCode', {
+        industryCode: this.toLikeValue(query.industryCode),
+      });
+    }
+
+    if (query.industryName?.trim()) {
+      queryBuilder.andWhere('LOWER(business.industryName) LIKE :industryName', {
+        industryName: this.toLikeValue(query.industryName),
+      });
+    }
+
+    if (query.wardCommune?.trim()) {
+      queryBuilder.andWhere('LOWER(business.wardCommune) LIKE :wardCommune', {
+        wardCommune: this.toLikeValue(query.wardCommune),
+      });
+    }
+
+    if (query.isActive !== undefined && query.isActive !== '') {
+      queryBuilder.andWhere('business.isActive = :isActive', {
+        isActive: this.toBoolean(query.isActive),
+      });
+    }
+
+    const businesses = await queryBuilder
+      .orderBy('business.createdAt', 'DESC')
+      .addOrderBy('business.id', 'DESC')
+      .getMany();
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Danh sách doanh nghiệp');
+
+    // Excel headers
+    const columns = [
+      { header: 'Tên doanh nghiệp', key: 'businessName' },
+      { header: 'Mã số thuế', key: 'taxCode' },
+      { header: 'Loại hình kinh doanh', key: 'businessType' },
+      { header: 'Ngành nghề kinh doanh', key: 'industry' },
+      { header: 'Phường/Xã', key: 'wardCommune' },
+    ];
+
+    worksheet.columns = columns;
+
+    // Add rows
+    for (const b of businesses) {
+      const mapped = this.mapBusiness(b);
+      worksheet.addRow({
+        businessName: mapped.businessName,
+        taxCode: mapped.taxCode,
+        businessType: mapped.businessType || '',
+        industry: mapped.industryDisplay || '',
+        wardCommune: mapped.wardCommune || '',
+      });
+    }
+
+    // Styling
+    // 1. Header styling
+    const headerRow = worksheet.getRow(1);
+    headerRow.height = 25;
+    headerRow.eachCell((cell) => {
+      cell.font = {
+        name: 'Arial',
+        size: 11,
+        bold: true,
+        color: { argb: 'FF1F2937' },
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFEBF2FE' },
+      };
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: 'center',
+      };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+        left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+        bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+        right: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+      };
+    });
+
+    // 2. Data styling
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      row.height = 20;
+      row.eachCell((cell) => {
+        cell.font = {
+          name: 'Arial',
+          size: 10,
+        };
+        cell.alignment = {
+          vertical: 'middle',
+          horizontal: 'left',
+          wrapText: true,
+        };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+        };
+      });
+    });
+
+    // 3. Auto Fit Columns
+    worksheet.columns.forEach((column) => {
+      let maxLen = 0;
+      if (column.header) {
+        maxLen = Math.max(maxLen, column.header.toString().length);
+      }
+      column.eachCell && column.eachCell((cell, rowNumber) => {
+        if (rowNumber === 1) return;
+        const val = cell.value;
+        if (val) {
+          maxLen = Math.max(maxLen, val.toString().length);
+        }
+      });
+      column.width = Math.min(Math.max(maxLen + 4, 15), 50);
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
   }
 }
