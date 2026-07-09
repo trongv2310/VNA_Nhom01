@@ -4,16 +4,15 @@ import React, { useState, useEffect } from "react";
 import {
   X,
   FileText,
-  Download,
   Loader2,
   ChevronDown,
+  Printer,
 } from "lucide-react";
 import {
   getDepartmentReportSummary,
-  exportDepartmentSummaryExcel,
-  exportDepartmentSummaryWord,
   getReportPeriodYears,
 } from "../services/api";
+import { exportSummaryReportDocx } from "../utils/reportExporter";
 import { useAddress } from "../hooks/useAddress";
 
 interface DepartmentSummaryReportProps {
@@ -66,7 +65,7 @@ export const DepartmentSummaryReport: React.FC<DepartmentSummaryReportProps> = (
 
   // Data State
   const [isLoading, setIsLoading] = useState(false);
-  const [isExporting, setIsExporting] = useState<"excel" | "word" | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const [summaryData, setSummaryData] = useState<any>(null);
 
   // Load Years
@@ -113,42 +112,29 @@ export const DepartmentSummaryReport: React.FC<DepartmentSummaryReportProps> = (
     fetchSummary();
   }, [year, periodType, provinceCity]);
 
-  // Document Export Handlers
-  const handleExport = async (format: "excel" | "word") => {
+  // Document Export Handler
+  const handlePrintWord = async () => {
     if (!canExport) {
       showToast("Bạn không có quyền xuất báo cáo", "error");
       return;
     }
-    setIsExporting(format);
+    if (!summaryData) {
+      showToast("Không có dữ liệu để xuất báo cáo", "error");
+      return;
+    }
+    setIsExporting(true);
     try {
-      const query = {
+      await exportSummaryReportDocx(summaryData, {
         year,
-        periodType: periodType || undefined,
-        provinceCity: provinceCity || undefined,
-      };
-      const blob =
-        format === "excel"
-          ? await exportDepartmentSummaryExcel(query)
-          : await exportDepartmentSummaryWord(query);
-
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute(
-        "download",
-        `bao-cao-tong-hop-tnld-${year}-${periodType || "tat-ca"}.${
-          format === "excel" ? "xls" : "doc"
-        }`
-      );
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode?.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      showToast(`Xuất file ${format === "excel" ? "Excel" : "Word"} thành công`, "success");
+        periodType: periodType || "",
+        provinceCity: provinceCity || "",
+      });
+      showToast("Tải báo cáo Word thành công!", "success");
     } catch (err: any) {
-      showToast(err.message || `Lỗi khi xuất file ${format === "excel" ? "Excel" : "Word"}`, "error");
+      console.error(err);
+      showToast(err.message || "Không thể xuất báo cáo Word.", "error");
     } finally {
-      setIsExporting(null);
+      setIsExporting(false);
     }
   };
 
@@ -255,13 +241,30 @@ export const DepartmentSummaryReport: React.FC<DepartmentSummaryReportProps> = (
           <FileText className="w-5 h-5 text-blue-600" />
           <span>Báo cáo tổng hợp</span>
         </h2>
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 px-3 py-1.5 border border-zinc-250 dark:border-zinc-850 rounded-lg text-zinc-650 dark:text-zinc-350 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 font-bold text-xs select-none transition-all cursor-pointer"
-        >
-          <X className="w-3.5 h-3.5" />
-          <span>Huỷ bỏ</span>
-        </button>
+        <div className="flex items-center gap-3">
+          {canExport && (
+            <button
+              disabled={isExporting}
+              onClick={handlePrintWord}
+              className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-md shadow-blue-500/10 active:scale-98 transition-all cursor-pointer disabled:opacity-50 select-none"
+            >
+              {isExporting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Printer className="w-3.5 h-3.5" />
+              )}
+              <span>{isExporting ? "Đang tạo Word..." : "In báo cáo"}</span>
+            </button>
+          )}
+
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 px-3 py-1.5 border border-zinc-250 dark:border-zinc-850 rounded-lg text-zinc-650 dark:text-zinc-350 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 font-bold text-xs select-none transition-all cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+            <span>Huỷ bỏ</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter and Action Bar */}

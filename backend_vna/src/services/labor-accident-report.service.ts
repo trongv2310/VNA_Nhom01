@@ -2447,7 +2447,13 @@ export class LaborAccidentReportService {
   }
 
   private buildSummaryOfficeHtml(summary: any) {
-    const title = 'Báo cáo tổng hợp tình hình tai nạn lao động';
+    const filters = summary?.filters ?? {};
+    const yearText = filters.year ? `Năm ${filters.year}` : 'Tất cả các năm';
+    const periodText = filters.periodTypeLabel ? filters.periodTypeLabel : 'Tất cả các kỳ';
+    const provinceText = filters.provinceCity ? filters.provinceCity : 'Toàn quốc';
+    const wardText = filters.wardCommune ? ` - Phường/Xã: ${filters.wardCommune}` : '';
+
+    const title = `Báo cáo tổng hợp tình hình tai nạn lao động - Kỳ báo cáo: ${periodText} ${yearText} (${provinceText}${wardText})`;
 
     return this.buildOfficeHtml(title, [
       this.buildSummaryFilterTable(summary),
