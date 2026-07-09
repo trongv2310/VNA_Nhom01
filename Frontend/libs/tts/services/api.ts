@@ -1612,3 +1612,138 @@ export async function exportDepartmentSummaryWord(query?: {
 
   return response.blob();
 }
+
+export interface ImportResultDetail {
+  rowNumber: number;
+  taxCode: string;
+  businessName: string;
+  errors: string[];
+}
+
+export interface ImportSummaryResponse {
+  total: number;
+  successCount: number;
+  failCount: number;
+  details: ImportResultDetail[];
+}
+
+export async function importBusinessesExcel(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request<ImportSummaryResponse>("/businesses/import", {
+    method: "POST",
+    headers: authHeaders(),
+    body: formData,
+  });
+}
+
+export async function downloadBusinessTemplate() {
+  const token = getAccessToken();
+  const url = `${API_BASE_URL.replace(/\/$/, "")}/businesses/import/template`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    throw new Error("Không thể tải file mẫu");
+  }
+  return response.blob();
+}
+
+export async function exportBusinessesExcel(query?: {
+  keyword?: string;
+  businessName?: string;
+  taxCode?: string;
+  businessType?: string;
+  industryCode?: string;
+  industryName?: string;
+  wardCommune?: string;
+  isActive?: string;
+}) {
+  const token = getAccessToken();
+  const params = new URLSearchParams();
+  if (query) {
+    Object.entries(query).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== "") {
+        params.append(key, String(val));
+      }
+    });
+  }
+  const queryString = params.toString();
+  const url = `${API_BASE_URL.replace(/\/$/, "")}/businesses/export${queryString ? `?${queryString}` : ""}`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    throw new Error("Không thể xuất dữ liệu doanh nghiệp");
+  }
+  return response.blob();
+}
+
+export interface UserImportResultDetail {
+  rowNumber: number;
+  username: string;
+  fullName: string;
+  errors: string[];
+}
+
+export interface UserImportSummaryResponse {
+  total: number;
+  successCount: number;
+  failCount: number;
+  details: UserImportResultDetail[];
+}
+
+export async function importUsersExcel(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request<UserImportSummaryResponse>("/users/import", {
+    method: "POST",
+    headers: authHeaders(),
+    body: formData,
+  });
+}
+
+export async function downloadUserTemplate() {
+  const token = getAccessToken();
+  const url = `${API_BASE_URL.replace(/\/$/, "")}/users/import/template`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    throw new Error("Không thể tải file mẫu");
+  }
+  return response.blob();
+}
+
+export async function exportUsersExcel(query?: {
+  keyword?: string;
+  fullName?: string;
+  username?: string;
+  email?: string;
+  role?: string;
+  position?: string;
+  isActive?: string;
+}) {
+  const token = getAccessToken();
+  const params = new URLSearchParams();
+  if (query) {
+    Object.entries(query).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== "") {
+        params.append(key, String(val));
+      }
+    });
+  }
+  const queryString = params.toString();
+  const url = `${API_BASE_URL.replace(/\/$/, "")}/users/export${queryString ? `?${queryString}` : ""}`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    throw new Error("Không thể xuất dữ liệu người dùng");
+  }
+  return response.blob();
+}

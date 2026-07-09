@@ -8,11 +8,14 @@ import {
   Patch,
   Post,
   Query,
+  Res,
+  UploadedFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FilesInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -35,6 +38,7 @@ import { CreateBusinessDto } from '../dtos/create-business.dto';
 import { ListBusinessesQueryDto } from '../dtos/list-businesses-query.dto';
 import { UpdateBusinessDto } from '../dtos/update-business.dto';
 import { ValidateBusinessUniquenessDto } from '../dtos/validate-business-uniqueness.dto';
+import { ImportSummaryResponseDto } from '../dtos/business-import.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { PermissionsGuard } from '../guards/permissions.guard';
 import { RolesGuard } from '../guards/roles.guard';
@@ -103,6 +107,22 @@ export class BusinessController {
   })
   getBusinessOptions() {
     return this.businessService.getBusinessOptions();
+  }
+
+  @Get('export')
+  @Permissions('SYSTEM_C_BUSINESS_VIEW')
+  @ApiOperation({ summary: 'Xuất danh sách doanh nghiệp ra file Excel theo bộ lọc' })
+  async exportBusinesses(
+    @Query() query: ListBusinessesQueryDto,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.businessService.exportBusinessesToExcel(query);
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="DanhSachDoanhNghiep.xlsx"',
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 
   @Post('validate-uniqueness')
@@ -420,4 +440,54 @@ export class BusinessController {
   ) {
     return this.businessService.deleteAttachment(id, attachmentId, currentUser);
   }
+
+  @Post('import')
+  @Permissions('SYSTEM_C_BUSINESS_CREATE')
+  @ApiOperation({
+    summary: 'Nhập doanh nghiệp hàng loạt từ file Excel',
+    description: 'Chấp nhận file .xlsx hoặc .xls. Trả về thống kê số dòng thành công, thất bại và chi tiết lỗi.',
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+      },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'File Excel (.xlsx, .xls) chứa danh sách doanh nghiệp',
+        },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiOkResponse({
+    description: 'Kết quả import hàng loạt',
+    type: ImportSummaryResponseDto,
+  })
+  importBusinesses(@UploadedFile() file: Express.Multer.File) {
+    return this.businessService.importFromExcel(file);
+  }
+
+  @Get('import/template')
+  @Permissions('SYSTEM_C_BUSINESS_CREATE')
+  @ApiOperation({ summary: 'Tải file Excel mẫu để nhập doanh nghiệp' })
+  async downloadTemplate(@Res() res: Response) {
+    const buffer = await this.businessService.generateImportTemplate();
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="Business_Import_Template.xlsx"',
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
 }
