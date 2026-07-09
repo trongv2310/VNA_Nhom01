@@ -1738,3 +1738,464 @@ export const exportReportDocx = async (rawReport: any, profile: any) => {
   document.body.removeChild(a);
   window.URL.revokeObjectURL(url);
 };
+
+// =====================================================================
+// SUMMARY REPORT DOCX EXPORT (for Department / Sở)
+// Uses same styling as exportReportDocx for consistency
+// =====================================================================
+
+const SUMMARY_CATEGORIES = [
+  "Doanh nghiệp nhà nước",
+  "Công ty trách nhiệm hữu hạn",
+  "Công ty cổ phần",
+  "Công ty hợp danh",
+  "Doanh nghiệp tư nhân",
+  "Doanh nghiệp có vốn đầu tư nước ngoài",
+  "Đơn vị kinh tế tập thể",
+  "Đơn vị kinh tế cá thể",
+  "Đơn vị hành chính sự nghiệp, đảng, đoàn thể, hiệp hội",
+];
+
+export const exportSummaryReportDocx = async (
+  summaryData: any,
+  filters: { year: string; periodType: string; provinceCity: string }
+) => {
+  const curDate = new Date();
+  const dateStr = `Hà Nội, ngày ${curDate.getDate()} tháng ${curDate.getMonth() + 1} năm ${curDate.getFullYear()}`;
+
+  const periodLabel = filters.periodType === "SIX_MONTHS" ? "6 tháng"
+    : filters.periodType === "FULL_YEAR" ? "Cả năm" : "Tất cả";
+  const yearLabel = filters.year || String(curDate.getFullYear());
+  const provinceCityLabel = filters.provinceCity || "Toàn quốc";
+
+  // Table borders styling (same as exportReportDocx)
+  const tableBorders = {
+    top: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+    bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+    left: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+    right: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+    insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+    insideVertical: { style: BorderStyle.SINGLE, size: 4, color: "000000" }
+  };
+
+  const noBorders = {
+    top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" }
+  };
+
+  const fmtNum = (val: any): string => {
+    const num = Number(val);
+    if (isNaN(num) || num === 0) return "-";
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  };
+
+  const fmtRate = (val: any): string => {
+    const num = Number(val);
+    if (isNaN(num) || num === 0) return "-";
+    return num.toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  // ---- Table I: Thông tin tổng quan ----
+  const buildTableI = () => {
+    const colWidthsI = [
+      { size: 22, type: WidthType.PERCENTAGE },  // Loại hình cơ sở
+      { size: 5, type: WidthType.PERCENTAGE },   // Mã số
+      { size: 6, type: WidthType.PERCENTAGE },   // Tổng số CS
+      { size: 6, type: WidthType.PERCENTAGE },   // Số CS tham gia
+      { size: 7, type: WidthType.PERCENTAGE },   // Tổng số LĐ
+      { size: 7, type: WidthType.PERCENTAGE },   // Số LĐ tham gia BC
+      { size: 7, type: WidthType.PERCENTAGE },   // Số LĐ nữ
+      { size: 7, type: WidthType.PERCENTAGE },   // Tổng số TNLĐ
+      { size: 7, type: WidthType.PERCENTAGE },   // Số người chết
+      { size: 7, type: WidthType.PERCENTAGE },   // Số thương nặng
+      { size: 6.5, type: WidthType.PERCENTAGE }, // KTNLĐ
+      { size: 6.5, type: WidthType.PERCENTAGE }, // KChết
+      { size: 6, type: WidthType.PERCENTAGE },   // Ghi chú
+    ];
+
+    const byBT = summaryData?.byBusinessType || {};
+
+    // Calculate totals
+    const totalRow = {
+      totalBusinesses: 0, participatingBusinesses: 0, totalEmployees: 0,
+      participatingEmployees: 0, femaleEmployees: 0, totalVictims: 0,
+      deathVictims: 0, severeInjuryVictims: 0, ktnld: 0, kchet: 0,
+    };
+    SUMMARY_CATEGORIES.forEach(cat => {
+      const d = byBT[cat] || {};
+      totalRow.totalBusinesses += Number(d.totalBusinesses) || 0;
+      totalRow.participatingBusinesses += Number(d.participatingBusinesses) || 0;
+      totalRow.totalEmployees += Number(d.totalEmployees) || 0;
+      totalRow.participatingEmployees += Number(d.participatingEmployees) || 0;
+      totalRow.femaleEmployees += Number(d.femaleEmployees) || 0;
+      totalRow.totalVictims += Number(d.totalVictims) || 0;
+      totalRow.deathVictims += Number(d.deathVictims) || 0;
+      totalRow.severeInjuryVictims += Number(d.severeInjuryVictims) || 0;
+    });
+    if (totalRow.participatingEmployees > 0) {
+      totalRow.ktnld = Math.round((totalRow.totalVictims / totalRow.participatingEmployees) * 1000 * 100) / 100;
+      totalRow.kchet = Math.round((totalRow.deathVictims / totalRow.participatingEmployees) * 1000 * 100) / 100;
+    }
+
+    const makeRow = (label: string, code: string, d: any, isBold = false) => new TableRow({
+      children: [
+        new TableCell({ width: colWidthsI[0], children: [new Paragraph({ children: [new TextRun({ text: label, bold: isBold, size: DOCX_SIZE.TABLE_BODY })] })] }),
+        new TableCell({ width: colWidthsI[1], children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: code, bold: isBold, size: DOCX_SIZE.TABLE_BODY })] })] }),
+        new TableCell({ width: colWidthsI[2], children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(d.totalBusinesses), bold: isBold, size: DOCX_SIZE.TABLE_BODY })] })] }),
+        new TableCell({ width: colWidthsI[3], children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(d.participatingBusinesses), bold: isBold, size: DOCX_SIZE.TABLE_BODY })] })] }),
+        new TableCell({ width: colWidthsI[4], children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(d.totalEmployees), bold: isBold, size: DOCX_SIZE.TABLE_BODY })] })] }),
+        new TableCell({ width: colWidthsI[5], children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(d.participatingEmployees), bold: isBold, size: DOCX_SIZE.TABLE_BODY })] })] }),
+        new TableCell({ width: colWidthsI[6], children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(d.femaleEmployees), bold: isBold, size: DOCX_SIZE.TABLE_BODY })] })] }),
+        new TableCell({ width: colWidthsI[7], children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(d.totalVictims), bold: isBold, size: DOCX_SIZE.TABLE_BODY })] })] }),
+        new TableCell({ width: colWidthsI[8], children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(d.deathVictims), bold: isBold, size: DOCX_SIZE.TABLE_BODY })] })] }),
+        new TableCell({ width: colWidthsI[9], children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(d.severeInjuryVictims), bold: isBold, size: DOCX_SIZE.TABLE_BODY })] })] }),
+        new TableCell({ width: colWidthsI[10], children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtRate(d.ktnld), bold: isBold, size: DOCX_SIZE.TABLE_BODY })] })] }),
+        new TableCell({ width: colWidthsI[11], children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtRate(d.kchet), bold: isBold, size: DOCX_SIZE.TABLE_BODY })] })] }),
+        new TableCell({ width: colWidthsI[12], children: [new Paragraph({ children: [new TextRun({ text: "", size: DOCX_SIZE.TABLE_BODY })] })] }),
+      ]
+    });
+
+    const headerRows = [
+      // Row 1
+      new TableRow({
+        children: [
+          new TableCell({ rowSpan: 3, width: colWidthsI[0], verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Loại hình cơ sở", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 3, width: colWidthsI[1], verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Mã số", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ columnSpan: 2, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Cơ sở", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ columnSpan: 3, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Lực lượng lao động", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ columnSpan: 3, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Tổng số tai nạn lao động", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ columnSpan: 2, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Tần suất TNLĐ", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 3, width: colWidthsI[12], verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Ghi chú", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+        ]
+      }),
+      // Row 2
+      new TableRow({
+        children: [
+          new TableCell({ rowSpan: 2, width: colWidthsI[2], verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Tổng số", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 2, width: colWidthsI[3], verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Số CS tham gia", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 2, width: colWidthsI[4], verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Tổng số LĐ", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 2, width: colWidthsI[5], verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Số LĐ của CS tham gia BC", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 2, width: colWidthsI[6], verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Số LĐ nữ", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ columnSpan: 3, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Số người bị TNLĐ", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 2, width: colWidthsI[10], verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "KTNLĐ", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 2, width: colWidthsI[11], verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "KChết", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+        ]
+      }),
+      // Row 3
+      new TableRow({
+        children: [
+          new TableCell({ width: colWidthsI[7], children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Tổng số", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ width: colWidthsI[8], children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Số người chết", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ width: colWidthsI[9], children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Số người bị thương nặng", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+        ]
+      }),
+    ];
+
+    const dataRows = [
+      makeRow("Tổng số", "-", totalRow, true),
+      ...SUMMARY_CATEGORIES.map((cat, idx) => makeRow(cat, String(idx + 1), byBT[cat] || {})),
+    ];
+
+    return new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: tableBorders,
+      rows: [...headerRows, ...dataRows],
+    });
+  };
+
+  // ---- Table II: Phân loại TNLĐ (15-column table) ----
+  const buildTableIICatalogRows = (catalogData: any[], sectionTitle: string) => {
+    const rows: TableRow[] = [];
+    // Section header
+    rows.push(new TableRow({
+      children: [
+        new TableCell({
+          columnSpan: 15,
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          children: [new Paragraph({ children: [new TextRun({ text: sectionTitle, bold: true, size: DOCX_SIZE.TABLE_BODY })] })]
+        })
+      ]
+    }));
+    // Data rows
+    (catalogData || []).forEach((row: any) => {
+      const t = row?.totals || {};
+      rows.push(new TableRow({
+        children: [
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `   ${row?.catalog?.name || ""}`, size: DOCX_SIZE.TABLE_BODY })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(row?.catalog?.code || row?.catalog?.id || ""), size: DOCX_SIZE.TABLE_BODY })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(t.totalAccidents), size: DOCX_SIZE.TABLE_BODY })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(t.fatalAccidents), size: DOCX_SIZE.TABLE_BODY })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(t.accidentsWithTwoOrMoreVictims), size: DOCX_SIZE.TABLE_BODY })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(t.totalVictims), size: DOCX_SIZE.TABLE_BODY })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(t.femaleVictims), size: DOCX_SIZE.TABLE_BODY })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(t.deathVictims), size: DOCX_SIZE.TABLE_BODY })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(t.severeInjuryVictims), size: DOCX_SIZE.TABLE_BODY })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(t.totalDaysOff), size: DOCX_SIZE.TABLE_BODY })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(t.totalCost), size: DOCX_SIZE.TABLE_BODY })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(t.medicalCost), size: DOCX_SIZE.TABLE_BODY })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(t.salaryPaymentCost), size: DOCX_SIZE.TABLE_BODY })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(t.allowanceCost), size: DOCX_SIZE.TABLE_BODY })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: fmtNum(t.propertyDamage ? Math.round(Number(t.propertyDamage) / 1000) : 0), size: DOCX_SIZE.TABLE_BODY })] })] }),
+        ]
+      }));
+    });
+    return rows;
+  };
+
+  const buildTableII = () => {
+    const totals = summaryData?.totals || {};
+    const totalRowValues = [
+      fmtNum(totals.totalAccidents), fmtNum(totals.fatalAccidents), fmtNum(totals.accidentsWithTwoOrMoreVictims),
+      fmtNum(totals.totalVictims), fmtNum(totals.femaleVictims), fmtNum(totals.deathVictims), fmtNum(totals.severeInjuryVictims),
+      fmtNum(totals.totalDaysOff), fmtNum(totals.totalCost), fmtNum(totals.medicalCost),
+      fmtNum(totals.salaryPaymentCost), fmtNum(totals.allowanceCost),
+      fmtNum(totals.propertyDamage ? Math.round(Number(totals.propertyDamage) / 1000) : 0),
+    ];
+
+    const headerRows = [
+      // Row 1
+      new TableRow({
+        children: [
+          new TableCell({ rowSpan: 3, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Tên chỉ tiêu thống kê", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 3, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Mã số", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ columnSpan: 3, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Phân loại TNLĐ theo mức độ thương tật (Số vụ)", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ columnSpan: 4, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Số người bị nạn (Người)", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 3, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Tổng số ngày nghỉ vì TNLĐ", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ columnSpan: 5, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Thiệt hại do tai nạn lao động", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+        ]
+      }),
+      // Row 2
+      new TableRow({
+        children: [
+          new TableCell({ rowSpan: 2, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Tổng số", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 2, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Số vụ có người chết", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 2, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Số vụ có từ 2 người bị nạn trở lên", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 2, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Tổng số", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 2, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Số LĐ nữ", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 2, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Số người bị chết", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 2, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Số người bị thương nặng", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 2, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Tổng số tiền (đồng)", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ columnSpan: 3, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Trong đó chi phí (đồng)", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ rowSpan: 2, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Thiệt hại tài sản (1.000 đ)", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+        ]
+      }),
+      // Row 3
+      new TableRow({
+        children: [
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Y Tế", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Trả lương", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+          new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Bồi thường/Trợ cấp", bold: true, size: DOCX_SIZE.TABLE_HEAD })] })] }),
+        ]
+      }),
+    ];
+
+    // Totals row
+    const totalDataRow = new TableRow({
+      children: [
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Tổng số", bold: true, size: DOCX_SIZE.TABLE_BODY })] })] }),
+        new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "-", bold: true, size: DOCX_SIZE.TABLE_BODY })] })] }),
+        ...totalRowValues.map(val => new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: val, bold: true, size: DOCX_SIZE.TABLE_BODY })] })] })),
+      ]
+    });
+
+    // Catalog sections
+    const occupationRows = buildTableIICatalogRows(summaryData?.byOccupation, "Phân theo nghề nghiệp");
+    const causeRows = buildTableIICatalogRows(summaryData?.byAccidentCause, "Phân theo nguyên nhân xảy ra TNLĐ");
+    const factorRows = buildTableIICatalogRows(summaryData?.byInjuryFactor, "Phân theo yếu tố gây chấn thương");
+
+    return new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: tableBorders,
+      rows: [
+        ...headerRows,
+        totalDataRow,
+        ...occupationRows,
+        ...causeRows,
+        ...factorRows,
+      ],
+    });
+  };
+
+  // ---- Build Document ----
+  const doc = new Document({
+    styles: {
+      default: {
+        document: {
+          run: {
+            font: "Times New Roman",
+            size: DOCX_SIZE.BODY,
+            color: "000000"
+          },
+          paragraph: {
+            spacing: {
+              line: 240,
+              before: 0,
+              after: 80
+            }
+          }
+        }
+      }
+    },
+    sections: [
+      {
+        properties: {
+          page: {
+            size: {
+              width: 11906,
+              height: 16838,
+              orientation: PageOrientation.LANDSCAPE
+            },
+            margin: {
+              top: 850,
+              bottom: 850,
+              left: 567,
+              right: 567
+            }
+          }
+        },
+        children: [
+          // Appendix header
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({ text: "BÁO CÁO TỔNG HỢP TÌNH HÌNH TAI NẠN LAO ĐỘNG", bold: true, size: DOCX_SIZE.TITLE })
+            ]
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({
+                text: `Kỳ báo cáo: ${periodLabel} năm ${yearLabel}`,
+                bold: true,
+                size: DOCX_SIZE.SUBTITLE
+              })
+            ]
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({
+                text: `Tỉnh/Thành phố: ${provinceCityLabel}`,
+                bold: true,
+                size: DOCX_SIZE.SUBTITLE
+              })
+            ]
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({ text: `Ngày báo cáo: ${curDate.getDate()}/${curDate.getMonth() + 1}/${curDate.getFullYear()}`, size: DOCX_SIZE.DATE, italics: true })
+            ],
+            spacing: { after: 60 }
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({ text: `Đơn vị tiền tệ: đồng; số ngày nghỉ: ngày; số liệu thống kê: vụ/người`, size: 18, italics: true })
+            ],
+            spacing: { after: 240 }
+          }),
+
+          // Metadata info
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Số báo cáo: ", size: DOCX_SIZE.BODY }),
+              new TextRun({ text: fmtNum(summaryData?.reportCount || 0), bold: true, size: DOCX_SIZE.BODY }),
+              new TextRun({ text: " báo cáo", size: DOCX_SIZE.BODY })
+            ]
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Đơn vị nhận báo cáo: ", size: DOCX_SIZE.BODY }),
+              new TextRun({ text: "Sở Lao động - Thương binh và Xã hội", bold: true, size: DOCX_SIZE.BODY })
+            ],
+            spacing: { after: 240 }
+          }),
+
+          // Section I Title
+          new Paragraph({
+            children: [
+              new TextRun({ text: "I. Thông tin tổng quan", bold: true, size: DOCX_SIZE.SECTION_TITLE })
+            ],
+            spacing: { after: 120 }
+          }),
+
+          // Table I
+          buildTableI(),
+
+          new Paragraph({ text: "", spacing: { before: 180, after: 180 } }),
+
+          // Section II Title
+          new Paragraph({
+            children: [
+              new TextRun({ text: "II. Phân loại tai nạn lao động", bold: true, size: DOCX_SIZE.SECTION_TITLE })
+            ],
+            spacing: { after: 120 }
+          }),
+
+          // Table II
+          buildTableII(),
+
+          new Paragraph({ text: "", spacing: { before: 240, after: 240 } }),
+
+          // Signature Block
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            borders: noBorders,
+            rows: [
+              new TableRow({
+                children: [
+                  new TableCell({
+                    width: { size: 50, type: WidthType.PERCENTAGE },
+                    children: []
+                  }),
+                  new TableCell({
+                    width: { size: 50, type: WidthType.PERCENTAGE },
+                    children: [
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        children: [
+                          new TextRun({ text: dateStr, size: DOCX_SIZE.DATE, italics: true })
+                        ]
+                      }),
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        children: [
+                          new TextRun({ text: "GIÁM ĐỐC SỞ LAO ĐỘNG - TBXH", bold: true, size: DOCX_SIZE.SIGN_TITLE })
+                        ]
+                      }),
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        children: [
+                          new TextRun({ text: "(Ký, ghi rõ họ tên, đóng dấu)", size: DOCX_SIZE.SIGN_SUB, italics: true })
+                        ]
+                      }),
+                      new Paragraph({ text: "", spacing: { before: 400, after: 400 } }),
+                    ]
+                  })
+                ]
+              })
+            ]
+          }),
+        ]
+      }
+    ]
+  });
+
+  const { Packer } = await import("docx");
+  const blob = await Packer.toBlob(doc);
+  const url = window.URL.createObjectURL(blob);
+
+  const filename = `BaoCao_TongHop_TNLD_${yearLabel}_${periodLabel.replace(/\s/g, "_")}.docx`;
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+};
