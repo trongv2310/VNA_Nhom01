@@ -365,7 +365,7 @@ export const DepartmentForgotPasswordScreen: React.FC = () => {
                 {/* Subtitle */}
                 <div className="flex flex-col items-center pb-1">
                   <p className="text-sm font-semibold text-zinc-500 text-center select-none">
-                    Vui lòng nhập tên đăng nhập hoặc email đã đăng ký
+                    Vui lòng nhập email đã đăng ký tài khoản
                   </p>
                 </div>
 

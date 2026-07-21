@@ -650,35 +650,39 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
     }
   };
 
-  // Pagination helpers
   const totalPages = Math.max(1, Math.ceil(totalItems / limit));
   const startIdx = totalItems > 0 ? (page - 1) * limit + 1 : 0;
   const endIdx = Math.min(page * limit, totalItems);
 
   return (
-    <div className="flex flex-col gap-6 h-full text-zinc-700 dark:text-zinc-350 relative select-none">
+    <div className="flex flex-col gap-6 h-full">
       {/* Top Card Panel - Clean white border, no blue header accent */}
       <div className="flex items-center justify-between bg-white dark:bg-zinc-950 rounded-2xl p-4 shadow-sm border border-zinc-200 dark:border-zinc-800">
-        <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100">
+        <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 select-none">
           Danh sách cấu hình báo cáo
         </h2>
         {canCreate && (
           <button
             onClick={handleOpenAdd}
-            className="flex items-center gap-1.5 px-4.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-md shadow-blue-500/10 active:scale-98 transition-all cursor-pointer"
+            className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-md shadow-blue-500/10 active:scale-98 transition-all cursor-pointer"
           >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <Plus className="w-4 h-4" />
             <span>Thêm mới</span>
           </button>
         )}
       </div>
 
       {/* Main Table Card */}
-      <div className="relative flex-1 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[400px]">
+      <div className="relative flex-1 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[300px]">
         {/* Table Spinner */}
         {isLoading && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-zinc-950/60 backdrop-blur-[1px]">
-            <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-zinc-950/60 backdrop-blur-[1px] transition-all">
+            <div className="flex flex-col items-center gap-2.5 animate-in fade-in zoom-in-95 duration-150">
+              <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+              <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 select-none">
+                Đang tải danh sách...
+              </span>
+            </div>
           </div>
         )}
 
@@ -686,7 +690,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
           <table className="w-full border-collapse text-left text-xs">
             <thead>
               {/* Columns Header */}
-              <tr className="border-b border-zinc-200 dark:border-zinc-800 text-left text-zinc-500 dark:text-zinc-400 text-xs font-bold bg-[#f8fafc] dark:bg-zinc-900/10 select-none">
+              <tr className="border-b border-zinc-200 dark:border-zinc-800 text-left text-zinc-500 dark:text-zinc-400 text-xs font-bold select-none bg-zinc-50/50 dark:bg-zinc-900/10">
                 <th className="p-4 w-24 text-center">Thao tác</th>
                 <th className="p-4 w-32">Năm báo cáo</th>
                 <th className="p-4 min-w-[280px]">Tên báo cáo</th>
@@ -755,7 +759,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                       setPage(1);
                     }}
                     placeholder="dd/mm/yyyy"
-                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-400 dark:text-zinc-555 focus:border-blue-500 transition-colors"
+                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
                   />
                 </td>
                 {/* Filter End Date */}
@@ -770,7 +774,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                       setPage(1);
                     }}
                     placeholder="dd/mm/yyyy"
-                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-400 dark:text-zinc-555 focus:border-blue-500 transition-colors"
+                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
                   />
                 </td>
                 {/* Filter Active Status */}
@@ -795,7 +799,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
             <tbody>
               {periods.length === 0 && !isLoading ? (
                 <tr>
-                  <td colSpan={7} className="p-12 text-center text-zinc-400 dark:text-zinc-555 font-semibold text-xs">
+                  <td colSpan={7} className="p-12 text-center text-zinc-400 dark:text-zinc-555 font-semibold text-xs select-none">
                     Không tìm thấy cấu hình kỳ báo cáo nào.
                   </td>
                 </tr>
@@ -803,7 +807,7 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
                 periods.map((item) => (
                   <tr
                     key={item.id}
-                    className="border-b border-zinc-100 dark:border-zinc-850 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 text-xs font-medium text-zinc-700 dark:text-zinc-300 transition-colors"
+                    className="border-b border-zinc-100 dark:border-zinc-800/80 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 text-xs font-medium text-zinc-700 dark:text-zinc-300 transition-colors"
                   >
                     {/* Actions */}
                     <td className="p-4 text-center">
@@ -889,14 +893,14 @@ export const ReportPeriodManagement: React.FC<ReportPeriodManagementProps> = ({
             <button
               onClick={() => setPage((p) => Math.max(p - 1, 1))}
               disabled={page <= 1 || isLoading}
-              className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-650 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed transition-colors"
+              className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
               disabled={page >= totalPages || isLoading}
-              className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-650 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed transition-colors"
+              className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
             </button>

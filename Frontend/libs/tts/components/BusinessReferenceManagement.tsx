@@ -8,6 +8,7 @@ import {
   Plus,
   X,
   Save,
+  ChevronDown,
 } from "lucide-react";
 import { SearchSelect } from "./SearchSelect";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
@@ -307,32 +308,43 @@ export const BusinessReferenceManagement: React.FC<
 
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-6">
-      <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <h2 className="text-lg font-bold text-zinc-800">{title}</h2>
+    <div className="flex flex-col gap-6 h-full">
+      {/* Top Banner Header */}
+      <div className="flex items-center justify-between bg-white dark:bg-zinc-950 rounded-2xl p-4 shadow-sm border border-zinc-200 dark:border-zinc-800">
+        <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 select-none">
+          {title}
+        </h2>
         {canManage && (
           <button
             type="button"
             onClick={openCreate}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700"
+            className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-md shadow-blue-500/10 active:scale-98 transition-all cursor-pointer"
           >
-            <Plus className="h-4 w-4" />
-            Thêm mới
+            <Plus className="w-4 h-4" />
+            <span>Thêm mới</span>
           </button>
         )}
       </div>
 
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+      {/* Main Table Container */}
+      <div className="relative flex-1 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[300px]">
+        {/* Loading Overlay */}
         {isLoading && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/70">
-            <Loader2 className="h-7 w-7 animate-spin text-blue-600" />
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-zinc-950/60 backdrop-blur-[1px] transition-all">
+            <div className="flex flex-col items-center gap-2.5 animate-in fade-in zoom-in-95 duration-150">
+              <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+              <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 select-none">
+                Đang tải danh sách...
+              </span>
+            </div>
           </div>
         )}
-        <div className="flex-1 overflow-auto">
-          <table className="w-full min-w-[760px] border-collapse text-left text-xs">
-            <thead className="sticky top-0 z-10 bg-zinc-50 text-zinc-500">
-              <tr className="border-b border-zinc-200">
-                <th className="w-12 p-4 text-center">
+        <div className="flex-1 overflow-x-auto">
+          <table className="w-full border-collapse text-left text-xs">
+            <thead>
+              {/* Row 1: Header Titles */}
+              <tr className="border-b border-zinc-200 dark:border-zinc-800 text-left text-zinc-500 dark:text-zinc-400 text-xs font-bold select-none bg-zinc-50/50 dark:bg-zinc-900/10">
+                <th className="p-4 w-12 text-center">
                   <input
                     type="checkbox"
                     checked={
@@ -344,15 +356,16 @@ export const BusinessReferenceManagement: React.FC<
                     className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
                   />
                 </th>
-                <th className="w-24 p-4 text-center">Thao tác</th>
-                <th className="w-40 p-4">Mã</th>
+                <th className="p-4 w-24 text-center">Thao tác</th>
+                <th className="p-4 w-40">Mã</th>
                 <th className="p-4">Tên danh mục</th>
-                <th className="w-32 p-4 text-center">Trạng thái</th>
+                <th className="p-4 w-32 text-center">Trạng thái</th>
               </tr>
-              <tr className="border-b border-zinc-200 bg-white">
-                <th />
-                <th />
-                <th className="p-2">
+              {/* Row 2: Inline Column Filters */}
+              <tr className="border-b border-zinc-200 dark:border-zinc-800 select-none">
+                <td className="p-2"></td>
+                <td className="p-2"></td>
+                <td className="p-2">
                   <input
                     value={filters.code}
                     onChange={(event) => {
@@ -363,10 +376,10 @@ export const BusinessReferenceManagement: React.FC<
                       setPage(1);
                     }}
                     placeholder="Tìm mã"
-                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 outline-none focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
                   />
-                </th>
-                <th className="p-2">
+                </td>
+                <td className="p-2">
                   <input
                     value={filters.name}
                     onChange={(event) => {
@@ -377,10 +390,10 @@ export const BusinessReferenceManagement: React.FC<
                       setPage(1);
                     }}
                     placeholder="Tìm tên"
-                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 outline-none focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-blue-500 transition-colors"
                   />
-                </th>
-                <th className="p-2">
+                </td>
+                <td className="p-2 relative min-w-[130px]">
                   <select
                     value={filters.isActive}
                     onChange={(event) => {
@@ -390,30 +403,33 @@ export const BusinessReferenceManagement: React.FC<
                       }));
                       setPage(1);
                     }}
-                    className="w-full rounded-lg border border-zinc-200 px-2 py-2"
+                    className="w-full pl-3 pr-8 py-2 border border-zinc-200 dark:border-zinc-800 rounded-lg outline-none bg-white dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 appearance-none cursor-pointer focus:border-blue-500 transition-colors"
                   >
                     <option value="">Tất cả</option>
                     <option value="true">Sử dụng</option>
                     <option value="false">Không sử dụng</option>
                   </select>
-                </th>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
+                </td>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100">
+            <tbody>
               {!isLoading && items.length === 0 ? (
                 <tr>
                   <td
                     colSpan={5}
-                    className="py-16 text-center font-semibold text-zinc-400"
+                    className="p-12 text-center text-zinc-400 dark:text-zinc-555 font-semibold text-xs select-none"
                   >
                     Không tìm thấy dữ liệu phù hợp
                   </td>
                 </tr>
               ) : (
                 items.map((item) => {
-                  const industry = isIndustry && "level" in item ? item : null;
                   return (
-                    <tr key={item.id} className="hover:bg-blue-50/30">
+                    <tr
+                      key={item.id}
+                      className="border-b border-zinc-100 dark:border-zinc-800/80 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 text-xs font-medium text-zinc-700 dark:text-zinc-300 transition-colors"
+                    >
                       <td className="p-4 text-center">
                         <input
                           type="checkbox"
@@ -428,7 +444,7 @@ export const BusinessReferenceManagement: React.FC<
                           <button
                             type="button"
                             onClick={() => openEdit(item)}
-                            className="text-slate-400 hover:text-blue-600"
+                            className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-blue-600 transition-all cursor-pointer"
                             aria-label="Chỉnh sửa"
                           >
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]">
@@ -438,23 +454,26 @@ export const BusinessReferenceManagement: React.FC<
                           </button>
                         )}
                       </td>
-                      <td className="p-4 font-mono font-semibold">
+                      <td className="p-4 font-mono font-bold text-zinc-900 dark:text-zinc-100">
                         {item.code}
                       </td>
-                      <td className="p-4 font-semibold">{item.name}</td>
-
+                      <td className="p-4 font-bold text-zinc-900 dark:text-zinc-100">
+                        {item.name}
+                      </td>
                       <td className="p-4 text-center">
                         <button
                           type="button"
                           disabled={!canManage}
                           onClick={() => toggleStatus(item)}
-                          className={`relative h-6 w-11 rounded-full transition-colors ${item.isActive ? "bg-blue-600" : "bg-zinc-300"
-                            } disabled:cursor-not-allowed disabled:opacity-60`}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            item.isActive ? "bg-blue-600" : "bg-zinc-200 dark:bg-zinc-800"
+                          } ${canManage ? "" : "cursor-not-allowed opacity-50"}`}
                           aria-label="Đổi trạng thái"
                         >
                           <span
-                            className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all ${item.isActive ? "left-6" : "left-1"
-                              }`}
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              item.isActive ? "translate-x-4" : "translate-x-0"
+                            }`}
                           />
                         </button>
                       </td>
@@ -466,40 +485,47 @@ export const BusinessReferenceManagement: React.FC<
           </table>
         </div>
 
-        <div className="flex items-center justify-end gap-5 border-t border-zinc-200 px-5 py-3 text-xs text-zinc-500">
-          <select
-            value={limit}
-            onChange={(event) => {
-              setLimit(Number(event.target.value));
-              setPage(1);
-            }}
-            className="rounded-lg border border-zinc-200 px-3 py-2"
-          >
-            {[10, 20, 50].map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-          <span>
-            {rangeStart} - {rangeEnd} of {meta.totalItems}
+        {/* Footer Pagination Controls */}
+        <div className="flex items-center justify-end px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs font-semibold text-zinc-500 gap-6 select-none">
+          <div className="flex items-center gap-2">
+            <select
+              className="px-2 py-1 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 outline-none text-zinc-700 dark:text-zinc-300 cursor-pointer font-bold"
+              value={limit}
+              onChange={(event) => {
+                setLimit(Number(event.target.value));
+                setPage(1);
+              }}
+            >
+              {[10, 20, 50].map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </div>
+          <span className="font-bold">
+            {meta.totalItems > 0
+              ? `${rangeStart} - ${rangeEnd} of ${meta.totalItems}`
+              : "0 - 0 of 0"}
           </span>
-          <button
-            type="button"
-            disabled={!meta.hasPreviousPage}
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-            className="disabled:opacity-30"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            disabled={!meta.hasNextPage}
-            onClick={() => setPage((value) => value + 1)}
-            className="disabled:opacity-30"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={!meta.hasPreviousPage || isLoading}
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+              className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-650 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              disabled={!meta.hasNextPage || isLoading}
+              onClick={() => setPage((value) => value + 1)}
+              className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-650 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 
