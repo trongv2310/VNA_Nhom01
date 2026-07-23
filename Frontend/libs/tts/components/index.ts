@@ -22,4 +22,6 @@ export * from "./RoleManagement";
 export * from "./BusinessReferenceManagement";
 export * from "./LaborCatalogManagement";
 export * from "./DepartmentSummaryReport";
+export * from "./DepartmentReportDashboard";
+export * from "./ReportAuditTimeline";
 

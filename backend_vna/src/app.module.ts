@@ -45,6 +45,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 
 // Labor Accident Imports
 import { LaborAccidentCatalog } from './entities/labor-accident-catalog.entity';
+import { LaborAccidentReportAuditLog } from './entities/labor-accident-report-audit-log.entity';
 import { LaborAccidentReportAttachment } from './entities/labor-accident-report-attachment.entity';
 import { LaborAccidentReportDetail } from './entities/labor-accident-report-detail.entity';
 import { LaborAccidentReport } from './entities/labor-accident-report.entity';
@@ -94,6 +95,7 @@ import { LaborAccidentCatalogSeedService } from './services/labor-accident-catal
           BusinessIndustry,
           BusinessType,
           LaborAccidentCatalog,
+          LaborAccidentReportAuditLog,
           LaborAccidentReportAttachment,
           LaborAccidentReportDetail,
           LaborAccidentReport,
@@ -117,6 +119,7 @@ import { LaborAccidentCatalogSeedService } from './services/labor-accident-catal
       BusinessIndustry,
       BusinessType,
       LaborAccidentCatalog,
+      LaborAccidentReportAuditLog,
       LaborAccidentReportAttachment,
       LaborAccidentReportDetail,
       LaborAccidentReport,

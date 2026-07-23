@@ -111,6 +111,38 @@ export class LaborAccidentReportSummaryQueryDto {
   wardCommune?: string;
 }
 
+export class LaborAccidentReportDashboardQueryDto {
+  @ApiPropertyOptional({ example: '1' })
+  @IsOptional()
+  @IsString()
+  reportPeriodId?: string;
+
+  @ApiPropertyOptional({ example: '2026' })
+  @IsOptional()
+  @IsString()
+  year?: string;
+
+  @ApiPropertyOptional({
+    example: LaborAccidentReportPeriodType.SIX_MONTHS,
+    enum: LaborAccidentReportPeriodType,
+  })
+  @IsOptional()
+  @IsIn(Object.values(LaborAccidentReportPeriodType), {
+    message: 'Kỳ báo cáo không hợp lệ',
+  })
+  periodType?: LaborAccidentReportPeriodType;
+
+  @ApiPropertyOptional({ example: 'Thành phố Hồ Chí Minh' })
+  @IsOptional()
+  @IsString()
+  provinceCity?: string;
+
+  @ApiPropertyOptional({ example: 'Phường Hiệp Bình Phước' })
+  @IsOptional()
+  @IsString()
+  wardCommune?: string;
+}
+
 export class SaveLaborAccidentReportDraftDto {
   @ApiProperty({ example: 1 })
   @IsNotEmpty({ message: 'Kỳ báo cáo không được để trống' })
@@ -235,3 +267,5 @@ export class SaveLaborAccidentReportDraftDto {
 }
 
 export class SubmitLaborAccidentReportDto extends SaveLaborAccidentReportDraftDto {}
+
+export class PreSubmitLaborAccidentReportCheckDto extends SubmitLaborAccidentReportDto {}

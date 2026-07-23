@@ -1315,12 +1315,132 @@ export async function getMyLaborAccidentReportDetail(id: number | string) {
   });
 }
 
+export type LaborAccidentReportAuditAction =
+  | "CREATE_DRAFT"
+  | "UPDATE_DRAFT"
+  | "SUBMIT"
+  | "RESUBMIT"
+  | "RECEIVE"
+  | "REJECT"
+  | "BACKFILL";
+
+export interface LaborAccidentReportAuditLogItem {
+  id: number;
+  action: LaborAccidentReportAuditAction;
+  actionLabel?: string;
+  oldStatus?: string | null;
+  oldStatusLabel?: string | null;
+  newStatus?: string | null;
+  newStatusLabel?: string | null;
+  actorUserId?: number | null;
+  actorName?: string | null;
+  actorRole?: string | null;
+  message?: string | null;
+  reason?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface LaborAccidentReportAuditLogsPayload {
+  reportId: number;
+  items: LaborAccidentReportAuditLogItem[];
+}
+
+export async function getMyLaborAccidentReportAuditLogs(
+  id: number | string,
+) {
+  return request<LaborAccidentReportAuditLogsPayload>(
+    `/labor-accident-reports/my/${id}/audit-logs`,
+    {
+      method: "GET",
+      headers: authHeaders(),
+    },
+  );
+}
+
 export async function saveLaborAccidentReportDraft(body: FormData) {
   return request<any>("/labor-accident-reports/my/draft", {
     method: "POST",
     headers: authHeaders(),
     body,
   });
+}
+
+export type LaborAccidentPreSubmitSeverity =
+  | "success"
+  | "info"
+  | "warning"
+  | "danger";
+
+export type LaborAccidentPreSubmitLevel =
+  | "READY"
+  | "REVIEW_RECOMMENDED"
+  | "NEEDS_ATTENTION"
+  | "NEEDS_FIX";
+
+export interface LaborAccidentPreSubmitCheckItem {
+  code: string;
+  severity: LaborAccidentPreSubmitSeverity;
+  category: string;
+  title: string;
+  message: string;
+  suggestion?: string;
+  targetStep?: number;
+  targetSection?: string;
+  blocking: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export interface LaborAccidentPreSubmitCheckPayload {
+  readinessScore: number;
+  level: LaborAccidentPreSubmitLevel;
+  canSubmit: boolean;
+  requireConfirmation: boolean;
+  checkedAt: string;
+  summary: {
+    totalItems: number;
+    blockingCount: number;
+    dangerSoftCount: number;
+    warningCount: number;
+    infoCount: number;
+    successCount: number;
+  };
+  rejectionContext?: {
+    rejectedAt?: string | null;
+    reason?: string | null;
+    actorName?: string | null;
+    topic?: string;
+    isClear?: boolean;
+    suggestion?: string;
+  } | null;
+  previousReport?: {
+    id: number;
+    year: number;
+    periodType: string;
+    periodTypeLabel: string;
+    status: string;
+    statusLabel: string;
+    totalAccidents: number;
+    totalVictims: number;
+    totalCost: number;
+    submittedAt?: string | null;
+    receivedAt?: string | null;
+  } | null;
+  items: LaborAccidentPreSubmitCheckItem[];
+}
+
+export async function checkLaborAccidentReportBeforeSubmit(
+  id: number | string,
+  body: FormData,
+) {
+  return request<LaborAccidentPreSubmitCheckPayload>(
+    `/labor-accident-reports/my/${id}/pre-submit-check`,
+    {
+      method: "POST",
+      headers: authHeaders(),
+      body,
+    },
+  );
 }
 
 export async function submitLaborAccidentReport(
@@ -1433,6 +1553,16 @@ export async function getDepartmentReportDetail(id: number | string) {
   });
 }
 
+export async function getDepartmentReportAuditLogs(id: number | string) {
+  return request<LaborAccidentReportAuditLogsPayload>(
+    `/labor-accident-reports/admin/${id}/audit-logs`,
+    {
+      method: "GET",
+      headers: authHeaders(),
+    },
+  );
+}
+
 export async function getReportPeriods(query?: {
   page?: number | string;
   limit?: number | string;
@@ -1538,6 +1668,125 @@ export async function getDepartmentReportSummary(query?: {
   const queryString = params.toString();
   return request<any>(
     `/labor-accident-reports/admin/summary${queryString ? `?${queryString}` : ""}`,
+    {
+      method: "GET",
+      headers: authHeaders(),
+    },
+  );
+}
+
+export interface DepartmentReportDashboardQuery {
+  reportPeriodId?: string;
+  year?: string;
+  periodType?: string;
+  provinceCity?: string;
+  wardCommune?: string;
+}
+
+export interface DepartmentReportDashboardProgress {
+  totalEligibleReportObligations: number;
+  totalExistingReports: number;
+  notStartedCount: number;
+  draftCount: number;
+  submittedCount: number;
+  receivedCount: number;
+  rejectedCount: number;
+  submittedOrReceivedCount: number;
+  submittedRate: number;
+  receivedRate: number;
+  completionRate: number;
+}
+
+export interface DepartmentReportDashboardStatusRow {
+  status: string;
+  label: string;
+  count: number;
+  percentage: number;
+}
+
+export interface DepartmentReportDashboardWarningCard {
+  type: string;
+  label: string;
+  severity: "danger" | "warning" | "info";
+  count: number;
+}
+
+export interface DepartmentReportDashboardPeriod {
+  id: number;
+  reportName: string;
+  year: number;
+  periodType: string;
+  periodTypeLabel: string;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  windowStatus: "INACTIVE" | "UPCOMING" | "OPEN" | "CLOSED";
+  daysToStart: number;
+  daysToDeadline: number;
+  progress: DepartmentReportDashboardProgress;
+  byStatus: DepartmentReportDashboardStatusRow[];
+  warningSummary: Record<string, number>;
+  warnings: DepartmentReportDashboardWarningCard[];
+}
+
+export interface DepartmentReportDashboardUrgentBusiness {
+  type: string;
+  label: string;
+  severity: "danger" | "warning" | "info";
+  businessId: number;
+  businessName: string;
+  taxCode: string;
+  businessType?: string | null;
+  provinceCity?: string | null;
+  wardCommune?: string | null;
+  reportId?: number | null;
+  reportPeriodId: number;
+  reportName: string;
+  year: number;
+  periodType: string;
+  periodTypeLabel: string;
+  status: string;
+  statusLabel: string;
+  windowStatus: "INACTIVE" | "UPCOMING" | "OPEN" | "CLOSED";
+  daysToDeadline: number;
+  submittedAt?: string | null;
+  receivedAt?: string | null;
+  rejectReason?: string | null;
+}
+
+export interface DepartmentReportDashboardData {
+  filters: {
+    reportPeriodId: number | null;
+    year: number | null;
+    periodType: string | null;
+    periodTypeLabel: string | null;
+    provinceCity: string | null;
+    wardCommune: string | null;
+  };
+  generatedAt: string;
+  totalActiveBusinesses?: number;
+  reportPeriods: DepartmentReportDashboardPeriod[];
+  progress: DepartmentReportDashboardProgress;
+  byStatus: DepartmentReportDashboardStatusRow[];
+  warningSummary: Record<string, number>;
+  warnings: DepartmentReportDashboardWarningCard[];
+  urgentBusinesses: DepartmentReportDashboardUrgentBusiness[];
+}
+
+export async function getDepartmentReportDashboard(
+  query?: DepartmentReportDashboardQuery,
+) {
+  const params = new URLSearchParams();
+  if (query) {
+    Object.entries(query).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== "") {
+        params.append(key, String(val));
+      }
+    });
+  }
+  const queryString = params.toString();
+  return request<DepartmentReportDashboardData>(
+    `/labor-accident-reports/admin/dashboard${queryString ? `?${queryString}` : ""}`,
     {
       method: "GET",
       headers: authHeaders(),

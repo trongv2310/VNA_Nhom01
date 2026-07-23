@@ -14,6 +14,7 @@ type SidebarView =
   | "business-type-management"
   | "industry-management"
   | "labor-catalog-management"
+  | "labor-dashboard"
   | "company-info"
   | "tnld-reports"
   | "tnld-theo-hdld"
@@ -90,6 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: "Tai nạn lao động",
       icon: <ShieldAlert className="w-5 h-5 flex-shrink-0" />,
       children: [
+        { id: "dashboard_tnld", label: "Dashboard điều hành" },
         { id: "danh_muc_chung", label: "Danh mục chung" },
         { id: "tnld_theo_hdld", label: "TNLĐ theo HĐLĐ" },
       ],
@@ -156,10 +158,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     });
 
     if (
+      hasPermission("LABOR_C_REPORT_DASHBOARD") ||
       hasPermission("LABOR_C_REPORT_VIEW") ||
       hasPermission("LABOR_C_CATALOG_VIEW")
     ) {
       const laborChildren: { id: string; label: string }[] = [];
+      if (hasPermission("LABOR_C_REPORT_DASHBOARD")) {
+        laborChildren.push({
+          id: "dashboard_tnld",
+          label: "Dashboard điều hành",
+        });
+      }
       if (hasPermission("LABOR_C_CATALOG_VIEW")) {
         laborChildren.push({ id: "danh_muc_chung", label: "Danh mục chung" });
       }
@@ -272,6 +281,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             onSelectView("industry-management");
                           } else if (child.id === "danh_muc_chung") {
                             onSelectView("labor-catalog-management");
+                          } else if (child.id === "dashboard_tnld") {
+                            onSelectView("labor-dashboard");
                           } else if (child.id === "thong_tin_doanh_nghiep") {
                             onSelectView("company-info");
                           } else if (child.id === "thong_tin_tai_khoan") {

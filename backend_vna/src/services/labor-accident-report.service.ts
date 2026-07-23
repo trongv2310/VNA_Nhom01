@@ -32,9 +32,11 @@ import {
 } from 'typeorm';
 
 import {
+  LaborAccidentReportDashboardQueryDto,
   LaborAccidentReportSummaryQueryDto,
   ListLaborAccidentReportsQueryDto,
   ListMyLaborAccidentReportsQueryDto,
+  PreSubmitLaborAccidentReportCheckDto,
   SaveLaborAccidentReportDraftDto,
   SubmitLaborAccidentReportDto,
 } from '../dtos/labor-accident-report.dto';
@@ -54,6 +56,10 @@ import {
   LaborAccidentCatalog,
   LaborAccidentCatalogType,
 } from '../entities/labor-accident-catalog.entity';
+import {
+  LaborAccidentReportAuditAction,
+  LaborAccidentReportAuditLog,
+} from '../entities/labor-accident-report-audit-log.entity';
 import {
   LaborAccidentReportAttachment,
   LaborAccidentReportAttachmentType,
@@ -86,6 +92,19 @@ const REPORT_STATUS_LABELS: Record<LaborAccidentReportStatus, string> = {
   [LaborAccidentReportStatus.SUBMITTED]: 'Đang chờ duyệt',
   [LaborAccidentReportStatus.RECEIVED]: 'Đã tiếp nhận',
   [LaborAccidentReportStatus.REJECTED]: 'Từ chối phê duyệt',
+};
+
+const REPORT_AUDIT_ACTION_LABELS: Record<
+  LaborAccidentReportAuditAction,
+  string
+> = {
+  [LaborAccidentReportAuditAction.CREATE_DRAFT]: 'Tạo nháp báo cáo',
+  [LaborAccidentReportAuditAction.UPDATE_DRAFT]: 'Cập nhật nháp báo cáo',
+  [LaborAccidentReportAuditAction.SUBMIT]: 'Gửi báo cáo',
+  [LaborAccidentReportAuditAction.RESUBMIT]: 'Gửi lại báo cáo',
+  [LaborAccidentReportAuditAction.RECEIVE]: 'Tiếp nhận báo cáo',
+  [LaborAccidentReportAuditAction.REJECT]: 'Từ chối báo cáo',
+  [LaborAccidentReportAuditAction.BACKFILL]: 'Khởi tạo lịch sử',
 };
 
 type DetailPayload = {
@@ -168,6 +187,16 @@ type ReportPeriodAccess = {
   unavailableReason: string | null;
 };
 
+type DashboardReportStatus = LaborAccidentReportStatus | 'NOT_STARTED';
+
+type DashboardWarningType =
+  | 'OVERDUE_NOT_SUBMITTED'
+  | 'NEARING_DEADLINE'
+  | 'REJECTED_NOT_RESUBMITTED'
+  | 'PENDING_RECEIVE';
+
+type DashboardWarningSeverity = 'danger' | 'warning' | 'info';
+
 type PreparedReportAttachment = {
   displayName: string;
   originalName: string;
@@ -176,6 +205,108 @@ type PreparedReportAttachment = {
   mimetype: string;
   size: number;
   resourceType: 'image' | 'raw' | 'video';
+};
+
+type CreateReportAuditLogInput = {
+  report: LaborAccidentReport;
+  action: LaborAccidentReportAuditAction;
+  oldStatus?: LaborAccidentReportStatus | null;
+  newStatus?: LaborAccidentReportStatus | null;
+  actorUser?: User | null;
+  actorNameSnapshot?: string | null;
+  actorRoleSnapshot?: string | null;
+  message?: string | null;
+  reason?: string | null;
+  metadata?: Record<string, unknown>;
+  createdAt?: Date;
+};
+
+type PreSubmitCheckSeverity = 'success' | 'info' | 'warning' | 'danger';
+
+type PreSubmitCheckLevel =
+  | 'READY'
+  | 'REVIEW_RECOMMENDED'
+  | 'NEEDS_ATTENTION'
+  | 'NEEDS_FIX';
+
+type PreSubmitCheckCategory =
+  | 'HARD_VALIDATION'
+  | 'REJECTION_HISTORY'
+  | 'ATTACHMENT'
+  | 'METRIC_CONSISTENCY'
+  | 'PREVIOUS_PERIOD'
+  | 'COMPLETENESS';
+
+type PreSubmitCheckTargetSection =
+  | 'GENERAL'
+  | 'SUMMARY'
+  | 'DETAILS'
+  | 'ATTACHMENT'
+  | 'REVIEW';
+
+type PreSubmitCheckItem = {
+  code: string;
+  severity: PreSubmitCheckSeverity;
+  category: PreSubmitCheckCategory;
+  title: string;
+  message: string;
+  suggestion?: string;
+  targetStep?: number;
+  targetSection?: PreSubmitCheckTargetSection;
+  blocking: boolean;
+  metadata?: Record<string, unknown>;
+};
+
+type RejectionReasonTopic =
+  | 'FILE'
+  | 'METRIC'
+  | 'PERIOD'
+  | 'SIGNATURE'
+  | 'UNCLEAR'
+  | 'GENERAL';
+
+type RejectionReasonAnalysis = {
+  topic: RejectionReasonTopic;
+  isClear: boolean;
+  suggestion: string;
+};
+
+const DASHBOARD_STATUS_LABELS: Record<DashboardReportStatus, string> = {
+  NOT_STARTED: 'Chưa tạo báo cáo',
+  [LaborAccidentReportStatus.DRAFT]: 'Đang báo cáo',
+  [LaborAccidentReportStatus.SUBMITTED]: 'Đang chờ duyệt',
+  [LaborAccidentReportStatus.RECEIVED]: 'Đã tiếp nhận',
+  [LaborAccidentReportStatus.REJECTED]: 'Từ chối phê duyệt',
+};
+
+const DASHBOARD_WARNING_DEFINITIONS: Record<
+  DashboardWarningType,
+  {
+    label: string;
+    severity: DashboardWarningSeverity;
+    sortOrder: number;
+  }
+> = {
+  OVERDUE_NOT_SUBMITTED: {
+    label: 'Quá hạn chưa gửi báo cáo',
+    severity: 'danger',
+    sortOrder: 1,
+  },
+  REJECTED_NOT_RESUBMITTED: {
+    label: 'Bị từ chối nhưng chưa gửi lại',
+    severity: 'danger',
+    sortOrder: 2,
+  },
+  NEARING_DEADLINE: {
+    label: 'Sắp hết hạn gửi báo cáo',
+    severity: 'warning',
+    sortOrder: 3,
+  },
+  PENDING_RECEIVE: {
+    label: 'Đang chờ Sở tiếp nhận',
+    severity: 'info',
+    sortOrder: 4,
+  },
 };
 
 function sendOfficeExport(response: any, file: OfficeExportFile) {
@@ -206,6 +337,9 @@ export class LaborAccidentReportService {
 
     @InjectRepository(LaborAccidentCatalog)
     private readonly catalogRepository: Repository<LaborAccidentCatalog>,
+
+    @InjectRepository(LaborAccidentReportAuditLog)
+    private readonly reportAuditLogRepository: Repository<LaborAccidentReportAuditLog>,
 
     @InjectRepository(LaborAccidentReport)
     private readonly reportRepository: Repository<LaborAccidentReport>,
@@ -282,6 +416,13 @@ export class LaborAccidentReportService {
       message: 'Lấy chi tiết báo cáo tai nạn lao động thành công',
       data: this.mapReport(report, true),
     };
+  }
+
+  async getMyReportAuditLogs(userId: number, reportId: number) {
+    const business = await this.findBusinessByAccountUserId(userId);
+    const report = await this.findReportByIdForBusiness(reportId, business.id);
+
+    return this.getReportAuditLogsResponse(report.id);
   }
 
   async getMyAvailableReportPeriods(userId: number) {
@@ -414,6 +555,27 @@ export class LaborAccidentReportService {
           manager,
         );
 
+        await this.createReportAuditLog(
+          {
+            report: persistedReport,
+            action: lockedExistingReport || existingReport
+              ? LaborAccidentReportAuditAction.UPDATE_DRAFT
+              : LaborAccidentReportAuditAction.CREATE_DRAFT,
+            oldStatus:
+              lockedExistingReport?.status ?? existingReport?.status ?? null,
+            newStatus:
+              persistedReport.status ?? LaborAccidentReportStatus.DRAFT,
+            actorUser: user,
+            metadata: {
+              reportPeriodId: reportPeriod.id,
+              reportPeriodYear: reportPeriod.year,
+              reportPeriodType: reportPeriod.periodType,
+              attachmentUploadCount: preparedAttachments.length,
+            },
+          },
+          manager,
+        );
+
         return persistedReport;
       });
     } catch (error) {
@@ -514,6 +676,7 @@ export class LaborAccidentReportService {
           );
         }
 
+        const oldStatus = lockedReport.status;
         const reportToSave = this.createPersistableReport(
           lockedReport,
           manager,
@@ -575,7 +738,33 @@ export class LaborAccidentReportService {
         persistedReport.submittedByUser = user;
         persistedReport.rejectReason = null;
 
-        return manager.save(LaborAccidentReport, persistedReport);
+        const submittedReport = await manager.save(
+          LaborAccidentReport,
+          persistedReport,
+        );
+
+        await this.createReportAuditLog(
+          {
+            report: submittedReport,
+            action:
+              oldStatus === LaborAccidentReportStatus.REJECTED
+                ? LaborAccidentReportAuditAction.RESUBMIT
+                : LaborAccidentReportAuditAction.SUBMIT,
+            oldStatus,
+            newStatus: LaborAccidentReportStatus.SUBMITTED,
+            actorUser: user,
+            metadata: {
+              reportPeriodId: report.reportPeriod.id,
+              reportPeriodYear: report.reportPeriod.year,
+              reportPeriodType: report.reportPeriod.periodType,
+              attachmentUploadCount: preparedAttachments.length,
+              isResubmission: oldStatus === LaborAccidentReportStatus.REJECTED,
+            },
+          },
+          manager,
+        );
+
+        return submittedReport;
       });
     } catch (error) {
       await this.cleanupPreparedAttachments(preparedAttachments);
@@ -590,6 +779,310 @@ export class LaborAccidentReportService {
     return {
       message: 'Gửi báo cáo tai nạn lao động thành công',
       data: this.mapReport(reportWithRelations, true),
+    };
+  }
+
+  async checkReportBeforeSubmit(
+    userId: number,
+    reportId: number,
+    body: PreSubmitLaborAccidentReportCheckDto,
+    files: Express.Multer.File[] = [],
+  ) {
+    const business = await this.findBusinessByAccountUserId(userId);
+    const user = await this.findUser(userId);
+    const report = await this.findReportByIdForBusiness(reportId, business.id);
+    const checkItems: PreSubmitCheckItem[] = [];
+
+    if (report.status === LaborAccidentReportStatus.RECEIVED) {
+      this.addPreSubmitIssue(checkItems, {
+        code: 'REPORT_ALREADY_RECEIVED',
+        severity: 'danger',
+        category: 'HARD_VALIDATION',
+        title: 'Báo cáo đã được Sở tiếp nhận',
+        message:
+          'Báo cáo này đã được tiếp nhận nên không thể chỉnh sửa hoặc gửi lại.',
+        suggestion:
+          'Nếu cần điều chỉnh, vui lòng liên hệ cán bộ phụ trách để được hướng dẫn.',
+        targetStep: 4,
+        targetSection: 'REVIEW',
+        blocking: true,
+      });
+    } else if (report.status === LaborAccidentReportStatus.SUBMITTED) {
+      this.addPreSubmitIssue(checkItems, {
+        code: 'REPORT_ALREADY_SUBMITTED',
+        severity: 'danger',
+        category: 'HARD_VALIDATION',
+        title: 'Báo cáo đã được gửi',
+        message:
+          'Báo cáo này đang chờ Sở xử lý nên không thể gửi thêm một lần nữa.',
+        suggestion:
+          'Vui lòng chờ Sở tiếp nhận hoặc từ chối trước khi thực hiện thao tác tiếp theo.',
+        targetStep: 4,
+        targetSection: 'REVIEW',
+        blocking: true,
+      });
+    }
+
+    try {
+      const submittedPeriodId = this.normalizePositiveInteger(
+        body.reportPeriodId,
+        'Kỳ báo cáo',
+      );
+
+      if (submittedPeriodId !== report.reportPeriod.id) {
+        this.addPreSubmitIssue(checkItems, {
+          code: 'REPORT_PERIOD_CHANGED',
+          severity: 'danger',
+          category: 'HARD_VALIDATION',
+          title: 'Kỳ báo cáo không khớp',
+          message:
+            'Dữ liệu gửi lên đang thuộc kỳ báo cáo khác với báo cáo hiện tại.',
+          suggestion:
+            'Vui lòng tải lại trang hoặc chọn đúng báo cáo trước khi gửi.',
+          targetStep: 1,
+          targetSection: 'GENERAL',
+          blocking: true,
+        });
+      }
+    } catch (error) {
+      this.addBadRequestIssues(
+        checkItems,
+        error,
+        'INVALID_REPORT_PERIOD',
+        'Kỳ báo cáo không hợp lệ',
+        1,
+        'GENERAL',
+      );
+    }
+
+    const access = this.getReportPeriodAccess(
+      business,
+      report.reportPeriod,
+      report.status,
+    );
+
+    if (!access.canSubmit) {
+      this.addPreSubmitIssue(checkItems, {
+        code: 'REPORT_PERIOD_NOT_SUBMITTABLE',
+        severity: 'danger',
+        category: 'HARD_VALIDATION',
+        title: 'Chưa đủ điều kiện gửi báo cáo',
+        message:
+          access.unavailableReason ||
+          'Kỳ báo cáo hiện không cho phép chỉnh sửa hoặc gửi báo cáo.',
+        suggestion:
+          'Vui lòng kiểm tra trạng thái kỳ báo cáo hoặc liên hệ cán bộ phụ trách.',
+        targetStep: 1,
+        targetSection: 'GENERAL',
+        blocking: true,
+        metadata: {
+          windowStatus: access.windowStatus,
+          isEligible: access.isEligible,
+        },
+      });
+    }
+
+    const checkReport = this.createPersistableReport(report);
+    let normalizedDetails: NormalizedDetailPayload[] = [];
+    let canRunPayloadRules = true;
+
+    try {
+      const details = await this.normalizeDetails(body.details);
+
+      if (
+        !details?.some(
+          (detail) =>
+            detail.section ===
+            LaborAccidentReportDetailSection.ARTICLE_39_ALLOWANCE,
+        )
+      ) {
+        this.addPreSubmitIssue(checkItems, {
+          code: 'REPORT_DETAILS_INCOMPLETE',
+          severity: 'danger',
+          category: 'HARD_VALIDATION',
+          title: 'Dữ liệu chi tiết báo cáo chưa đầy đủ',
+          message:
+            'Báo cáo cần có đầy đủ dữ liệu chi tiết trước khi gửi cho Sở.',
+          suggestion:
+            'Vui lòng tải lại trang, kiểm tra các bước nhập liệu và thử gửi lại.',
+          targetStep: 2,
+          targetSection: 'DETAILS',
+          blocking: true,
+        });
+      }
+
+      normalizedDetails = details ?? [];
+    } catch (error) {
+      canRunPayloadRules = false;
+      this.addBadRequestIssues(
+        checkItems,
+        error,
+        'INVALID_REPORT_DETAILS',
+        'Dữ liệu chi tiết báo cáo không hợp lệ',
+        2,
+        'DETAILS',
+      );
+    }
+
+    if (canRunPayloadRules) {
+      try {
+        this.assignReportPayload(
+          checkReport,
+          body,
+          business,
+          report.reportPeriod,
+          user,
+        );
+        this.validateReportAgainstDetails(checkReport, normalizedDetails);
+        checkReport.details =
+          normalizedDetails as unknown as LaborAccidentReportDetail[];
+        this.validateReportReadyToLock(checkReport);
+      } catch (error) {
+        this.addBadRequestIssues(
+          checkItems,
+          error,
+          'REPORT_HARD_VALIDATION_FAILED',
+          'Báo cáo chưa đạt điều kiện gửi',
+          2,
+          'SUMMARY',
+        );
+      }
+    }
+
+    const currentAttachment = this.getCurrentStampedAttachment(report);
+    const hasProspectiveAttachment = files.length > 0 || !!currentAttachment;
+
+    if (!hasProspectiveAttachment) {
+      this.addPreSubmitIssue(checkItems, {
+        code: 'STAMPED_REPORT_ATTACHMENT_MISSING',
+        severity: 'danger',
+        category: 'HARD_VALIDATION',
+        title: 'Thiếu file báo cáo có dấu mộc',
+        message:
+          'Báo cáo cần có một file đính kèm hiện hành trước khi gửi cho Sở.',
+        suggestion:
+          'Vui lòng tải lên file báo cáo đã kiểm tra đầy đủ trước khi gửi.',
+        targetStep: 4,
+        targetSection: 'ATTACHMENT',
+        blocking: true,
+      });
+    }
+
+    const lastRejectLog = await this.findLastRejectAuditLog(report.id);
+    const rejectionAnalysis = this.analyzeRejectReason(
+      lastRejectLog?.reason ?? report.rejectReason,
+    );
+    const previousReport = await this.findPreviousReportForBusiness(
+      business.id,
+      report,
+    );
+
+    this.collectAttachmentPreSubmitIssues(
+      checkItems,
+      report,
+      files,
+      currentAttachment,
+      lastRejectLog,
+      rejectionAnalysis,
+    );
+    this.collectRejectionHistoryPreSubmitIssues(
+      checkItems,
+      report,
+      checkReport,
+      lastRejectLog,
+      rejectionAnalysis,
+    );
+
+    if (canRunPayloadRules) {
+      this.collectSoftMetricPreSubmitIssues(
+        checkItems,
+        checkReport,
+        normalizedDetails,
+      );
+      this.collectPreviousReportPreSubmitIssues(
+        checkItems,
+        checkReport,
+        previousReport,
+      );
+    }
+
+    if (!checkItems.length) {
+      this.addPreSubmitIssue(checkItems, {
+        code: 'REPORT_READY',
+        severity: 'success',
+        category: 'COMPLETENESS',
+        title: 'Báo cáo đã sẵn sàng gửi',
+        message:
+          'Hệ thống chưa phát hiện điểm bất thường đáng chú ý trong dữ liệu hiện tại.',
+        suggestion:
+          'Bạn vẫn nên rà soát nhanh file đính kèm và số liệu trước khi xác nhận gửi.',
+        targetStep: 4,
+        targetSection: 'REVIEW',
+        blocking: false,
+      });
+    }
+
+    const readinessScore = this.calculatePreSubmitReadinessScore(checkItems);
+    const level = this.getPreSubmitReadinessLevel(
+      readinessScore,
+      checkItems,
+    );
+    const blockingCount = checkItems.filter((item) => item.blocking).length;
+    const warningCount = checkItems.filter(
+      (item) => item.severity === 'warning',
+    ).length;
+    const dangerSoftCount = checkItems.filter(
+      (item) => item.severity === 'danger' && !item.blocking,
+    ).length;
+    const infoCount = checkItems.filter((item) => item.severity === 'info')
+      .length;
+
+    return {
+      message: 'Kiểm tra mềm trước khi gửi báo cáo thành công',
+      data: {
+        readinessScore,
+        level,
+        canSubmit: blockingCount === 0,
+        requireConfirmation:
+          blockingCount === 0 && (warningCount > 0 || dangerSoftCount > 0),
+        checkedAt: new Date().toISOString(),
+        summary: {
+          totalItems: checkItems.length,
+          blockingCount,
+          dangerSoftCount,
+          warningCount,
+          infoCount,
+          successCount: checkItems.filter((item) => item.severity === 'success')
+            .length,
+        },
+        rejectionContext: lastRejectLog
+          ? {
+              rejectedAt: lastRejectLog.createdAt,
+              reason: lastRejectLog.reason ?? report.rejectReason ?? null,
+              actorName: lastRejectLog.actorNameSnapshot ?? null,
+              topic: rejectionAnalysis.topic,
+              isClear: rejectionAnalysis.isClear,
+              suggestion: rejectionAnalysis.suggestion,
+            }
+          : null,
+        previousReport: previousReport
+          ? {
+              id: previousReport.id,
+              year: previousReport.reportPeriod.year,
+              periodType: previousReport.reportPeriod.periodType,
+              periodTypeLabel:
+                PERIOD_TYPE_LABELS[previousReport.reportPeriod.periodType],
+              status: previousReport.status,
+              statusLabel: REPORT_STATUS_LABELS[previousReport.status],
+              totalAccidents: Number(previousReport.totalAccidents) || 0,
+              totalVictims: Number(previousReport.totalVictims) || 0,
+              totalCost: Number(previousReport.totalCost) || 0,
+              submittedAt: previousReport.submittedAt,
+              receivedAt: previousReport.receivedAt,
+            }
+          : null,
+        items: checkItems,
+      },
     };
   }
 
@@ -611,11 +1104,32 @@ export class LaborAccidentReportService {
 
     this.validateReportReadyToLock(report);
 
-    report.status = LaborAccidentReportStatus.RECEIVED;
-    report.receivedAt = new Date();
-    report.receivedByUser = user;
+    const oldStatus = report.status;
+    const savedReport = await this.dataSource.transaction(async (manager) => {
+      report.status = LaborAccidentReportStatus.RECEIVED;
+      report.receivedAt = new Date();
+      report.receivedByUser = user;
 
-    const savedReport = await this.reportRepository.save(report);
+      const receivedReport = await manager.save(LaborAccidentReport, report);
+
+      await this.createReportAuditLog(
+        {
+          report: receivedReport,
+          action: LaborAccidentReportAuditAction.RECEIVE,
+          oldStatus,
+          newStatus: LaborAccidentReportStatus.RECEIVED,
+          actorUser: user,
+          metadata: {
+            reportPeriodId: report.reportPeriod.id,
+            reportPeriodYear: report.reportPeriod.year,
+            reportPeriodType: report.reportPeriod.periodType,
+          },
+        },
+        manager,
+      );
+
+      return receivedReport;
+    });
     const reportWithRelations = await this.findReportByIdForDepartment(
       savedReport.id,
     );
@@ -672,6 +1186,160 @@ export class LaborAccidentReportService {
     return {
       message: 'Lấy chi tiết báo cáo tai nạn lao động thành công',
       data: this.mapReport(report, true),
+    };
+  }
+
+  async getDepartmentReportAuditLogs(reportId: number) {
+    const report = await this.findReportByIdForDepartment(reportId);
+
+    return this.getReportAuditLogsResponse(report.id);
+  }
+
+  async getDepartmentReportDashboard(
+    query: LaborAccidentReportDashboardQueryDto,
+  ) {
+    const reportPeriods = await this.findDashboardReportPeriods(query);
+    const statusCounts = this.createDashboardStatusCounts();
+    const warningCounts = this.createDashboardWarningCounts();
+    const urgentBusinesses: Array<Record<string, unknown>> = [];
+    const filters = this.mapDashboardFilters(query);
+
+    if (!reportPeriods.length) {
+      return {
+        message: 'Lấy dashboard điều hành báo cáo TNLĐ thành công',
+        data: {
+          filters,
+          generatedAt: new Date().toISOString(),
+          reportPeriods: [],
+          progress: this.mapDashboardProgress(statusCounts, 0, 0),
+          byStatus: this.mapDashboardStatusCounts(statusCounts, 0),
+          warningSummary: warningCounts,
+          warnings: this.mapDashboardWarningCards(warningCounts),
+          urgentBusinesses,
+        },
+      };
+    }
+
+    const reportPeriodIds = reportPeriods.map((reportPeriod) => reportPeriod.id);
+    const businessQuery = this.businessRepository
+      .createQueryBuilder('business')
+      .leftJoinAndSelect('business.businessTypeCatalog', 'businessTypeCatalog')
+      .where('business.isActive = :isActive', { isActive: true });
+
+    this.applyDashboardLocationFilters(businessQuery, query);
+
+    const businesses = await businessQuery
+      .orderBy('business.businessName', 'ASC')
+      .getMany();
+
+    const reportQuery = this.reportRepository
+      .createQueryBuilder('report')
+      .leftJoinAndSelect('report.business', 'business')
+      .leftJoinAndSelect('report.reportPeriod', 'reportPeriod')
+      .where('reportPeriod.id IN (:...reportPeriodIds)', {
+        reportPeriodIds,
+      });
+
+    this.applyDashboardLocationFilters(reportQuery, query);
+
+    const reports = await reportQuery.getMany();
+    const reportsByBusinessAndPeriod = new Map<string, LaborAccidentReport>();
+
+    for (const report of reports) {
+      if (!report.business?.id || !report.reportPeriod?.id) {
+        continue;
+      }
+
+      reportsByBusinessAndPeriod.set(
+        this.createDashboardReportKey(report.business.id, report.reportPeriod.id),
+        report,
+      );
+    }
+
+    let totalEligibleReportObligations = 0;
+    let totalExistingReports = 0;
+
+    const dashboardReportPeriods = reportPeriods.map((reportPeriod) => {
+      const periodStatusCounts = this.createDashboardStatusCounts();
+      const periodWarningCounts = this.createDashboardWarningCounts();
+      let periodEligibleReportObligations = 0;
+      let periodExistingReports = 0;
+
+      for (const business of businesses) {
+        if (!this.isBusinessEligibleForReportPeriod(business, reportPeriod)) {
+          continue;
+        }
+
+        periodEligibleReportObligations++;
+        totalEligibleReportObligations++;
+
+        const report = reportsByBusinessAndPeriod.get(
+          this.createDashboardReportKey(business.id, reportPeriod.id),
+        );
+        const dashboardStatus: DashboardReportStatus =
+          report?.status ?? 'NOT_STARTED';
+
+        if (report) {
+          periodExistingReports++;
+          totalExistingReports++;
+        }
+
+        statusCounts[dashboardStatus]++;
+        periodStatusCounts[dashboardStatus]++;
+
+        const warning = this.mapDashboardWarningBusiness(
+          business,
+          reportPeriod,
+          report,
+        );
+
+        if (warning) {
+          const warningType = warning.type as DashboardWarningType;
+          warningCounts[warningType]++;
+          periodWarningCounts[warningType]++;
+          urgentBusinesses.push(warning);
+        }
+      }
+
+      return {
+        ...this.mapDashboardReportPeriod(reportPeriod),
+        progress: this.mapDashboardProgress(
+          periodStatusCounts,
+          periodEligibleReportObligations,
+          periodExistingReports,
+        ),
+        byStatus: this.mapDashboardStatusCounts(
+          periodStatusCounts,
+          periodEligibleReportObligations,
+        ),
+        warningSummary: periodWarningCounts,
+        warnings: this.mapDashboardWarningCards(periodWarningCounts),
+      };
+    });
+
+    return {
+      message: 'Lấy dashboard điều hành báo cáo TNLĐ thành công',
+      data: {
+        filters,
+        generatedAt: new Date().toISOString(),
+        totalActiveBusinesses: businesses.length,
+        reportPeriods: dashboardReportPeriods,
+        progress: this.mapDashboardProgress(
+          statusCounts,
+          totalEligibleReportObligations,
+          totalExistingReports,
+        ),
+        byStatus: this.mapDashboardStatusCounts(
+          statusCounts,
+          totalEligibleReportObligations,
+        ),
+        warningSummary: warningCounts,
+        warnings: this.mapDashboardWarningCards(warningCounts),
+        urgentBusinesses: this.sortDashboardWarnings(urgentBusinesses).slice(
+          0,
+          20,
+        ),
+      },
     };
   }
 
@@ -966,6 +1634,11 @@ export class LaborAccidentReportService {
   private async findUser(userId: number) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
+      relations: {
+        userRoles: {
+          role: true,
+        },
+      },
     });
 
     if (!user) {
@@ -973,6 +1646,145 @@ export class LaborAccidentReportService {
     }
 
     return user;
+  }
+
+  private async getReportAuditLogsResponse(reportId: number) {
+    const logs = await this.reportAuditLogRepository.find({
+      where: {
+        report: { id: reportId },
+      },
+      relations: {
+        actorUser: true,
+      },
+      order: {
+        createdAt: 'ASC',
+        id: 'ASC',
+      },
+    });
+
+    return {
+      message: 'Lấy lịch sử xử lý báo cáo thành công',
+      data: {
+        reportId,
+        items: logs.map((log) => this.mapReportAuditLog(log)),
+      },
+    };
+  }
+
+  private async createReportAuditLog(
+    input: CreateReportAuditLogInput,
+    manager?: EntityManager,
+  ) {
+    const repository =
+      manager?.getRepository(LaborAccidentReportAuditLog) ??
+      this.reportAuditLogRepository;
+    const actorName =
+      input.actorNameSnapshot ??
+      this.getAuditActorName(input.actorUser) ??
+      'Hệ thống';
+    const actorRole =
+      input.actorRoleSnapshot ?? this.getAuditActorRole(input.actorUser);
+    const log = repository.create({
+      report: { id: input.report.id } as LaborAccidentReport,
+      action: input.action,
+      oldStatus: input.oldStatus ?? null,
+      newStatus: input.newStatus ?? null,
+      actorUser: input.actorUser
+        ? ({ id: input.actorUser.id } as User)
+        : null,
+      actorNameSnapshot: actorName,
+      actorRoleSnapshot: actorRole,
+      message:
+        input.message ??
+        this.buildReportAuditMessage(input.action, actorName),
+      reason: input.reason ?? null,
+      metadata: input.metadata ?? {},
+      ...(input.createdAt ? { createdAt: input.createdAt } : {}),
+    });
+
+    return repository.save(log);
+  }
+
+  private getAuditActorName(user: User | null | undefined) {
+    if (!user) {
+      return null;
+    }
+
+    return user.fullName || user.username || null;
+  }
+
+  private getAuditActorRole(user: User | null | undefined) {
+    const roles = user?.userRoles
+      ?.map((userRole) => userRole.role?.name || userRole.role?.code)
+      .filter(Boolean);
+
+    if (roles?.length) {
+      return roles.join(', ');
+    }
+
+    if (user?.accountType === 'BUSINESS') {
+      return 'Doanh nghiệp';
+    }
+
+    if (user?.accountType === 'DEPARTMENT') {
+      return 'Sở';
+    }
+
+    return 'Hệ thống';
+  }
+
+  private buildReportAuditMessage(
+    action: LaborAccidentReportAuditAction,
+    actorName: string,
+  ) {
+    if (action === LaborAccidentReportAuditAction.CREATE_DRAFT) {
+      return `${actorName} đã tạo nháp báo cáo`;
+    }
+
+    if (action === LaborAccidentReportAuditAction.UPDATE_DRAFT) {
+      return `${actorName} đã cập nhật nháp báo cáo`;
+    }
+
+    if (action === LaborAccidentReportAuditAction.SUBMIT) {
+      return `${actorName} đã gửi báo cáo`;
+    }
+
+    if (action === LaborAccidentReportAuditAction.RESUBMIT) {
+      return `${actorName} đã gửi lại báo cáo`;
+    }
+
+    if (action === LaborAccidentReportAuditAction.RECEIVE) {
+      return `${actorName} đã tiếp nhận báo cáo`;
+    }
+
+    if (action === LaborAccidentReportAuditAction.REJECT) {
+      return `${actorName} đã từ chối báo cáo`;
+    }
+
+    return 'Hệ thống đã khởi tạo lịch sử xử lý báo cáo';
+  }
+
+  private mapReportAuditLog(log: LaborAccidentReportAuditLog) {
+    return {
+      id: log.id,
+      action: log.action,
+      actionLabel: REPORT_AUDIT_ACTION_LABELS[log.action],
+      oldStatus: log.oldStatus,
+      oldStatusLabel: log.oldStatus
+        ? REPORT_STATUS_LABELS[log.oldStatus]
+        : null,
+      newStatus: log.newStatus,
+      newStatusLabel: log.newStatus
+        ? REPORT_STATUS_LABELS[log.newStatus]
+        : null,
+      actorUserId: log.actorUser?.id ?? null,
+      actorName: log.actorNameSnapshot || log.actorUser?.fullName || null,
+      actorRole: log.actorRoleSnapshot,
+      message: log.message,
+      reason: log.reason,
+      metadata: log.metadata ?? {},
+      createdAt: log.createdAt,
+    };
   }
 
   private async findReportPeriod(value: string | number) {
@@ -988,6 +1800,338 @@ export class LaborAccidentReportService {
     }
 
     return reportPeriod;
+  }
+
+  private async findDashboardReportPeriods(
+    query: LaborAccidentReportDashboardQueryDto,
+  ) {
+    const queryBuilder = this.reportPeriodRepository
+      .createQueryBuilder('reportPeriod')
+      .where('1 = 1');
+
+    if (query.reportPeriodId?.trim()) {
+      queryBuilder.andWhere('reportPeriod.id = :reportPeriodId', {
+        reportPeriodId: this.normalizePositiveInteger(
+          query.reportPeriodId,
+          'Kỳ báo cáo',
+        ),
+      });
+    } else {
+      const year = query.year?.trim()
+        ? this.normalizeYear(query.year)
+        : Number(this.getVietnamTodayKey().slice(0, 4));
+
+      queryBuilder
+        .andWhere('reportPeriod.year = :year', { year })
+        .andWhere('reportPeriod.isActive = :isActive', { isActive: true });
+
+      if (query.periodType) {
+        queryBuilder.andWhere('reportPeriod.periodType = :periodType', {
+          periodType: query.periodType,
+        });
+      }
+    }
+
+    return queryBuilder
+      .orderBy('reportPeriod.year', 'DESC')
+      .addOrderBy('reportPeriod.startDate', 'DESC')
+      .addOrderBy('reportPeriod.id', 'DESC')
+      .getMany();
+  }
+
+  private mapDashboardFilters(query: LaborAccidentReportDashboardQueryDto) {
+    const reportPeriodId = query.reportPeriodId?.trim()
+      ? this.normalizePositiveInteger(query.reportPeriodId, 'Kỳ báo cáo')
+      : null;
+
+    return {
+      reportPeriodId,
+      year: query.year?.trim()
+        ? this.normalizeYear(query.year)
+        : reportPeriodId
+          ? null
+          : Number(this.getVietnamTodayKey().slice(0, 4)),
+      periodType: query.periodType ?? null,
+      periodTypeLabel: query.periodType
+        ? PERIOD_TYPE_LABELS[query.periodType]
+        : null,
+      provinceCity: this.toTrimmedValue(query.provinceCity) ?? null,
+      wardCommune: this.toTrimmedValue(query.wardCommune) ?? null,
+    };
+  }
+
+  private applyDashboardLocationFilters(
+    queryBuilder: SelectQueryBuilder<any>,
+    query: LaborAccidentReportDashboardQueryDto,
+  ) {
+    if (query.provinceCity?.trim()) {
+      queryBuilder.andWhere('LOWER(business.provinceCity) LIKE :provinceCity', {
+        provinceCity: this.toLikeValue(query.provinceCity),
+      });
+    }
+
+    if (query.wardCommune?.trim()) {
+      queryBuilder.andWhere('LOWER(business.wardCommune) LIKE :wardCommune', {
+        wardCommune: this.toLikeValue(query.wardCommune),
+      });
+    }
+  }
+
+  private createDashboardReportKey(businessId: number, reportPeriodId: number) {
+    return `${businessId}:${reportPeriodId}`;
+  }
+
+  private createDashboardStatusCounts(): Record<DashboardReportStatus, number> {
+    return {
+      NOT_STARTED: 0,
+      [LaborAccidentReportStatus.DRAFT]: 0,
+      [LaborAccidentReportStatus.SUBMITTED]: 0,
+      [LaborAccidentReportStatus.RECEIVED]: 0,
+      [LaborAccidentReportStatus.REJECTED]: 0,
+    };
+  }
+
+  private createDashboardWarningCounts(): Record<DashboardWarningType, number> {
+    return {
+      OVERDUE_NOT_SUBMITTED: 0,
+      NEARING_DEADLINE: 0,
+      REJECTED_NOT_RESUBMITTED: 0,
+      PENDING_RECEIVE: 0,
+    };
+  }
+
+  private mapDashboardReportPeriod(reportPeriod: LaborAccidentReportPeriod) {
+    const today = this.getVietnamTodayKey();
+    const startDate = this.toDateKey(reportPeriod.startDate);
+    const endDate = this.toDateKey(reportPeriod.endDate);
+
+    return {
+      id: reportPeriod.id,
+      reportName: reportPeriod.reportName,
+      year: reportPeriod.year,
+      periodType: reportPeriod.periodType,
+      periodTypeLabel: PERIOD_TYPE_LABELS[reportPeriod.periodType],
+      startDate,
+      endDate,
+      isActive: reportPeriod.isActive,
+      windowStatus: this.getReportPeriodWindowStatus(reportPeriod),
+      daysToStart: this.diffDateKeysInDays(today, startDate),
+      daysToDeadline: this.diffDateKeysInDays(today, endDate),
+    };
+  }
+
+  private mapDashboardProgress(
+    statusCounts: Record<DashboardReportStatus, number>,
+    totalEligibleReportObligations: number,
+    totalExistingReports: number,
+  ) {
+    const submittedCount = statusCounts[LaborAccidentReportStatus.SUBMITTED];
+    const receivedCount = statusCounts[LaborAccidentReportStatus.RECEIVED];
+    const submittedOrReceivedCount = submittedCount + receivedCount;
+
+    return {
+      totalEligibleReportObligations,
+      totalExistingReports,
+      notStartedCount: statusCounts.NOT_STARTED,
+      draftCount: statusCounts[LaborAccidentReportStatus.DRAFT],
+      submittedCount,
+      receivedCount,
+      rejectedCount: statusCounts[LaborAccidentReportStatus.REJECTED],
+      submittedOrReceivedCount,
+      submittedRate: this.toDashboardPercent(
+        submittedOrReceivedCount,
+        totalEligibleReportObligations,
+      ),
+      receivedRate: this.toDashboardPercent(
+        receivedCount,
+        totalEligibleReportObligations,
+      ),
+      completionRate: this.toDashboardPercent(
+        receivedCount,
+        totalEligibleReportObligations,
+      ),
+    };
+  }
+
+  private mapDashboardStatusCounts(
+    statusCounts: Record<DashboardReportStatus, number>,
+    totalEligibleReportObligations: number,
+  ) {
+    const statuses: DashboardReportStatus[] = [
+      'NOT_STARTED',
+      LaborAccidentReportStatus.DRAFT,
+      LaborAccidentReportStatus.SUBMITTED,
+      LaborAccidentReportStatus.RECEIVED,
+      LaborAccidentReportStatus.REJECTED,
+    ];
+
+    return statuses.map((status) => ({
+      status,
+      label: DASHBOARD_STATUS_LABELS[status],
+      count: statusCounts[status],
+      percentage: this.toDashboardPercent(
+        statusCounts[status],
+        totalEligibleReportObligations,
+      ),
+    }));
+  }
+
+  private mapDashboardWarningCards(
+    warningCounts: Record<DashboardWarningType, number>,
+  ) {
+    return (Object.keys(DASHBOARD_WARNING_DEFINITIONS) as DashboardWarningType[])
+      .sort(
+        (first, second) =>
+          DASHBOARD_WARNING_DEFINITIONS[first].sortOrder -
+          DASHBOARD_WARNING_DEFINITIONS[second].sortOrder,
+      )
+      .map((type) => ({
+        type,
+        label: DASHBOARD_WARNING_DEFINITIONS[type].label,
+        severity: DASHBOARD_WARNING_DEFINITIONS[type].severity,
+        count: warningCounts[type],
+      }));
+  }
+
+  private mapDashboardWarningBusiness(
+    business: Business,
+    reportPeriod: LaborAccidentReportPeriod,
+    report?: LaborAccidentReport,
+  ) {
+    const status: DashboardReportStatus = report?.status ?? 'NOT_STARTED';
+    const daysToDeadline = this.diffDateKeysInDays(
+      this.getVietnamTodayKey(),
+      this.toDateKey(reportPeriod.endDate),
+    );
+    const warningType = this.getDashboardPrimaryWarningType(
+      reportPeriod,
+      status,
+      daysToDeadline,
+    );
+
+    if (!warningType) {
+      return null;
+    }
+
+    const warningDefinition = DASHBOARD_WARNING_DEFINITIONS[warningType];
+
+    return {
+      type: warningType,
+      label: warningDefinition.label,
+      severity: warningDefinition.severity,
+      sortOrder: warningDefinition.sortOrder,
+      businessId: business.id,
+      businessName: business.businessName,
+      taxCode: business.taxCode,
+      businessType:
+        business.businessTypeCatalog?.name ?? business.businessType ?? null,
+      provinceCity: business.provinceCity,
+      wardCommune: business.wardCommune,
+      reportId: report?.id ?? null,
+      reportPeriodId: reportPeriod.id,
+      reportName: reportPeriod.reportName,
+      year: reportPeriod.year,
+      periodType: reportPeriod.periodType,
+      periodTypeLabel: PERIOD_TYPE_LABELS[reportPeriod.periodType],
+      status,
+      statusLabel: DASHBOARD_STATUS_LABELS[status],
+      windowStatus: this.getReportPeriodWindowStatus(reportPeriod),
+      daysToDeadline,
+      submittedAt: report?.submittedAt ?? null,
+      receivedAt: report?.receivedAt ?? null,
+      rejectReason: report?.rejectReason ?? null,
+    };
+  }
+
+  private getDashboardPrimaryWarningType(
+    reportPeriod: LaborAccidentReportPeriod,
+    status: DashboardReportStatus,
+    daysToDeadline: number,
+  ): DashboardWarningType | null {
+    const windowStatus = this.getReportPeriodWindowStatus(reportPeriod);
+    const isWaitingForBusinessAction =
+      status === 'NOT_STARTED' ||
+      status === LaborAccidentReportStatus.DRAFT ||
+      status === LaborAccidentReportStatus.REJECTED;
+
+    if (windowStatus === 'CLOSED' && isWaitingForBusinessAction) {
+      return 'OVERDUE_NOT_SUBMITTED';
+    }
+
+    if (
+      status === LaborAccidentReportStatus.REJECTED &&
+      windowStatus === 'OPEN'
+    ) {
+      return 'REJECTED_NOT_RESUBMITTED';
+    }
+
+    if (
+      windowStatus === 'OPEN' &&
+      isWaitingForBusinessAction &&
+      daysToDeadline >= 0 &&
+      daysToDeadline <= 7
+    ) {
+      return 'NEARING_DEADLINE';
+    }
+
+    if (status === LaborAccidentReportStatus.SUBMITTED) {
+      return 'PENDING_RECEIVE';
+    }
+
+    return null;
+  }
+
+  private sortDashboardWarnings(items: Array<Record<string, unknown>>) {
+    return [...items].sort((first, second) => {
+      const firstSortOrder =
+        typeof first.sortOrder === 'number' ? first.sortOrder : 999;
+      const secondSortOrder =
+        typeof second.sortOrder === 'number' ? second.sortOrder : 999;
+
+      if (firstSortOrder !== secondSortOrder) {
+        return firstSortOrder - secondSortOrder;
+      }
+
+      const firstDaysToDeadline =
+        typeof first.daysToDeadline === 'number'
+          ? first.daysToDeadline
+          : Number.MAX_SAFE_INTEGER;
+      const secondDaysToDeadline =
+        typeof second.daysToDeadline === 'number'
+          ? second.daysToDeadline
+          : Number.MAX_SAFE_INTEGER;
+
+      if (firstDaysToDeadline !== secondDaysToDeadline) {
+        return firstDaysToDeadline - secondDaysToDeadline;
+      }
+
+      return String(first.businessName ?? '').localeCompare(
+        String(second.businessName ?? ''),
+        'vi',
+        { numeric: true },
+      );
+    });
+  }
+
+  private toDashboardPercent(value: number, total: number) {
+    if (!total) {
+      return 0;
+    }
+
+    return Math.round((value / total) * 10000) / 100;
+  }
+
+  private diffDateKeysInDays(fromDateKey: string, toDateKey: string) {
+    const diff =
+      this.toDateKeyTimestamp(toDateKey) - this.toDateKeyTimestamp(fromDateKey);
+
+    return Math.round(diff / 86_400_000);
+  }
+
+  private toDateKeyTimestamp(dateKey: string) {
+    const [year, month, day] = dateKey.split('-').map(Number);
+
+    return Date.UTC(year, month - 1, day);
   }
 
   private assertBusinessCanWriteReport(
@@ -1885,6 +3029,752 @@ export class LaborAccidentReportService {
     }
 
     return trimmedValue.replace(/,/g, '');
+  }
+
+  private addPreSubmitIssue(
+    items: PreSubmitCheckItem[],
+    item: PreSubmitCheckItem,
+  ) {
+    if (items.some((existingItem) => existingItem.code === item.code)) {
+      return;
+    }
+
+    items.push(item);
+  }
+
+  private addBadRequestIssues(
+    items: PreSubmitCheckItem[],
+    error: unknown,
+    baseCode: string,
+    title: string,
+    targetStep: number,
+    targetSection: PreSubmitCheckTargetSection,
+  ) {
+    if (!(error instanceof BadRequestException)) {
+      throw error;
+    }
+
+    const messages = this.extractBadRequestMessages(error);
+
+    for (const [index, message] of messages.entries()) {
+      this.addPreSubmitIssue(items, {
+        code: `${baseCode}_${index + 1}`,
+        severity: 'danger',
+        category: 'HARD_VALIDATION',
+        title,
+        message,
+        suggestion:
+          'Vui lòng quay lại kiểm tra dữ liệu nhập liệu trước khi gửi báo cáo.',
+        targetStep,
+        targetSection,
+        blocking: true,
+      });
+    }
+  }
+
+  private extractBadRequestMessages(error: BadRequestException) {
+    const response = error.getResponse();
+
+    if (typeof response === 'string') {
+      return [response];
+    }
+
+    if (response && typeof response === 'object' && 'message' in response) {
+      const message = (response as { message?: unknown }).message;
+
+      if (Array.isArray(message)) {
+        return message.map((item) => String(item));
+      }
+
+      if (message !== undefined && message !== null) {
+        return [String(message)];
+      }
+    }
+
+    return [error.message || 'Dữ liệu báo cáo không hợp lệ'];
+  }
+
+  private getCurrentStampedAttachment(report: LaborAccidentReport) {
+    return (
+      report.attachments?.find(
+        (attachment) =>
+          attachment.type === LaborAccidentReportAttachmentType.STAMPED_REPORT &&
+          attachment.isCurrent,
+      ) ?? null
+    );
+  }
+
+  private async findLastRejectAuditLog(reportId: number) {
+    return this.reportAuditLogRepository.findOne({
+      where: {
+        report: { id: reportId },
+        action: LaborAccidentReportAuditAction.REJECT,
+      },
+      order: {
+        createdAt: 'DESC',
+        id: 'DESC',
+      },
+    });
+  }
+
+  private analyzeRejectReason(
+    reason: string | null | undefined,
+  ): RejectionReasonAnalysis {
+    const trimmedReason = reason?.trim() ?? '';
+    const normalizedReason = this.normalizeTextForRuleMatching(trimmedReason);
+
+    if (
+      !trimmedReason ||
+      normalizedReason.replace(/[^a-z0-9]/g, '').length < 4
+    ) {
+      return {
+        topic: 'UNCLEAR',
+        isClear: false,
+        suggestion:
+          'Lý do từ chối chưa đủ rõ để xác định chính xác hạng mục cần sửa. Vui lòng kiểm tra lại file đính kèm, số liệu tổng hợp, chi tiết tai nạn và kỳ báo cáo trước khi gửi lại.',
+      };
+    }
+
+    if (
+      this.containsAnyRuleKeyword(normalizedReason, [
+        'dau moc',
+        'chu ky',
+        'ky ten',
+        'dong dau',
+        'xac nhan',
+      ])
+    ) {
+      return {
+        topic: 'SIGNATURE',
+        isClear: true,
+        suggestion:
+          'Vui lòng kiểm tra file đính kèm đã có dấu mộc/chữ ký xác nhận phù hợp trước khi gửi lại.',
+      };
+    }
+
+    if (
+      this.containsAnyRuleKeyword(normalizedReason, [
+        'file',
+        'tep',
+        'dinh kem',
+        'pdf',
+        'word',
+        'khong mo duoc',
+        'khong hop le',
+        'loi file',
+      ])
+    ) {
+      return {
+        topic: 'FILE',
+        isClear: true,
+        suggestion:
+          'Vui lòng thay hoặc kiểm tra lại file đính kèm, bảo đảm file mở được, đúng định dạng và đúng nội dung báo cáo.',
+      };
+    }
+
+    if (
+      this.containsAnyRuleKeyword(normalizedReason, [
+        'so lieu',
+        'tong',
+        'khop',
+        'chi tiet',
+        'sai so',
+        'vu tai nan',
+        'nguoi bi nan',
+        'chi phi',
+        'thiet hai',
+      ])
+    ) {
+      return {
+        topic: 'METRIC',
+        isClear: true,
+        suggestion:
+          'Vui lòng đối chiếu lại số liệu tổng hợp, chi tiết từng vụ tai nạn, số người bị nạn và các khoản chi phí.',
+      };
+    }
+
+    if (
+      this.containsAnyRuleKeyword(normalizedReason, [
+        'ky bao cao',
+        'nam bao cao',
+        'nham ky',
+        'nham nam',
+        'thoi gian',
+      ])
+    ) {
+      return {
+        topic: 'PERIOD',
+        isClear: true,
+        suggestion:
+          'Vui lòng kiểm tra đúng năm, kỳ báo cáo và khoảng thời gian được phép gửi báo cáo.',
+      };
+    }
+
+    return {
+      topic: 'GENERAL',
+      isClear: trimmedReason.length >= 10,
+      suggestion:
+        'Vui lòng đọc lại lý do từ chối và rà soát toàn bộ dữ liệu, file đính kèm trước khi gửi lại.',
+    };
+  }
+
+  private normalizeTextForRuleMatching(value: string) {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private containsAnyRuleKeyword(value: string, keywords: string[]) {
+    return keywords.some((keyword) => value.includes(keyword));
+  }
+
+  private collectAttachmentPreSubmitIssues(
+    items: PreSubmitCheckItem[],
+    report: LaborAccidentReport,
+    files: Express.Multer.File[],
+    currentAttachment: LaborAccidentReportAttachment | null,
+    lastRejectLog: LaborAccidentReportAuditLog | null,
+    rejectionAnalysis: RejectionReasonAnalysis,
+  ) {
+    if (files.length > 1) {
+      this.addPreSubmitIssue(items, {
+        code: 'MULTIPLE_STAMPED_FILES_SELECTED',
+        severity: 'warning',
+        category: 'ATTACHMENT',
+        title: 'Đang chọn nhiều file đính kèm',
+        message:
+          'Hệ thống chỉ giữ một file báo cáo có dấu mộc hiện hành sau khi gửi.',
+        suggestion:
+          'Nên chỉ chọn file cuối cùng, đầy đủ và đúng nhất để tránh nhầm lẫn khi Sở kiểm tra.',
+        targetStep: 4,
+        targetSection: 'ATTACHMENT',
+        blocking: false,
+        metadata: {
+          selectedFileCount: files.length,
+        },
+      });
+    }
+
+    for (const file of files) {
+      if (!this.isLikelyReportDocument(file.originalname, file.mimetype)) {
+        this.addPreSubmitIssue(items, {
+          code: `ATTACHMENT_FORMAT_REVIEW_${this.normalizeTextForRuleMatching(
+            file.originalname,
+          ).slice(0, 30)}`,
+          severity: 'warning',
+          category: 'ATTACHMENT',
+          title: 'Định dạng file cần kiểm tra lại',
+          message: `File "${file.originalname}" không giống định dạng PDF/Word thường dùng cho báo cáo.`,
+          suggestion:
+            'Vui lòng bảo đảm file có thể mở được và đúng định dạng mà đơn vị tiếp nhận yêu cầu.',
+          targetStep: 4,
+          targetSection: 'ATTACHMENT',
+          blocking: false,
+          metadata: {
+            fileName: file.originalname,
+            mimetype: file.mimetype,
+          },
+        });
+      }
+    }
+
+    if (!lastRejectLog) {
+      return;
+    }
+
+    const attachmentChangedAfterReject = this.hasAttachmentChangedAfterReject(
+      files,
+      currentAttachment,
+      lastRejectLog,
+    );
+    const isFileRelatedReject =
+      rejectionAnalysis.topic === 'FILE' ||
+      rejectionAnalysis.topic === 'SIGNATURE';
+
+    if (isFileRelatedReject && !attachmentChangedAfterReject) {
+      this.addPreSubmitIssue(items, {
+        code: 'REJECTED_FILE_NOT_CHANGED',
+        severity: 'danger',
+        category: 'REJECTION_HISTORY',
+        title: 'File chưa thay đổi sau lần bị từ chối',
+        message:
+          'Lý do từ chối gần nhất có liên quan đến file/dấu mộc, nhưng hệ thống chưa thấy file mới sau thời điểm bị từ chối.',
+        suggestion: rejectionAnalysis.suggestion,
+        targetStep: 4,
+        targetSection: 'ATTACHMENT',
+        blocking: false,
+        metadata: {
+          rejectedAt: lastRejectLog.createdAt,
+          currentAttachmentName: currentAttachment?.originalName ?? null,
+        },
+      });
+    } else if (isFileRelatedReject && attachmentChangedAfterReject) {
+      this.addPreSubmitIssue(items, {
+        code: 'REJECTED_FILE_CHANGED',
+        severity: 'info',
+        category: 'REJECTION_HISTORY',
+        title: 'File đã được thay đổi sau lần bị từ chối',
+        message:
+          'Báo cáo từng bị từ chối vì nội dung liên quan đến file và hiện đã có file mới hoặc file hiện hành được cập nhật sau lần từ chối.',
+        suggestion:
+          'Bạn vẫn nên mở lại file để kiểm tra dấu mộc/chữ ký và nội dung trước khi gửi.',
+        targetStep: 4,
+        targetSection: 'ATTACHMENT',
+        blocking: false,
+      });
+    }
+
+    if (!files.length && currentAttachment) {
+      this.addPreSubmitIssue(items, {
+        code: 'USING_EXISTING_STAMPED_FILE',
+        severity: 'info',
+        category: 'ATTACHMENT',
+        title: 'Đang sử dụng file đính kèm hiện hành',
+        message: `Hệ thống sẽ gửi lại file hiện hành "${currentAttachment.originalName}".`,
+        suggestion:
+          'Nếu bạn đã chỉnh sửa file trên máy, hãy tải file mới lên trước khi xác nhận gửi.',
+        targetStep: 4,
+        targetSection: 'ATTACHMENT',
+        blocking: false,
+        metadata: {
+          reportId: report.id,
+          attachmentId: currentAttachment.id,
+        },
+      });
+    }
+  }
+
+  private collectRejectionHistoryPreSubmitIssues(
+    items: PreSubmitCheckItem[],
+    originalReport: LaborAccidentReport,
+    checkReport: LaborAccidentReport,
+    lastRejectLog: LaborAccidentReportAuditLog | null,
+    rejectionAnalysis: RejectionReasonAnalysis,
+  ) {
+    if (!lastRejectLog) {
+      return;
+    }
+
+    if (!rejectionAnalysis.isClear) {
+      this.addPreSubmitIssue(items, {
+        code: 'REJECT_REASON_UNCLEAR',
+        severity: 'warning',
+        category: 'REJECTION_HISTORY',
+        title: 'Lý do từ chối chưa đủ rõ',
+        message:
+          'Hệ thống không xác định được chính xác hạng mục cần sửa từ lý do từ chối gần nhất.',
+        suggestion: rejectionAnalysis.suggestion,
+        targetStep: 4,
+        targetSection: 'REVIEW',
+        blocking: false,
+      });
+    } else {
+      this.addPreSubmitIssue(items, {
+        code: `REJECT_REASON_${rejectionAnalysis.topic}`,
+        severity: 'info',
+        category: 'REJECTION_HISTORY',
+        title: 'Có lịch sử từ chối cần đối chiếu',
+        message: `Lý do từ chối gần nhất: "${lastRejectLog.reason ?? originalReport.rejectReason ?? 'Không có nội dung'}".`,
+        suggestion: rejectionAnalysis.suggestion,
+        targetStep: 4,
+        targetSection: 'REVIEW',
+        blocking: false,
+        metadata: {
+          rejectedAt: lastRejectLog.createdAt,
+          topic: rejectionAnalysis.topic,
+        },
+      });
+    }
+
+    if (
+      originalReport.updatedAt <= lastRejectLog.createdAt &&
+      !this.hasReportMetricDifference(originalReport, checkReport)
+    ) {
+      this.addPreSubmitIssue(items, {
+        code: 'REJECTED_REPORT_NO_VISIBLE_DATA_CHANGE',
+        severity: 'warning',
+        category: 'REJECTION_HISTORY',
+        title: 'Chưa thấy thay đổi dữ liệu sau lần bị từ chối',
+        message:
+          'Báo cáo từng bị từ chối nhưng hệ thống chưa thấy số liệu chính thay đổi so với dữ liệu đang lưu.',
+        suggestion:
+          'Nếu bạn đã sửa ở file đính kèm, hãy kiểm tra lại file; nếu lý do liên quan đến số liệu, vui lòng rà soát các trường tổng hợp và chi tiết.',
+        targetStep: 2,
+        targetSection: 'SUMMARY',
+        blocking: false,
+      });
+    }
+  }
+
+  private collectSoftMetricPreSubmitIssues(
+    items: PreSubmitCheckItem[],
+    report: LaborAccidentReport,
+    details: NormalizedDetailPayload[],
+  ) {
+    const totalAccidents = this.metricValue(report, 'totalAccidents');
+    const totalVictims = this.metricValue(report, 'totalVictims');
+    const totalEmployees = this.metricValue(report, 'totalEmployees');
+    const femaleEmployees = this.metricValue(report, 'femaleEmployees');
+    const femaleVictims = this.metricValue(report, 'femaleVictims');
+    const totalCost = this.metricValue(report, 'totalCost');
+    const totalDaysOff = this.metricValue(report, 'totalDaysOff');
+    const propertyDamage = this.metricValue(report, 'propertyDamage');
+    const accidentDetails = details.filter(
+      (detail) => detail.section === LaborAccidentReportDetailSection.ACCIDENT,
+    );
+
+    if (
+      totalAccidents === 0 &&
+      (totalCost > 0 || totalDaysOff > 0 || propertyDamage > 0)
+    ) {
+      this.addPreSubmitIssue(items, {
+        code: 'NO_ACCIDENT_BUT_HAS_DAMAGE',
+        severity: 'warning',
+        category: 'METRIC_CONSISTENCY',
+        title: 'Có chi phí/thiệt hại nhưng tổng số vụ bằng 0',
+        message:
+          'Báo cáo đang ghi nhận chi phí, ngày nghỉ hoặc thiệt hại tài sản trong khi tổng số vụ tai nạn bằng 0.',
+        suggestion:
+          'Vui lòng kiểm tra lại phần tổng số vụ tai nạn và các khoản chi phí/thiệt hại.',
+        targetStep: 2,
+        targetSection: 'SUMMARY',
+        blocking: false,
+      });
+    }
+
+    if (totalVictims === 0 && totalCost > 0) {
+      this.addPreSubmitIssue(items, {
+        code: 'NO_VICTIM_BUT_HAS_COST',
+        severity: 'warning',
+        category: 'METRIC_CONSISTENCY',
+        title: 'Có chi phí nhưng tổng số người bị nạn bằng 0',
+        message:
+          'Tổng chi phí đang lớn hơn 0 nhưng báo cáo chưa ghi nhận người bị nạn.',
+        suggestion:
+          'Vui lòng đối chiếu lại tổng số người bị nạn và các khoản chi phí liên quan.',
+        targetStep: 2,
+        targetSection: 'SUMMARY',
+        blocking: false,
+      });
+    }
+
+    if (femaleEmployees === 0 && femaleVictims > 0) {
+      this.addPreSubmitIssue(items, {
+        code: 'FEMALE_VICTIMS_WITHOUT_FEMALE_EMPLOYEES',
+        severity: 'warning',
+        category: 'METRIC_CONSISTENCY',
+        title: 'Có lao động nữ bị nạn nhưng tổng lao động nữ bằng 0',
+        message:
+          'Báo cáo ghi nhận lao động nữ bị nạn trong khi tổng số lao động nữ của cơ sở đang bằng 0.',
+        suggestion:
+          'Vui lòng kiểm tra lại tổng số lao động nữ và số lao động nữ bị nạn.',
+        targetStep: 2,
+        targetSection: 'SUMMARY',
+        blocking: false,
+      });
+    }
+
+    if (
+      totalEmployees > 0 &&
+      totalVictims > 0 &&
+      totalVictims / totalEmployees >= 0.3
+    ) {
+      this.addPreSubmitIssue(items, {
+        code: 'HIGH_VICTIM_RATE',
+        severity: 'warning',
+        category: 'METRIC_CONSISTENCY',
+        title: 'Tỷ lệ người bị nạn cao bất thường',
+        message:
+          'Tổng số người bị nạn chiếm từ 30% tổng số lao động trở lên.',
+        suggestion:
+          'Đây không chắc chắn là lỗi, nhưng bạn nên kiểm tra lại số lao động và số người bị nạn trước khi gửi.',
+        targetStep: 2,
+        targetSection: 'SUMMARY',
+        blocking: false,
+        metadata: {
+          totalEmployees,
+          totalVictims,
+          victimRate: Number((totalVictims / totalEmployees).toFixed(4)),
+        },
+      });
+    }
+
+    for (const detail of accidentDetails) {
+      const detailHasAccidentData =
+        this.metricValue(detail, 'totalAccidents') > 0 ||
+        this.metricValue(detail, 'totalVictims') > 0 ||
+        this.metricValue(detail, 'totalCost') > 0;
+
+      if (
+        detailHasAccidentData &&
+        (!detail.accidentCauseCodeSnapshot ||
+          !detail.injuryFactorCodeSnapshot ||
+          !detail.occupationCodeSnapshot)
+      ) {
+        this.addPreSubmitIssue(items, {
+          code: `DETAIL_${detail.orderNo ?? 'UNKNOWN'}_CATALOG_INCOMPLETE`,
+          severity: 'warning',
+          category: 'METRIC_CONSISTENCY',
+          title: 'Chi tiết tai nạn chưa đủ phân loại',
+          message: `Chi tiết vụ tai nạn số ${detail.orderNo ?? '?'} có số liệu nhưng chưa đủ nguyên nhân, yếu tố chấn thương hoặc nghề nghiệp.`,
+          suggestion:
+            'Vui lòng kiểm tra lại các danh mục phân loại ở phần chi tiết vụ tai nạn.',
+          targetStep: 3,
+          targetSection: 'DETAILS',
+          blocking: false,
+        });
+      }
+    }
+  }
+
+  private collectPreviousReportPreSubmitIssues(
+    items: PreSubmitCheckItem[],
+    report: LaborAccidentReport,
+    previousReport: LaborAccidentReport | null,
+  ) {
+    if (!previousReport) {
+      return;
+    }
+
+    const currentAccidents = this.metricValue(report, 'totalAccidents');
+    const previousAccidents = this.metricValue(previousReport, 'totalAccidents');
+    const currentCost = this.metricValue(report, 'totalCost');
+    const previousCost = this.metricValue(previousReport, 'totalCost');
+
+    if (previousReport.status === LaborAccidentReportStatus.REJECTED) {
+      this.addPreSubmitIssue(items, {
+        code: 'PREVIOUS_REPORT_REJECTED',
+        severity: 'info',
+        category: 'PREVIOUS_PERIOD',
+        title: 'Kỳ báo cáo gần nhất từng bị từ chối',
+        message:
+          'Báo cáo gần nhất trước kỳ này có trạng thái từ chối phê duyệt.',
+        suggestion:
+          'Bạn nên đối chiếu lại các lỗi từng gặp ở kỳ trước để tránh lặp lại khi gửi báo cáo kỳ này.',
+        targetStep: 4,
+        targetSection: 'REVIEW',
+        blocking: false,
+        metadata: {
+          previousReportId: previousReport.id,
+        },
+      });
+    }
+
+    if (previousAccidents > 0 && currentAccidents === 0) {
+      this.addPreSubmitIssue(items, {
+        code: 'ACCIDENTS_DROPPED_TO_ZERO',
+        severity: 'warning',
+        category: 'PREVIOUS_PERIOD',
+        title: 'Số vụ giảm về 0 so với kỳ trước',
+        message:
+          'Kỳ báo cáo gần nhất có ghi nhận tai nạn lao động, nhưng kỳ hiện tại đang là 0 vụ.',
+        suggestion:
+          'Nếu kỳ này thật sự không phát sinh tai nạn thì có thể tiếp tục; nếu chưa chắc chắn, vui lòng kiểm tra lại số liệu.',
+        targetStep: 2,
+        targetSection: 'SUMMARY',
+        blocking: false,
+        metadata: {
+          previousAccidents,
+          currentAccidents,
+        },
+      });
+    }
+
+    if (previousAccidents > 0 && currentAccidents >= previousAccidents * 2) {
+      this.addPreSubmitIssue(items, {
+        code: 'ACCIDENTS_INCREASED_SHARPLY',
+        severity: 'warning',
+        category: 'PREVIOUS_PERIOD',
+        title: 'Số vụ tăng mạnh so với kỳ trước',
+        message:
+          'Tổng số vụ tai nạn hiện tại tăng từ 2 lần trở lên so với kỳ báo cáo gần nhất.',
+        suggestion:
+          'Đây không chắc chắn là lỗi, nhưng bạn nên kiểm tra lại số liệu tổng hợp và chi tiết.',
+        targetStep: 2,
+        targetSection: 'SUMMARY',
+        blocking: false,
+        metadata: {
+          previousAccidents,
+          currentAccidents,
+        },
+      });
+    }
+
+    if (previousCost > 0 && currentCost >= previousCost * 2) {
+      this.addPreSubmitIssue(items, {
+        code: 'TOTAL_COST_INCREASED_SHARPLY',
+        severity: 'warning',
+        category: 'PREVIOUS_PERIOD',
+        title: 'Tổng chi phí tăng mạnh so với kỳ trước',
+        message:
+          'Tổng chi phí hiện tại tăng từ 2 lần trở lên so với kỳ báo cáo gần nhất.',
+        suggestion:
+          'Vui lòng kiểm tra lại các khoản chi phí y tế, trả lương, bồi thường/trợ cấp và thiệt hại tài sản.',
+        targetStep: 2,
+        targetSection: 'SUMMARY',
+        blocking: false,
+        metadata: {
+          previousCost,
+          currentCost,
+        },
+      });
+    } else if (previousCost === 0 && currentCost >= 50_000_000) {
+      this.addPreSubmitIssue(items, {
+        code: 'TOTAL_COST_NEW_HIGH_VALUE',
+        severity: 'warning',
+        category: 'PREVIOUS_PERIOD',
+        title: 'Phát sinh chi phí lớn so với kỳ trước',
+        message:
+          'Kỳ trước không ghi nhận chi phí, nhưng kỳ hiện tại phát sinh tổng chi phí lớn.',
+        suggestion:
+          'Vui lòng kiểm tra lại số tiền và đơn vị tính trước khi gửi báo cáo.',
+        targetStep: 2,
+        targetSection: 'SUMMARY',
+        blocking: false,
+        metadata: {
+          previousCost,
+          currentCost,
+        },
+      });
+    }
+  }
+
+  private async findPreviousReportForBusiness(
+    businessId: number,
+    currentReport: LaborAccidentReport,
+  ) {
+    const currentStartDate = this.toDateKey(currentReport.reportPeriod.startDate);
+
+    return this.reportRepository
+      .createQueryBuilder('report')
+      .leftJoinAndSelect('report.reportPeriod', 'previous_period')
+      .where('report.business_id = :businessId', { businessId })
+      .andWhere('report.id <> :reportId', { reportId: currentReport.id })
+      .andWhere(
+        '(previous_period.year < :year OR (previous_period.year = :year AND previous_period.start_date < :startDate))',
+        {
+          year: currentReport.reportPeriod.year,
+          startDate: currentStartDate,
+        },
+      )
+      .orderBy('previous_period.year', 'DESC')
+      .addOrderBy('previous_period.startDate', 'DESC')
+      .addOrderBy('report.id', 'DESC')
+      .getOne();
+  }
+
+  private isLikelyReportDocument(fileName: string, mimetype?: string | null) {
+    const normalizedName = this.normalizeTextForRuleMatching(fileName);
+    const normalizedMime = this.normalizeTextForRuleMatching(mimetype ?? '');
+
+    return (
+      normalizedName.endsWith('.pdf') ||
+      normalizedName.endsWith('.doc') ||
+      normalizedName.endsWith('.docx') ||
+      normalizedMime.includes('pdf') ||
+      normalizedMime.includes('word') ||
+      normalizedMime.includes('officedocument')
+    );
+  }
+
+  private hasAttachmentChangedAfterReject(
+    files: Express.Multer.File[],
+    currentAttachment: LaborAccidentReportAttachment | null,
+    lastRejectLog: LaborAccidentReportAuditLog,
+  ) {
+    if (files.length > 0) {
+      return true;
+    }
+
+    if (!currentAttachment?.createdAt) {
+      return false;
+    }
+
+    return currentAttachment.createdAt > lastRejectLog.createdAt;
+  }
+
+  private hasReportMetricDifference(
+    previousReport: LaborAccidentReport,
+    currentReport: LaborAccidentReport,
+  ) {
+    return this.getPreSubmitMetricKeys().some(
+      (key) =>
+        this.roundMoney(this.metricValue(previousReport, key)) !==
+        this.roundMoney(this.metricValue(currentReport, key)),
+    );
+  }
+
+  private getPreSubmitMetricKeys() {
+    return [
+      'totalEmployees',
+      'femaleEmployees',
+      'totalPayroll',
+      'totalAccidents',
+      'fatalAccidents',
+      'accidentsWithTwoOrMoreVictims',
+      'totalVictims',
+      'femaleVictims',
+      'deathVictims',
+      'severeInjuryVictims',
+      'victimsNotUnderManagement',
+      'femaleVictimsNotUnderManagement',
+      'deathVictimsNotUnderManagement',
+      'severeInjuryVictimsNotUnderManagement',
+      'medicalCost',
+      'salaryPaymentCost',
+      'allowanceCost',
+      'totalCost',
+      'totalDaysOff',
+      'propertyDamage',
+    ];
+  }
+
+  private calculatePreSubmitReadinessScore(items: PreSubmitCheckItem[]) {
+    const score = items.reduce((currentScore, item) => {
+      if (item.blocking) {
+        return currentScore - 30;
+      }
+
+      if (item.severity === 'danger') {
+        return currentScore - 15;
+      }
+
+      if (item.severity === 'warning') {
+        return currentScore - 8;
+      }
+
+      if (item.severity === 'info') {
+        return currentScore - 2;
+      }
+
+      return currentScore;
+    }, 100);
+
+    return Math.max(0, Math.min(100, score));
+  }
+
+  private getPreSubmitReadinessLevel(
+    readinessScore: number,
+    items: PreSubmitCheckItem[],
+  ): PreSubmitCheckLevel {
+    if (items.some((item) => item.blocking)) {
+      return 'NEEDS_FIX';
+    }
+
+    if (readinessScore >= 90) {
+      return 'READY';
+    }
+
+    if (readinessScore >= 70) {
+      return 'REVIEW_RECOMMENDED';
+    }
+
+    return 'NEEDS_ATTENTION';
   }
 
   private validateReportMetrics(report: LaborAccidentReport) {
@@ -3409,10 +5299,34 @@ export class LaborAccidentReportService {
         if (report.status === LaborAccidentReportStatus.REJECTED) {
           continue;
         }
-        report.status = LaborAccidentReportStatus.RECEIVED;
-        report.receivedAt = new Date();
-        report.receivedByUser = user;
-        const saved = await this.reportRepository.save(report);
+        const oldStatus = report.status;
+        const saved = await this.dataSource.transaction(async (manager) => {
+          report.status = LaborAccidentReportStatus.RECEIVED;
+          report.receivedAt = new Date();
+          report.receivedByUser = user;
+          const receivedReport = await manager.save(
+            LaborAccidentReport,
+            report,
+          );
+          await this.createReportAuditLog(
+            {
+              report: receivedReport,
+              action: LaborAccidentReportAuditAction.RECEIVE,
+              oldStatus,
+              newStatus: LaborAccidentReportStatus.RECEIVED,
+              actorUser: user,
+              metadata: {
+                isBulkAction: true,
+                reportPeriodId: report.reportPeriod.id,
+                reportPeriodYear: report.reportPeriod.year,
+                reportPeriodType: report.reportPeriod.periodType,
+              },
+            },
+            manager,
+          );
+
+          return receivedReport;
+        });
         results.push(saved);
       } catch (err) {
         console.error(`Error bulk receiving report ${id}:`, err);
@@ -3428,6 +5342,7 @@ export class LaborAccidentReportService {
     userId: number,
     reports: { id: number; rejectReason: string }[],
   ) {
+    const user = await this.findUser(userId);
     const results: LaborAccidentReport[] = [];
     for (const item of reports) {
       try {
@@ -3438,11 +5353,36 @@ export class LaborAccidentReportService {
         ) {
           continue;
         }
-        report.status = LaborAccidentReportStatus.REJECTED;
-        report.rejectReason = item.rejectReason;
-        report.receivedAt = null;
-        report.receivedByUser = null;
-        const saved = await this.reportRepository.save(report);
+        const oldStatus = report.status;
+        const saved = await this.dataSource.transaction(async (manager) => {
+          report.status = LaborAccidentReportStatus.REJECTED;
+          report.rejectReason = item.rejectReason;
+          report.receivedAt = null;
+          report.receivedByUser = null;
+          const rejectedReport = await manager.save(
+            LaborAccidentReport,
+            report,
+          );
+          await this.createReportAuditLog(
+            {
+              report: rejectedReport,
+              action: LaborAccidentReportAuditAction.REJECT,
+              oldStatus,
+              newStatus: LaborAccidentReportStatus.REJECTED,
+              actorUser: user,
+              reason: item.rejectReason,
+              metadata: {
+                isBulkAction: true,
+                reportPeriodId: report.reportPeriod.id,
+                reportPeriodYear: report.reportPeriod.year,
+                reportPeriodType: report.reportPeriod.periodType,
+              },
+            },
+            manager,
+          );
+
+          return rejectedReport;
+        });
         results.push(saved);
       } catch (err) {
         console.error(`Error bulk rejecting report ${item.id}:`, err);
@@ -3491,6 +5431,21 @@ export class LaborAccidentReportAdminController {
   })
   getReports(@Query() query: ListLaborAccidentReportsQueryDto) {
     return this.reportService.getDepartmentReports(query);
+  }
+
+  @Get('dashboard')
+  @Permissions('LABOR_C_REPORT_DASHBOARD')
+  @ApiOperation({
+    summary: 'Dashboard điều hành tiến độ báo cáo TNLĐ cho role Sở',
+    description:
+      'Tổng hợp tiến độ theo kỳ/năm/địa bàn, bao gồm cảnh báo sắp hết hạn, quá hạn, bị từ chối chưa gửi lại và báo cáo đang chờ tiếp nhận.',
+  })
+  @ApiOkResponse({
+    description: 'Dashboard điều hành tiến độ báo cáo TNLĐ',
+    type: ApiSuccessResponseDto,
+  })
+  getDashboard(@Query() query: LaborAccidentReportDashboardQueryDto) {
+    return this.reportService.getDepartmentReportDashboard(query);
   }
 
   @Get('summary')
@@ -3607,6 +5562,19 @@ export class LaborAccidentReportAdminController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.reportService.receiveDepartmentReport(currentUser.id, id);
+  }
+
+  @Get(':id/audit-logs')
+  @Permissions('LABOR_C_REPORT_AUDIT_VIEW')
+  @ApiOperation({
+    summary: 'Lịch sử xử lý báo cáo TNLĐ cho role Sở',
+  })
+  @ApiOkResponse({
+    description: 'Timeline lịch sử xử lý báo cáo TNLĐ',
+    type: ApiSuccessResponseDto,
+  })
+  getReportAuditLogs(@Param('id', ParseIntPipe) id: number) {
+    return this.reportService.getDepartmentReportAuditLogs(id);
   }
 
   @Get(':id')

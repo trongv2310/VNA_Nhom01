@@ -18,6 +18,7 @@ import {
   RoleManagement,
   BusinessReferenceManagement,
   LaborCatalogManagement,
+  DepartmentReportDashboard,
 } from "../../components";
 import type { UserData } from "../../components/UserProfile";
 import {
@@ -61,6 +62,7 @@ type ActiveView =
   | "business-type-management"
   | "industry-management"
   | "labor-catalog-management"
+  | "labor-dashboard"
   | "company-info"
   | "tnld-reports"
   | "tnld-theo-hdld"
@@ -83,6 +85,7 @@ const VIEW_PERMISSIONS: Partial<Record<ActiveView, string>> = {
   "business-type-management": "SYSTEM_C_BUSINESS_TYPE_VIEW",
   "industry-management": "SYSTEM_C_INDUSTRY_VIEW",
   "labor-catalog-management": "LABOR_C_CATALOG_VIEW",
+  "labor-dashboard": "LABOR_C_REPORT_DASHBOARD",
   "report-period": "SYSTEM_C_REPORT_PERIOD_VIEW",
   "tnld-reports": "LABOR_C_REPORT_VIEW",
 };
@@ -107,6 +110,8 @@ const getDefaultActiveView = (data: UserData): ActiveView => {
   if (hasUserPermission(data, "SYSTEM_C_ROLE_VIEW")) return "role-management";
   if (hasUserPermission(data, "SYSTEM_C_REPORT_PERIOD_VIEW"))
     return "report-period";
+  if (hasUserPermission(data, "LABOR_C_REPORT_DASHBOARD"))
+    return "labor-dashboard";
   if (hasUserPermission(data, "LABOR_C_CATALOG_VIEW"))
     return "labor-catalog-management";
   if (hasUserPermission(data, "LABOR_C_REPORT_VIEW")) return "tnld-reports";
@@ -440,17 +445,19 @@ export const DepartmentDashboardScreen: React.FC = () => {
                     ? "quan_ly_nganh_nghe"
                     : activeView === "labor-catalog-management"
                       ? "danh_muc_chung"
-                      : activeView === "company-info"
-                        ? "thong_tin_doanh_nghiep"
-                        : activeView === "tnld-reports" ||
-                            activeView === "tnld-theo-hdld"
-                          ? "tnld_theo_hdld"
-                          : activeView === "report-period"
-                            ? "ky_bao_cao"
-                            : activeView === "profile" &&
-                                userData.accountType === "DEPARTMENT"
-                              ? "thong_tin_tai_khoan"
-                              : ""
+                      : activeView === "labor-dashboard"
+                        ? "dashboard_tnld"
+                        : activeView === "company-info"
+                          ? "thong_tin_doanh_nghiep"
+                          : activeView === "tnld-reports" ||
+                              activeView === "tnld-theo-hdld"
+                            ? "tnld_theo_hdld"
+                            : activeView === "report-period"
+                              ? "ky_bao_cao"
+                              : activeView === "profile" &&
+                                  userData.accountType === "DEPARTMENT"
+                                ? "thong_tin_tai_khoan"
+                                : ""
       }
       onCloseMobile={() => setMobileMenuOpen(false)}
     />
@@ -574,6 +581,8 @@ export const DepartmentDashboardScreen: React.FC = () => {
               permissions={userData.permissions}
               isAdmin={hasUserRole(userData, "ADMIN")}
             />
+          ) : activeView === "labor-dashboard" ? (
+            <DepartmentReportDashboard showToast={showToastMsg} />
           ) : activeView === "company-info" ? (
             <CreateEnterprise
               key={profileResetKey}

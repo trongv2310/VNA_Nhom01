@@ -8,6 +8,7 @@ import {
   Loader2,
   Eye,
   FileText,
+  Clock3,
   X,
 } from "lucide-react";
 import {
@@ -20,6 +21,7 @@ import {
 } from "../services/api";
 import { DepartmentReportDetail } from "./DepartmentReportDetail";
 import { DepartmentSummaryReport } from "./DepartmentSummaryReport";
+import { ReportAuditTimeline } from "./ReportAuditTimeline";
 import { useAddress } from "../hooks/useAddress";
 
 interface DepartmentReportsProps {
@@ -48,6 +50,7 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
     isAdmin || permissions.includes(permission);
   const canReceive = hasPermission("LABOR_C_REPORT_RECEIVE");
   const canExport = hasPermission("LABOR_C_REPORT_EXPORT");
+  const canViewAudit = hasPermission("LABOR_C_REPORT_AUDIT_VIEW");
 
   // Filters & State
   const [year, setYear] = useState("2026");
@@ -91,6 +94,8 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
   const [limit, setLimit] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
   const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null);
+  const [selectedAuditReport, setSelectedAuditReport] =
+    useState<ReportItem | null>(null);
   const [isShowingSummary, setIsShowingSummary] = useState(false);
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
@@ -616,7 +621,7 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
                       )}
                     </td>
                     <td className="p-4 text-center">
-                      <div className="flex items-center justify-center">
+                      <div className="flex items-center justify-center gap-3">
                         <button
                           onClick={() => handleViewReport(report)}
                           title="Xem chi tiết báo cáo"
@@ -624,6 +629,15 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
                         >
                           <Eye className="w-[18px] h-[18px]" />
                         </button>
+                        {canViewAudit && (
+                          <button
+                            onClick={() => setSelectedAuditReport(report)}
+                            title="Xem tiến độ xử lý"
+                            className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-blue-600 transition-all cursor-pointer"
+                          >
+                            <Clock3 className="w-[18px] h-[18px]" />
+                          </button>
+                        )}
                       </div>
                     </td>
                     <td className="p-4 font-bold text-zinc-900 dark:text-zinc-100 break-words max-w-[450px]">
@@ -881,6 +895,24 @@ export const DepartmentReports: React.FC<DepartmentReportsProps> = ({
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {selectedAuditReport && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setSelectedAuditReport(null)}
+          />
+          <div className="relative w-full max-w-[860px] animate-in zoom-in-95 duration-200">
+            <ReportAuditTimeline
+              reportId={selectedAuditReport.id}
+              variant="department"
+              enabled={canViewAudit}
+              className="max-h-[78vh]"
+              onClose={() => setSelectedAuditReport(null)}
+            />
           </div>
         </div>
       )}

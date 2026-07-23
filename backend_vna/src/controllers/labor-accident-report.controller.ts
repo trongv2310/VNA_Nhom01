@@ -29,6 +29,7 @@ import type { CurrentUserData } from '../decorators/current-user.decorator';
 import { Roles } from '../decorators/roles.decorator';
 import {
   ListMyLaborAccidentReportsQueryDto,
+  PreSubmitLaborAccidentReportCheckDto,
   SaveLaborAccidentReportDraftDto,
   SubmitLaborAccidentReportDto,
 } from '../dtos/labor-accident-report.dto';
@@ -96,6 +97,22 @@ export class LaborAccidentReportController {
     @CurrentUser() currentUser: CurrentUserData,
   ) {
     return this.reportService.getMyAvailableReportPeriods(currentUser.id);
+  }
+
+  @Get(':id/audit-logs')
+  @ApiOperation({
+    summary:
+      'Lịch sử xử lý báo cáo TNLĐ của doanh nghiệp đang đăng nhập',
+  })
+  @ApiOkResponse({
+    description: 'Timeline lịch sử xử lý báo cáo TNLĐ',
+    type: ApiSuccessResponseDto,
+  })
+  getMyReportAuditLogs(
+    @CurrentUser() currentUser: CurrentUserData,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.reportService.getMyReportAuditLogs(currentUser.id, id);
   }
 
   @Get(':id')
@@ -213,6 +230,69 @@ export class LaborAccidentReportController {
     @UploadedFiles() files: Express.Multer.File[] = [],
   ) {
     return this.reportService.saveDraft(currentUser.id, body, files);
+  }
+
+  @Post(':id/pre-submit-check')
+  @ApiOperation({
+    summary: 'Trợ lý rà soát mềm trước khi gửi báo cáo TNLĐ',
+    description:
+      'Kiểm tra dữ liệu báo cáo đang chuẩn bị gửi theo dạng bảng kiểm/cảnh báo mềm. API này không upload file, không lưu DB và không thay đổi trạng thái báo cáo.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    required: true,
+    schema: {
+      type: 'object',
+      required: ['reportPeriodId'],
+      properties: {
+        reportPeriodId: {
+          type: 'number',
+          example: 1,
+        },
+        totalEmployees: {
+          type: 'number',
+          example: 10,
+        },
+        details: {
+          type: 'string',
+          description: 'JSON array chi tiết báo cáo đang chuẩn bị gửi',
+        },
+        attachmentNames: {
+          type: 'string',
+          example: '["Báo cáo TNLĐ có dấu mộc"]',
+        },
+        attachments: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+  })
+  @ApiOkResponse({
+    description:
+      'Kết quả rà soát mềm trước khi gửi, gồm điểm sẵn sàng và các cảnh báo cần kiểm tra',
+    type: ApiSuccessResponseDto,
+  })
+  @UseInterceptors(
+    FilesInterceptor('attachments', 5, {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+      },
+    }),
+  )
+  preSubmitCheck(
+    @CurrentUser() currentUser: CurrentUserData,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PreSubmitLaborAccidentReportCheckDto,
+    @UploadedFiles() files: Express.Multer.File[] = [],
+  ) {
+    return this.reportService.checkReportBeforeSubmit(
+      currentUser.id,
+      id,
+      body,
+      files,
+    );
   }
 
   @Post(':id/submit')

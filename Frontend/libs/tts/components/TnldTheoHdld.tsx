@@ -5,7 +5,6 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
-  X,
   AlertTriangle,
   ChevronDown,
   ArrowRight,
@@ -13,17 +12,22 @@ import {
   Printer,
   Send,
   Loader2,
+  Clock3,
 } from "lucide-react";
 import {
   getMyLaborAccidentReports,
   getMyLaborAccidentReportDetail,
   saveLaborAccidentReportDraft,
+  checkLaborAccidentReportBeforeSubmit,
   submitLaborAccidentReport,
   getCatalogOptions,
   getMyLaborAccidentReportPeriods,
   getMyBusinessProfile,
+  type LaborAccidentPreSubmitCheckPayload,
 } from "../services/api";
 import { exportReportDocx } from "../utils/reportExporter";
+import { ReportAuditTimeline } from "./ReportAuditTimeline";
+import { PreSubmitAssistantModal } from "./PreSubmitAssistantModal";
 
 interface TnldTheoHdldProps {
   showToast: (message: string, type: "success" | "error") => void;
@@ -330,7 +334,17 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isPreSubmitChecking, setIsPreSubmitChecking] = useState(false);
   const submitInFlightRef = useRef(false);
+  const pendingSubmitRef = useRef<{
+    reportId: number;
+    body: FormData;
+    cacheKeyId: number;
+  } | null>(null);
+  const [preSubmitResult, setPreSubmitResult] =
+    useState<LaborAccidentPreSubmitCheckPayload | null>(null);
+  const [selectedAuditReport, setSelectedAuditReport] =
+    useState<ReportData | null>(null);
 
   // Catalog cache states
   const [causeCatalog, setCauseCatalog] = useState<any[]>([]);
@@ -2244,6 +2258,55 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
     }
   };
 
+  const goToPreSubmitTarget = (targetStep?: number) => {
+    if (!targetStep) return;
+
+    if (targetStep === 1) {
+      setCurrentSection("enterprise-info");
+      return;
+    }
+
+    if (targetStep === 2) {
+      setCurrentSection("accident-stats");
+      setActiveTab("totals");
+      return;
+    }
+
+    if (targetStep === 3) {
+      setCurrentSection("accident-stats");
+      setActiveTab("details");
+      return;
+    }
+
+    setCurrentSection("general-view");
+  };
+
+  const clearPreSubmitState = () => {
+    pendingSubmitRef.current = null;
+    setPreSubmitResult(null);
+  };
+
+  const executeSubmitReport = async (
+    reportId: number,
+    data: FormData,
+    cacheKeyId: number,
+  ) => {
+    const res = await submitLaborAccidentReport(reportId, data);
+    if (res.success) {
+      sessionStorage.removeItem(`vna_report_form_${cacheKeyId}`);
+      sessionStorage.removeItem(`vna_report_form_${reportId}`);
+      clearPreSubmitState();
+      showToast(
+        "Báo cáo tình hình tai nạn lao động đã được gửi thành công!",
+        "success",
+      );
+      setViewMode("list");
+      await loadReportsAndPeriods();
+    } else {
+      showToast(res.message || "Gửi báo cáo thất bại", "error");
+    }
+  };
+
   const handleSubmitReport = async () => {
     if (!formData || isReadOnly || submitInFlightRef.current) return;
 
@@ -2257,36 +2320,86 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
     }
 
     submitInFlightRef.current = true;
-    setIsLoading(true);
+    setIsPreSubmitChecking(true);
     try {
       const data = buildFormData();
       if (!data) return;
 
+      const cacheKeyId = formData.id;
       let reportId = formData.id;
       if (reportId < 0) {
         const draftRes = await saveLaborAccidentReportDraft(data);
         if (draftRes.success && draftRes.data) {
-          reportId = draftRes.data.id;
+          const fullReport = mapApiReportToFrontend(draftRes.data);
+          reportId = fullReport.id;
+          setFormData(fullReport);
+
+          const currentAttachment =
+            draftRes.data.currentAttachment ||
+            draftRes.data.attachments?.find(
+              (attachment: any) => attachment.isCurrent,
+            ) ||
+            draftRes.data.attachments?.[0];
+
+          if (currentAttachment) {
+            setUploadedFileName(
+              currentAttachment.displayName ||
+                currentAttachment.originalName ||
+                uploadedFileName,
+            );
+            setUploadedFileUrl(currentAttachment.fileUrl || "");
+          }
+          setUploadedFile(null);
           data.delete("attachments");
+          data.delete("attachmentNames");
         } else {
           showToast("Không thể khởi tạo báo cáo trước khi gửi", "error");
-          setIsLoading(false);
           return;
         }
       }
 
-      const res = await submitLaborAccidentReport(reportId, data);
-      if (res.success) {
-        sessionStorage.removeItem(`vna_report_form_${formData.id}`);
-        showToast(
-          "Báo cáo tình hình tai nạn lao động đã được gửi thành công!",
-          "success",
-        );
-        setViewMode("list");
-        await loadReportsAndPeriods();
+      const checkRes = await checkLaborAccidentReportBeforeSubmit(
+        reportId,
+        data,
+      );
+
+      if (checkRes.success && checkRes.data) {
+        pendingSubmitRef.current = {
+          reportId,
+          body: data,
+          cacheKeyId,
+        };
+        setPreSubmitResult(checkRes.data);
       } else {
-        showToast(res.message || "Gửi báo cáo thất bại", "error");
+        showToast(
+          checkRes.message || "Không thể rà soát báo cáo trước khi gửi",
+          "error",
+        );
       }
+    } catch (err: any) {
+      showToast(err.message || "Lỗi khi rà soát báo cáo trước khi gửi", "error");
+    } finally {
+      submitInFlightRef.current = false;
+      setIsPreSubmitChecking(false);
+    }
+  };
+
+  const handlePreSubmitBackToEdit = (targetStep?: number) => {
+    goToPreSubmitTarget(targetStep);
+    clearPreSubmitState();
+  };
+
+  const handleConfirmPreSubmit = async () => {
+    if (!pendingSubmitRef.current || submitInFlightRef.current) return;
+
+    submitInFlightRef.current = true;
+    setIsLoading(true);
+    try {
+      await executeSubmitReport(
+        pendingSubmitRef.current.reportId,
+        pendingSubmitRef.current.body,
+        pendingSubmitRef.current.cacheKeyId,
+      );
     } catch (err: any) {
       showToast(err.message || "Lỗi khi gửi báo cáo", "error");
     } finally {
@@ -2636,6 +2749,15 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                           >
                             <Eye className="h-[18px] w-[18px] text-zinc-400 group-hover:text-green-600 transition-colors" />
                           </button>
+                          {rep.id > 0 && (
+                            <button
+                              onClick={() => setSelectedAuditReport(rep)}
+                              title="Xem tiến độ xử lý"
+                              className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all cursor-pointer group"
+                            >
+                              <Clock3 className="h-[18px] w-[18px] text-zinc-400 group-hover:text-blue-600 transition-colors" />
+                            </button>
+                          )}
                           {rep.canEdit && (
                             <button
                               onClick={() => handleEditClick(rep, false)}
@@ -2742,6 +2864,24 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
             </div>
           </div>
         </div>
+
+        {selectedAuditReport && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setSelectedAuditReport(null)}
+            />
+            <div className="relative w-full max-w-[860px] animate-in zoom-in-95 duration-200">
+              <ReportAuditTimeline
+                reportId={selectedAuditReport.id}
+                variant="business"
+                className="max-h-[78vh]"
+                onClose={() => setSelectedAuditReport(null)}
+              />
+            </div>
+          </div>
+        )}
+
         {isLoading && (
           <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
             <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in-95 duration-200">
@@ -2816,7 +2956,10 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                   </button>
                   <button
                     disabled={
-                      isLoading || !uploadedFileName || !formData?.canSubmit
+                      isLoading ||
+                      isPreSubmitChecking ||
+                      !uploadedFileName ||
+                      !formData?.canSubmit
                     }
                     onClick={handleSubmitReport}
                     title={
@@ -2825,17 +2968,26 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                         : undefined
                     }
                     className={`flex items-center gap-1.5 px-6 py-2 rounded-xl font-bold text-sm transition-all ${
-                      !isLoading && uploadedFileName && formData?.canSubmit
+                      !isLoading &&
+                      !isPreSubmitChecking &&
+                      uploadedFileName &&
+                      formData?.canSubmit
                         ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md active:scale-98 cursor-pointer"
                         : "bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 cursor-not-allowed opacity-60"
                     }`}
                   >
-                    {isLoading ? (
+                    {isLoading || isPreSubmitChecking ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <Send className="w-4 h-4" />
                     )}
-                    <span>{isLoading ? "Đang gửi..." : "Gửi báo cáo"}</span>
+                    <span>
+                      {isPreSubmitChecking
+                        ? "Đang rà soát..."
+                        : isLoading
+                          ? "Đang gửi..."
+                          : "Gửi báo cáo"}
+                    </span>
                   </button>
                 </>
               ) : (
@@ -4699,6 +4851,19 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
       )}
 
       {/* ========================================== */}
+      {/* POPUP PRE-SUBMIT ASSISTANT */}
+      {/* ========================================== */}
+      {preSubmitResult && (
+        <PreSubmitAssistantModal
+          result={preSubmitResult}
+          isSubmitting={isLoading}
+          onClose={clearPreSubmitState}
+          onBackToEdit={handlePreSubmitBackToEdit}
+          onConfirmSubmit={handleConfirmPreSubmit}
+        />
+      )}
+
+      {/* ========================================== */}
       {/* POPUP CANCEL CONFIRM */}
       {/* ========================================== */}
       {showCancelConfirm && (
@@ -4735,6 +4900,23 @@ export const TnldTheoHdld: React.FC<TnldTheoHdldProps> = ({ showToast }) => {
                 Đồng ý
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {selectedAuditReport && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setSelectedAuditReport(null)}
+          />
+          <div className="relative w-full max-w-[860px] animate-in zoom-in-95 duration-200">
+            <ReportAuditTimeline
+              reportId={selectedAuditReport.id}
+              variant="business"
+              className="max-h-[78vh]"
+              onClose={() => setSelectedAuditReport(null)}
+            />
           </div>
         </div>
       )}
